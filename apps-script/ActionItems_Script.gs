@@ -233,6 +233,7 @@ function doGet(e) {
 function doPost(e) {
   let req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request' }); }
+  if (req.action === 'siriAdd') { try { return json_(siriAdd_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message, error: err.message }); } }   // own key, no password
   if (req.action === 'forgot') { try { forgotPassword_(req.username); } catch (e) { console.error(e); } return json_({ ok: true }); }   // no sign-in needed; never reveals if the user exists
   const who = authenticate_(req.username, req.password);
   if (who.err) return json_({ ok: false, auth: true, error: who.err });
@@ -255,6 +256,8 @@ function doPost(e) {
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
+      case 'getSiri': return json_({ ok: true, key: siriKey_(false) });
+      case 'resetSiri': return json_({ ok: true, key: siriKey_(true) });
       case 'notifyStatus': return json_(Object.assign({ ok: true }, notifyStatus_()));
       case 'updateAccount': return json_(Object.assign({ ok: true }, updateOwnerAccount_(req)));
       case 'getGuests': return json_({ ok: true, guests: guests_().map(publicGuest_) });
@@ -863,6 +866,65 @@ function saveAreas_(req) {
   return Object.assign({ moved: changed }, readAll_());
 }
 
+
+/* =====================================================================
+ *  Siri / iPhone Shortcuts: add an item by voice.
+ *  The shortcut POSTs {action:'siriAdd', key, text, area} — it uses its own key, never your password.
+ * ===================================================================== */
+function siriKey_(reset) {
+  const P = PropertiesService.getScriptProperties();
+  let k = P.getProperty('SIRI_KEY');
+  if (!k || reset) { k = 'sk_' + Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8); P.setProperty('SIRI_KEY', k); }
+  return k;
+}
+const SIRI_HE_ = { 'בית': 'Home', 'עבודה': 'Work', 'אישי': 'Personal', 'תואר שני': 'M.Sc', 'תואר': 'M.Sc', 'מילואים': 'Reserve Duty', 'משפחה': 'Family', 'כספים': 'Finance', 'בריאות': 'Health' };
+const SIRI_HINTS_ = {
+  'Work': 'work report forecast budget capex opex cogs aop sap closing quarter audit invoice meeting presentation excel kpi manager ezra עבודה דוח דו"ח תחזית תקציב ישיבה פגישה מצגת סגירה רבעון ספק לקוח חשבונית פחת עלויות הכנסות מנהל עזרא',
+  'Home': 'home house buy groceries shopping clean laundry fix repair plumber electrician bill garden kitchen neta בית קניות סופר לקנות לנקות ניקיון כביסה לתקן תיקון דוד אינסטלטור חשמלאי ארנונה חשבון מים חשמל גז גינה מטבח מקלחת נטע',
+  'Personal': 'car insurance license haircut passport hobby book personal רכב ביטוח רישיון תספורת דרכון תחביב ספר אישי טסט מוסך',
+  'M.Sc': 'thesis paper course exam lecture homework seminar advisor university research תזה מאמר קורס מבחן הרצאה תרגיל סמינר מנחה אוניברסיטה מחקר תואר',
+  'Reserve Duty': 'reserve army base מילואים צו יחידה בסיס צבא',
+  'Family': 'kids parents mom dad birthday family school ילדים הורים אמא אבא יומולדת משפחה ביקור גן סבתא סבא',
+  'Finance': 'bank invest savings pension tax mortgage loan salary בנק להשקיע השקעה חיסכון פנסיה מס משכנתא הלוואה מניות משכורת תלוש',
+  'Health': 'doctor dentist clinic appointment gym medicine pharmacy רופא רופאה שיניים קופת מרפאה תור אימון תרופה בדיקה'
+};
+function siriAdd_(req) {
+  const key = PropertiesService.getScriptProperties().getProperty('SIRI_KEY') || '';
+  if (!key || String(req.key || '') !== key) return { ok: false, message: 'המפתח של סירי לא נכון — העתק אותו שוב מהאפליקציה (☰ › סירי).' };
+  const cache = CacheService.getScriptCache(), n = Number(cache.get('siri_n') || 0);
+  if (n >= 60) return { ok: false, message: 'יותר מדי משימות בשעה האחרונה — נסה שוב מאוחר יותר.' };
+  cache.put('siri_n', String(n + 1), 3600);
+  let text = String(req.text || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (!text) return { ok: false, message: 'לא נאמרה משימה.' };
+  const all = readAll_(), areas = all.areas || [];
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), fmt = (d) => Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+  // date words: today / tomorrow / the day after tomorrow (anything else → no date → Notebook)
+  let due = '';
+  const rules = [[/(^|\s)(מחרתיים|the day after tomorrow)(?=\s|$)/i, 2], [/(^|\s)(מחר|tomorrow)(?=\s|$)/i, 1], [/(^|\s)(היום|today)(?=\s|$)/i, 0]];
+  for (const [re, add] of rules) { if (re.test(text)) { due = fmt(new Date(Date.now() + add * 86400000)); text = text.replace(re, ' ').replace(/\s+/g, ' ').trim(); break; } }
+  // area: as chosen in the shortcut (English or Hebrew name), otherwise guessed from the words
+  const norm = (x) => String(x || '').trim().toLowerCase();
+  let area = '', a = norm(req.area);
+  if (a && a !== 'auto' && a !== 'אוטומטי') {
+    area = areas.find(x => norm(x) === a) || (SIRI_HE_[String(req.area).trim()] && areas.indexOf(SIRI_HE_[String(req.area).trim()]) >= 0 ? SIRI_HE_[String(req.area).trim()] : '');
+  }
+  if (!area) {
+    const hints = areaHints_(), w = norm(text).replace(/["'׳״.,!?]/g, ' ').split(/\s+/).filter(x => x.length > 1);
+    let best = '', score = 0;
+    areas.forEach(ar => {
+      const he = Object.keys(SIRI_HE_).filter(k => SIRI_HE_[k] === ar).join(' ');
+      const bag = (String(SIRI_HINTS_[ar] || '') + ' ' + String(hints[ar] || '') + ' ' + ar + ' ' + he).toLowerCase().replace(/,/g, ' ').split(/\s+/);
+      const sc = w.filter(x => bag.some(b => b && (b === x || (x.length > 3 && b.length > 3 && (x.indexOf(b) === 0 || b.indexOf(x) === 0))))).length;
+      if (sc > score) { score = sc; best = ar; }
+    });
+    area = best || areas[0] || 'Home';
+  }
+  const heName = Object.keys(SIRI_HE_).find(k => SIRI_HE_[k] === area) || area;
+  const when = due ? (due === fmt(new Date()) ? ' להיום' : ' ל-' + due.slice(8) + '/' + due.slice(5, 7)) : ' (בפנקס)';
+  if (req.dry) return { ok: true, dry: true, message: 'יתווסף: ' + text + ' — ' + heName + when, item: text, area: area, due: due };
+  const row = withLock_(() => saveItem_({ item: text, area: area, status: 'Not started', due: due, focal: 'Me' }));
+  return { ok: true, row: row, message: 'נוסף: ' + text + ' — ' + heName + when };
+}
 
 /* ---------- "forgot password" requests (owner sends the password himself, e.g. on WhatsApp) ---------- */
 function pwRequests_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('PW_REQUESTS') || '[]'); } catch (e) { return []; } }

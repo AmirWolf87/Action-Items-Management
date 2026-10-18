@@ -696,6 +696,7 @@ function demoApi(method, body) {
   if (body.action === 'delete') { demoItems = demoItems.filter(x => x.row !== body.row); return Promise.resolve({ ok: true }); }
   if (body.action === 'getNotify') return Promise.resolve({ ok: true, config: demoNotify || { topic: 'ai-demo-topic', rules: [], detail: 'titles' }, triggerOn: !!demoNotify, email: 'you@example.com' });
   if (body.action === 'saveNotify') { demoNotify = body.config; return Promise.resolve({ ok: true, config: demoNotify, triggerOn: true }); }
+  if (body.action === 'getSiri' || body.action === 'resetSiri') return Promise.resolve({ ok: true, key: 'sk_demo' });
   if (body.action === 'notifyStatus') return Promise.resolve({ ok: true, triggerOn: !!demoNotify, lastTick: demoNotify ? new Date().toISOString() : '', log: [] });
   if (body.action === 'testNotify') return Promise.resolve({ ok: true, sent: true, title: '[Test] ' + body.rule.area + ' · today', message: '(demo — nothing was sent)' });
   return Promise.resolve({ ok: false, error: 'Unknown' });
@@ -1238,6 +1239,59 @@ $('#ordSave').addEventListener('click', async () => {
   finally { $('#ordSave').disabled = false; }
 });
 
+/* ---------- 🎙 Siri / iPhone Shortcuts ---------- */
+let siriKey = '';
+async function openSiri() {
+  const box = $('#siriBody'); $('#dlgSiri').showModal();
+  if (settings.demo) { box.innerHTML = `<p class="hint">${L('Connect your sheet first — Siri adds items straight into it.', 'חבר קודם את הגיליון — סירי מוסיפה משימות ישירות אליו.')}</p>`; return; }
+  box.innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
+  try { siriKey = (await api('POST', { action: 'getSiri' })).key; }
+  catch (e) { box.innerHTML = `<p class="hint">${esc(/Unknown action/i.test(e.message) ? L('Paste the new ActionItems_Script.gs into Apps Script and deploy a new version first.', 'קודם הדבק את ActionItems_Script.gs החדש ב-Apps Script ופרסם גרסה חדשה (New version).') : e.message)}</p>`; return; }
+  const areaNames = [L('auto', 'אוטומטי')].concat(data.areas.map(a => tr(a)));
+  const H = isHe();
+  const step = (n, t) => `<li><b>${n}</b> ${t}</li>`;
+  box.innerHTML = `
+    <p class="hint">${L('Say “Hey Siri, new task”, dictate it, and it lands in your list. Items with no date go to the 📒 Notebook; “today” / “tomorrow” set the date. The area is the one you pick in the shortcut, or guessed from the words.',
+      'אומרים "היי סירי, משימה חדשה", מכתיבים, והמשימה נכנסת לרשימה. משימה בלי תאריך נכנסת ל📒 פנקס; "היום" / "מחר" / "מחרתיים" קובעים תאריך. התחום — מה שבוחרים בקיצור, או ניחוש לפי המילים.')}</p>
+    <div class="siri-keys">
+      <label>${L('1 · Web-app URL', '1 · כתובת ה-Web app')}<div class="pw-row"><input readonly dir="ltr" value="${esc(settings.url)}"><button type="button" class="btn ghost" data-copy="${esc(settings.url)}">${L('Copy', 'העתקה')}</button></div></label>
+      <label>${L('2 · Siri key (instead of your password)', '2 · מפתח סירי (במקום הסיסמה שלך)')}<div class="pw-row"><input readonly dir="ltr" id="siriKey" value="${esc(siriKey)}"><button type="button" class="btn ghost" data-copy-key>${L('Copy', 'העתקה')}</button><button type="button" class="btn ghost" id="siriReset">${L('New key', 'מפתח חדש')}</button></div></label>
+      <label>${L('3 · Area list for the menu (optional)', '3 · רשימת תחומים לתפריט (רשות)')}<div class="pw-row"><input readonly value="${esc(areaNames.join(', '))}"><button type="button" class="btn ghost" data-copy="${esc(areaNames.join('\n'))}">${L('Copy', 'העתקה')}</button></div></label>
+    </div>
+    <h3 class="nt-h">${L('Create the shortcut on the iPhone (once, ~3 min)', 'יצירת הקיצור באייפון (פעם אחת, כ-3 דקות)')}</h3>
+    <ol class="siri-steps">
+      ${step('', L('Open the <b>Shortcuts</b> app › <b>＋</b> (new shortcut).', 'פתח את אפליקציית <b>קיצורים</b> (Shortcuts) › <b>＋</b>.'))}
+      ${step('', L('Add action <b>Ask for Input</b> — type Text, question: “What\'s the task?”.', 'הוסף פעולה <b>בקש קלט</b> (Ask for Input) — סוג: טקסט, שאלה: "מה המשימה?".'))}
+      ${step('', L('<i>Optional – choose the area by voice:</i> add <b>List</b>, paste the area list (item 3 above, one per line), then add <b>Choose from List</b>.', '<i>רשות – בחירת תחום:</i> הוסף <b>רשימה</b> (List) והדבק את רשימת התחומים (סעיף 3, שורה לכל תחום), ואחריה <b>בחר מתוך רשימה</b> (Choose from List).'))}
+      <li>${L('Add <b>Get Contents of URL</b> and paste the URL (item 1). Tap <b>▸ / Show More</b>: Method <b>POST</b>, Request Body <b>JSON</b>, and add 4 Text fields:', 'הוסף <b>קבל תוכן של URL</b> (Get Contents of URL) והדבק את הכתובת (סעיף 1). לחץ <b>▸ / הצג עוד</b>: שיטה <b>POST</b>, גוף הבקשה <b>JSON</b>, והוסף 4 שדות מסוג טקסט:')}
+      <div class="siri-fields"><code>action</code> = <code>siriAdd</code><br><code>key</code> = ${L('your Siri key (item 2)', 'מפתח סירי (סעיף 2)')}<br><code>text</code> = ${L('the variable <b>Provided Input</b>', 'המשתנה <b>קלט שסופק</b> (Provided Input)')}<br><code>area</code> = ${L('the variable <b>Chosen Item</b> — or just type <code>auto</code>', 'המשתנה <b>פריט שנבחר</b> (Chosen Item) — או פשוט הקלד <code>auto</code>')}</div></li>
+      ${step('', L('Add <b>Get Dictionary Value</b> › key <code>message</code>, then <b>Speak Text</b> (or <b>Show Result</b>).', 'הוסף <b>קבל ערך ממילון</b> (Get Dictionary Value) › מפתח <code>message</code>, ואחריו <b>הקרא טקסט</b> (Speak Text) או <b>הצג תוצאה</b>.'))}
+      ${step('', L('Name the shortcut <b>New task</b>. Now say: “Hey Siri, New task”.', 'קרא לקיצור <b>משימה חדשה</b>. עכשיו אומרים: "היי סירי, משימה חדשה".'))}
+    </ol>
+    <h3 class="nt-h">${L('Try a sentence (nothing is saved)', 'נסה משפט (לא נשמר כלום)')}</h3>
+    <div class="pw-row"><input id="siriTry" dir="auto" placeholder="${esc(L('e.g. buy light bulbs tomorrow', 'למשל: לקנות נורות מחר'))}"><button type="button" class="btn primary" id="siriTest">${L('Check', 'בדיקה')}</button></div>
+    <p class="hint" id="siriOut"></p>
+    <p class="hint">${L('Anyone with the key can add items (not read them). If it leaks, press “New key” and update the shortcut.', 'מי שיש לו את המפתח יכול רק להוסיף משימות (לא לקרוא). אם הוא דלף — לחץ "מפתח חדש" ועדכן את הקיצור.')}</p>`;
+}
+$('#siriBody').addEventListener('click', async (e) => {
+  const c = e.target.closest('[data-copy],[data-copy-key]');
+  if (c) { const v = c.hasAttribute('data-copy-key') ? siriKey : c.dataset.copy; try { await navigator.clipboard.writeText(v); toast(L('Copied', 'הועתק')); } catch (err) { toast(v); } return; }
+  if (e.target.id === 'siriReset') {
+    if (!await confirmBox(L('New Siri key?', 'מפתח סירי חדש?'), L('The old key stops working — you\'ll need to paste the new one into the shortcut.', 'המפתח הישן יפסיק לעבוד — תצטרך להדביק את החדש בקיצור.'), L('New key', 'מפתח חדש'), L('Cancel', 'ביטול'))) return;
+    try { siriKey = (await api('POST', { action: 'resetSiri' })).key; $('#siriKey').value = siriKey; toast(L('New key created', 'נוצר מפתח חדש')); } catch (err) { toast(err.message); }
+    return;
+  }
+  if (e.target.id === 'siriTest') {
+    const text = $('#siriTry').value.trim(); if (!text) return;
+    $('#siriOut').textContent = tr('Loading…');
+    try {
+      const r = await fetch(settings.url, { method: 'POST', body: JSON.stringify({ action: 'siriAdd', key: siriKey, text, area: 'auto', dry: true }) });
+      const j = await r.json(); $('#siriOut').textContent = (j.ok ? '✓ ' : '✕ ') + (j.message || j.error || '');
+    } catch (err) { $('#siriOut').textContent = err.message; }
+  }
+});
+$('#btnSiri').addEventListener('click', openSiri);
+
 /* ---------- statistics ---------- */
 async function openStats() {
   $('#dlgStats').showModal(); $('#statsBody').innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
@@ -1645,7 +1699,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 28;
+const APP_VERSION = 29;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
