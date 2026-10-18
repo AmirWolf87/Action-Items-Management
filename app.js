@@ -1406,9 +1406,10 @@ $('#frmGuest').elements.namedItem('guser').addEventListener('input', (e) => { e.
 /* ---------- WhatsApp: send a guest's login (you press Send yourself) ---------- */
 function waPhone(p) { let d = String(p || '').replace(/[^\d+]/g, ''); if (!d) return ''; if (d.startsWith('+')) return d.slice(1); if (d.startsWith('00')) return d.slice(2); if (d.startsWith('0')) return '972' + d.slice(1); return d; }
 function waLink(g) {
+  const conn = settings.url || '';
   const text = isHe()
-    ? `היי ${g.name}, פרטי הכניסה שלך לרשימת המשימות:\nשם משתמש: ${g.user}\nסיסמה: ${g.pw}\n${inviteLink(g.user)}`
-    : `Hi ${g.name}, your login for my Action Items list:\nUsername: ${g.user}\nPassword: ${g.pw}\n${inviteLink(g.user)}`;
+    ? `היי ${g.name} 👋\nפרטי הכניסה שלך לרשימת המשימות:\n\n👤 שם משתמש: ${g.user}\n🔑 סיסמה: ${g.pw}\n\n📲 *כניסה ראשונה (פעם אחת בלבד):*\n1. פתח/י את האפליקציה:\n${appBase()}\n2. בחלון הכניסה יש שדה בשם *"כתובת ה-Web app (בפעם הראשונה במכשיר)"* — העתק/י לתוכו את הקישור הבא:\n${conn}\n3. הקלד/י שם משתמש וסיסמה ולחץ/י *כניסה*.\n\nמהפעם הבאה מספיקים שם משתמש וסיסמה.`
+    : `Hi ${g.name} 👋\nYour login for my Action Items list:\n\n👤 Username: ${g.user}\n🔑 Password: ${g.pw}\n\n📲 *First sign-in (one time only):*\n1. Open the app:\n${appBase()}\n2. On the sign-in screen there is a field called *"Web-app URL (first time on this device)"* — paste this link into it:\n${conn}\n3. Enter your username and password and tap *Unlock*.\n\nAfter that, only the username and password are needed.`;
   const ph = waPhone(g.phone);
   return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
 }
