@@ -42,7 +42,7 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const addMonths = (d, n) => { const x = new Date(d.getFullYear(), d.getMonth() + n, 1); const last = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate(); x.setDate(Math.min(d.getDate(), last)); return x; };
 const today = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
 const dayDiff = (a, b) => Math.round((a - b) / 86400000);
-const fmt = (s, withDay) => { const d = parse(s); if (!d) return ''; return (withDay ? d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' ' : '') + `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; };
+const fmt = (s, withDay) => { const d = parse(s); if (!d) return ''; return (withDay ? d.toLocaleDateString(locale(), { weekday: 'short' }) + ' ' : '') + `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; };
 const weekStart = (d) => addDays(d, -d.getDay()); // Sunday
 
 const isClosed = (it) => it.status === 'Done' || it.status === 'Cancelled';
@@ -91,14 +91,14 @@ async function api(method, body) {
 function setSync(text) { $('#sync').textContent = text ? '· ' + text : ''; }
 async function load(quiet) {
   if (!settings.demo && (!settings.url || !password)) { showLock(); return false; }
-  setSync('syncing…');
+  setSync(L('syncing…', 'מסנכרן…'));
   try {
     const j = await api('GET');
     applyList(j);
-    setSync('synced ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+    setSync(L('synced ', 'סונכרן ') + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {
     if (e.auth) { lockApp(e.message); return false; }
-    setSync('offline');
+    setSync(L('offline', 'לא מחובר'));
     if (!quiet) toast(e.message);
     render(); return false;
   }
@@ -121,13 +121,13 @@ let histBusy = false;
 async function undo() {
   if (histBusy || !hist.undo.length) return; histBusy = true;
   const h = hist.undo.pop();
-  if (await applyState(h.a, h.b)) { hist.redo.push(h); toast('↶ Undone' + (h.b ? ': ' + h.b.item : '')); } else hist.undo.push(h);
+  if (await applyState(h.a, h.b)) { hist.redo.push(h); toast(L('↶ Undone', '↶ בוטל') + (h.b ? ': ' + h.b.item : '')); } else hist.undo.push(h);
   histBusy = false; render();
 }
 async function redo() {
   if (histBusy || !hist.redo.length) return; histBusy = true;
   const h = hist.redo.pop();
-  if (await applyState(h.b, h.a)) { hist.undo.push(h); toast('↷ Redone' + (h.a ? ': ' + h.a.item : '')); } else hist.redo.push(h);
+  if (await applyState(h.b, h.a)) { hist.undo.push(h); toast(L('↷ Redone', '↷ שוחזר') + (h.a ? ': ' + h.a.item : '')); } else hist.redo.push(h);
   histBusy = false; render();
 }
 document.addEventListener('keydown', (e) => {
@@ -179,12 +179,13 @@ async function toggleDone(it) {
     copy.due = iso(nd); copy.status = 'Not started';
     const plan = parseFloat(it.hrs);
     if (h !== '' && plan && Math.abs(h - plan) > 1) {
-      const upd = await confirmBox('Update the plan?',
-        `This took you ${h} h, but "${it.item}" is planned for ${plan} h.\n\nPlan ${h} h for the next time (${fmt(copy.due, true)})?`,
-        `Plan ${h} h`, `Keep ${plan} h`);
+      const upd = await confirmBox(tr('Update the plan?'),
+        L(`This took you ${h} h, but "${it.item}" is planned for ${plan} h.\n\nPlan ${h} h for the next time (${fmt(copy.due, true)})?`,
+          `זה לקח לך ${h} שע׳, אבל "${it.item}" מתוכנן ל-${plan} שע׳.\n\nלתכנן ${h} שע׳ לפעם הבאה (${fmt(copy.due, true)})?`),
+        L(`Plan ${h} h`, `תכנן ${h} שע׳`), L(`Keep ${plan} h`, `השאר ${plan} שע׳`));
       if (upd) copy.hrs = String(h);
     }
-    if (await save(copy)) toast(`Done ✓  Next: ${fmt(copy.due, true)}`);
+    if (await save(copy)) toast(L(`Done ✓  Next: ${fmt(copy.due, true)}`, `בוצע ✓  הבא: ${fmt(copy.due, true)}`));
   } else {
     copy.status = 'Done'; copy.done = iso(today());
     if (await save(copy)) toast('Done ✓');
@@ -195,9 +196,9 @@ async function toggleDone(it) {
 function askHours(it) {
   return new Promise(resolve => {
     const d = $('#dlgHours'), f = $('#frmHours'), inp = f.elements.namedItem('h');
-    $('#hoursTitle').textContent = `"${it.item}"` + (parseFloat(it.hrs) ? ` — planned ${it.hrs} h` : '');
+    $('#hoursTitle').textContent = `"${it.item}"` + (parseFloat(it.hrs) ? L(` — planned ${it.hrs} h`, ` — תוכנן ${it.hrs} שע׳`) : '');
     inp.value = it.hrs || '';
-    $('#hoursQuick').innerHTML = [0.25, 0.5, 1, 1.5, 2, 3, 4, 8].map(v => `<button type="button" data-h="${v}">${v} h</button>`).join('');
+    $('#hoursQuick').innerHTML = [0.25, 0.5, 1, 1.5, 2, 3, 4, 8].map(v => `<button type="button" data-h="${v}">${v} ${L('h', 'שע׳')}</button>`).join('');
     let done = false; const finish = (v) => { if (done) return; done = true; if (d.open) d.close(); resolve(v); };
     $('#hoursQuick').onclick = (e) => { const b = e.target.closest('[data-h]'); if (b) inp.value = b.dataset.h; };
     f.onsubmit = (e) => { e.preventDefault(); const v = parseFloat(inp.value); finish(isNaN(v) ? '' : v); };
@@ -230,11 +231,11 @@ function lastActual(it, editing) {
 /* ---------- rendering ---------- */
 function pill(text, colors) { const c = colors || ['#F3F4F6', '#374151']; return `<span class="pill" style="background:${c[0]};color:${c[1]}">${esc(text)}</span>`; }
 function dueLabel(it) {
-  if (isClosed(it)) return it.done ? `<span>Done ${fmt(it.done)}</span>` : '';
+  if (isClosed(it)) return it.done ? `<span>${L('Done', 'בוצע')} ${fmt(it.done)}</span>` : '';
   const d = parse(it.due); if (!d) return '<span>No date</span>';
   const n = dayDiff(d, today());
   const cls = n < 0 ? 'late' : n <= 3 ? 'soon' : 'ok';
-  const txt = n < 0 ? `${-n}d late` : n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : `in ${n}d`;
+  const txt = n < 0 ? L(`${-n}d late`, `באיחור ${-n} ימ׳`) : n === 0 ? L('Today', 'היום') : n === 1 ? L('Tomorrow', 'מחר') : L(`in ${n}d`, `בעוד ${n} ימ׳`);
   return `<span class="due ${cls}">${txt}</span><span>${fmt(it.due, true)}</span>`;
 }
 function card(it) {
@@ -264,11 +265,11 @@ function filtered() {
 function render() {
   document.body.classList.toggle('guest', isGuest());
   $('#guestBar').hidden = !isGuest();
-  if (isGuest()) $('#guestBar').textContent = `👀 Viewing as ${me.name} · read-only` + (me.canSuggest ? ' · tap ＋ to suggest an item' : '');
+  if (isGuest()) $('#guestBar').textContent = L(`👀 Viewing as ${me.name} · read-only`, `👀 צפייה בתור ${me.name} · קריאה בלבד`) + (me.canSuggest ? L(' · tap ＋ to suggest an item', ' · לחץ ＋ כדי להציע משימה') : '');
   $('#fab').classList.toggle('can-suggest', isGuest() && me.canSuggest);
   $('#btnPending').hidden = isGuest() || !pending.length;
   $('#pendingBadge').textContent = pending.length || '';
-  $('#today').textContent = today().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('#today').textContent = today().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
   const open = data.items.filter(it => !isClosed(it));
   const cnt = (h) => open.filter(it => horizon(it) === h).length;
   const ws = weekStart(today());
@@ -310,7 +311,7 @@ function group(title, arr, cls) {
 /* ---------- edit dialog ---------- */
 const dlgEdit = $('#dlgEdit'), frm = $('#frmEdit');
 const F = (k) => frm.elements.namedItem(k);
-function fillSelect(sel, opts, blank) { sel.innerHTML = (blank ? '<option value=""></option>' : '') + opts.map(o => `<option>${esc(o)}</option>`).join(''); }
+function fillSelect(sel, opts, blank) { sel.innerHTML = (blank ? '<option value=""></option>' : '') + opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join(''); }
 let editing = null;
 function openEdit(it) {
   editing = it || null;
@@ -319,14 +320,14 @@ function openEdit(it) {
   const v = it || { status: 'Not started', area: ui.area !== 'All' ? ui.area : 'Work', prio: '2 - Medium', rec: 'None', focal: 'Me', due: iso(today()) };
   ['item', 'status', 'area', 'prio', 'due', 'time', 'topic', 'focal', 'rec', 'hrs', 'done', 'acthrs', 'com'].forEach(k => {
     const el = F(k);
-    if (el.tagName === 'SELECT' && v[k] && ![...el.options].some(o => o.value === v[k])) el.insertAdjacentHTML('beforeend', `<option>${esc(v[k])}</option>`);
+    if (el.tagName === 'SELECT' && v[k] && ![...el.options].some(o => o.value === v[k])) el.insertAdjacentHTML('beforeend', `<option value="${esc(v[k])}">${esc(v[k])}</option>`);
     el.value = v[k] ?? '';
   });
   F('private').checked = !!v.private;
   const ro = isGuest();
   [...frm.elements].forEach(el => { if (el.name) el.disabled = ro; });
   frm.querySelector('button[type=submit]').style.display = ro ? 'none' : '';
-  $('#editTitle').textContent = ro ? 'Action item' : it ? 'Edit action item' : 'New action item';
+  $('#editTitle').textContent = tr(ro ? 'Action item' : it ? 'Edit action item' : 'New action item');
   $('#btnDelete').style.display = it && !ro ? '' : 'none';
   updateHint();
   dlgEdit.showModal();
@@ -350,9 +351,10 @@ frm.addEventListener('submit', async (e) => {
   if (plan && changed && !isClosed(it)) {
     const ref = lastActual(it, editing);
     if (ref && Math.abs(plan - ref.h) > 1) {
-      const ok = await confirmBox('Check your estimate',
-        `Last time "${ref.title}" took you ${ref.h} h, but now you plan ${plan} h.\n\nApprove ${plan} h?`,
-        `Approve ${plan} h`, `Use ${ref.h} h`);
+      const ok = await confirmBox(tr('Check your estimate'),
+        L(`Last time "${ref.title}" took you ${ref.h} h, but now you plan ${plan} h.\n\nApprove ${plan} h?`,
+          `בפעם הקודמת "${ref.title}" לקח לך ${ref.h} שע׳, אבל עכשיו אתה מתכנן ${plan} שע׳.\n\nלאשר ${plan} שע׳?`),
+        L(`Approve ${plan} h`, `אשר ${plan} שע׳`), L(`Use ${ref.h} h`, `השתמש ב-${ref.h} שע׳`));
       if (!ok) it.hrs = String(ref.h);
     }
   }
@@ -500,9 +502,9 @@ $('#repCopy').addEventListener('click', async () => {
   }
   const btn = $('#repCopy');
   if (ok) {
-    btn.textContent = '✓ Copied! Now paste in Outlook (Ctrl+V)'; btn.classList.add('copied');
-    $('#repStatus').textContent = '✓ The formatted email is on your clipboard. Open Outlook › click in the message body › Ctrl+V.';
-    clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = '📋 Copy formatted email'; btn.classList.remove('copied'); }, 4000);
+    btn.textContent = L('✓ Copied! Now paste in Outlook (Ctrl+V)', '✓ הועתק! עכשיו הדבק ב-Outlook (Ctrl+V)'); btn.classList.add('copied');
+    $('#repStatus').textContent = L('✓ The formatted email is on your clipboard. Open Outlook › click in the message body › Ctrl+V.', '✓ המייל המעוצב הועתק. פתח את Outlook › לחץ בגוף ההודעה › Ctrl+V.');
+    clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = tr('📋 Copy formatted email'); btn.classList.remove('copied'); }, 4000);
     toast('Copied ✓');
   } else {
     $('#repStatus').textContent = 'Your browser blocked automatic copying. The email below is selected — press Ctrl+C (phone: tap Copy), then paste in Outlook.';
@@ -516,6 +518,7 @@ $('#repCopy').addEventListener('click', async () => {
 document.addEventListener('click', (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) { t.closest('dialog').close(); return; }
+  if (t.closest('[data-lang-toggle]')) { setLang(isHe() ? 'en' : 'he'); return; }
   const mv = t.closest('[data-mv]');
   if (mv) { e.stopPropagation(); moveDay(mv.dataset.r, +mv.dataset.mv); return; }
   const wk = t.closest('[data-wk]');
@@ -601,19 +604,19 @@ function wiHtml(it, overdue) {
   return `<div class="wi" data-row="${it.row}" style="border-inline-start-color:${c[1]}">
     <span class="tm">${esc(it.time || '')}</span>
     <span class="t" dir="auto" title="${esc(it.item)}">${esc(it.item)}</span>
-    <span class="tm">${h ? h + 'h' : ''}${overdue ? ' · ' + fmt(it.due) : ''}</span>
-    <button class="mv" data-mv="-1" data-r="${it.row}" aria-label="Previous day" ${overdue ? 'hidden' : ''}>‹</button>
-    <button class="mv" data-mv="1" data-r="${it.row}" aria-label="${overdue ? 'Move to today' : 'Next day'}">›</button></div>`;
+    <span class="tm">${h ? h + L('h', ' שע׳') : ''}${overdue ? ' · ' + fmt(it.due) : ''}</span>
+    <button class="mv" data-mv="-1" data-r="${it.row}" aria-label="${L('Previous day', 'יום קודם')}" ${overdue ? 'hidden' : ''}>${L('‹', '›')}</button>
+    <button class="mv" data-mv="1" data-r="${it.row}" aria-label="${overdue ? L('Move to today', 'העבר להיום') : L('Next day', 'יום הבא')}">${L('›', '‹')}</button></div>`;
 }
 function renderWeek(items) {
   const ws = addDays(weekStart(today()), 7 * weekOff);
   const open = items.filter(it => !isClosed(it));
-  let html = `<div class="week-head"><button class="nav" data-wk="-1" aria-label="Previous week">◀</button>
-    <div class="range">${weekOff === 0 ? 'This week' : weekOff === 1 ? 'Next week' : 'Week'} · ${weekRange(ws)}</div>
-    <button class="nav" data-wk="1" aria-label="Next week">▶</button></div>
+  let html = `<div class="week-head"><button class="nav" data-wk="-1" aria-label="${L('Previous week', 'שבוע קודם')}">${L('◀', '▶')}</button>
+    <div class="range">${tr(weekOff === 0 ? 'This week' : weekOff === 1 ? 'Next week' : 'Week')} · ${weekRange(ws)}</div>
+    <button class="nav" data-wk="1" aria-label="${L('Next week', 'שבוע הבא')}">${L('▶', '◀')}</button></div>
     <div class="week-tools">
-      <button class="chip hist" data-undo ${hist.undo.length ? '' : 'disabled'} title="Undo (Ctrl+Z)">↶ Undo${hist.undo.length ? ' (' + hist.undo.length + ')' : ''}</button>
-      <button class="chip hist" data-redo ${hist.redo.length ? '' : 'disabled'} title="Redo (Ctrl+Y)">↷ Redo${hist.redo.length ? ' (' + hist.redo.length + ')' : ''}</button>
+      <button class="chip hist" data-undo ${hist.undo.length ? '' : 'disabled'} title="Undo (Ctrl+Z)">${L('↶ Undo', '↶ ביטול')}${hist.undo.length ? ' (' + hist.undo.length + ')' : ''}</button>
+      <button class="chip hist" data-redo ${hist.redo.length ? '' : 'disabled'} title="Redo (Ctrl+Y)">${L('↷ Redo', '↷ חזרה')}${hist.redo.length ? ' (' + hist.redo.length + ')' : ''}</button>
       <span class="grow"></span>
       ${weekOff !== 0 ? '<button class="chip" data-wk="0">This week</button>' : ''}<button class="btn link" data-ics>📅 Export to Outlook</button></div>
     <p class="saved-note">Changes save to your sheet automatically · Undo reverses them</p><div class="week-grid">`;
@@ -624,7 +627,7 @@ function renderWeek(items) {
     const d = addDays(ws, i), key = iso(d);
     const its = open.filter(it => it.due === key).sort(byTime);
     const hrs = its.reduce((s0, it) => s0 + (parseFloat(it.hrs) || 0), 0);
-    html += `<div class="day ${+d === +t ? 'today' : ''}"><h4><b>${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}${+d === +t ? ' · Today' : ''}</b><span>${hrs ? hrs + 'h' : ''}</span></h4>
+    html += `<div class="day ${+d === +t ? 'today' : ''}"><h4><b>${d.toLocaleDateString(locale(), { weekday: 'short' })} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}${+d === +t ? ' · ' + tr('Today') : ''}</b><span>${hrs ? hrs + L('h', ' שע׳') : ''}</span></h4>
       ${its.length ? its.map(it => wiHtml(it, false)).join('') : '<div class="empty-day">—</div>'}</div>`;
   }
   return html + '</div>';
@@ -634,7 +637,7 @@ async function moveDay(row, delta) {
   const d = parse(it.due), t = today();
   const nd = (!d || d < t) ? t : addDays(d, delta);
   const copy = Object.assign({}, it, { due: iso(nd) });
-  if (await save(copy)) toast(`Moved to ${fmt(copy.due, true)}`);
+  if (await save(copy)) toast(L(`Moved to ${fmt(copy.due, true)}`, `הועבר ל-${fmt(copy.due, true)}`));
 }
 
 /* ---------- Outlook calendar (.ics) ---------- */
@@ -646,13 +649,13 @@ function icsWeekItems() {
 function openIcs() {
   if (!icsSel) icsSel = store.get('ai.icsAreas', null) || (ui.area !== 'All' ? [ui.area] : data.areas.slice());
   const ws = addDays(weekStart(today()), 7 * weekOff);
-  $('#icsRange').textContent = 'Week ' + weekRange(ws) + ' — open items with a due date in this week.';
+  $('#icsRange').textContent = L(`Week ${weekRange(ws)} — open items with a due date in this week.`, `שבוע ${weekRange(ws)} — משימות פתוחות עם תאריך יעד בשבוע הזה.`);
   refreshIcs(); $('#dlgIcs').showModal();
 }
 function refreshIcs() {
   $('#icsAreas').innerHTML = data.areas.map(a => `<button type="button" class="chip ${icsSel.indexOf(a) >= 0 ? 'on' : ''}" data-iarea="${esc(a)}">${esc(a)}</button>`).join('');
   const n = icsWeekItems().length;
-  $('#icsCount').textContent = n ? `${n} item${n > 1 ? 's' : ''} will be added to your calendar.` : 'No items match — pick other areas or another week.';
+  $('#icsCount').textContent = n ? L(`${n} item${n > 1 ? 's' : ''} will be added to your calendar.`, `${n} משימות יתווספו ללוח השנה.`) : L('No items match — pick other areas or another week.', 'אין משימות מתאימות — בחר תחומים או שבוע אחר.');
 }
 $('#icsAreas').addEventListener('click', (e) => {
   const b = e.target.closest('[data-iarea]'); if (!b) return;
@@ -704,23 +707,23 @@ $('#icsGo').addEventListener('click', () => {
   a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
   a.download = `action-items-week-${iso(ws)}.ics`;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  $('#dlgIcs').close(); toast(`Downloaded ${items.length} item${items.length > 1 ? 's' : ''} — open the file to add them to Outlook`);
+  $('#dlgIcs').close(); toast(L(`Downloaded ${items.length} item${items.length > 1 ? 's' : ''} — open the file to add them to Outlook`, `הורדו ${items.length} משימות — פתח את הקובץ כדי להוסיף ל-Outlook`));
 });
 
 /* ---------- notifications ---------- */
-const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAYS_EN = ['S', 'M', 'T', 'W', 'T', 'F', 'S'], DAYS_HE = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 let ntCfg = null;
 const newRule = (area, time, days) => ({ id: Math.random().toString(36).slice(2, 10), on: true, area, time, days, channel: 'push' });
 function ruleHtml(r) {
   const areas = ['All'].concat(data.areas);
   return `<div class="rule" data-id="${esc(r.id)}">
     <input type="checkbox" class="r-on" ${r.on !== false ? 'checked' : ''} title="On / off">
-    <select class="r-area">${areas.map(a => `<option ${a === r.area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>
+    <select class="r-area">${areas.map(a => `<option value="${esc(a)}" ${a === r.area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>
     <input type="time" class="r-time" value="${esc(r.time)}">
     <select class="r-ch"><option value="push" ${r.channel === 'push' ? 'selected' : ''}>📱 Push</option><option value="email" ${r.channel === 'email' ? 'selected' : ''}>✉ Email</option><option value="both" ${r.channel === 'both' ? 'selected' : ''}>Both</option></select>
     <button type="button" class="btn ghost r-test">Test</button>
     <button type="button" class="icon-btn dark r-del" aria-label="Delete">✕</button>
-    <div class="days">${DAYS.map((d, i) => `<button type="button" data-d="${i}" class="${r.days.indexOf(i) >= 0 ? 'on' : ''}" title="${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i]}">${d}</button>`).join('')}</div>
+    <div class="days">${(isHe() ? DAYS_HE : DAYS_EN).map((d, i) => `<button type="button" data-d="${i}" class="${r.days.indexOf(i) >= 0 ? 'on' : ''}" title="${new Date(2026, 9, 18 + i).toLocaleDateString(locale(), { weekday: 'long' })}">${d}</button>`).join('')}</div>
   </div>`;
 }
 function readRules() {
@@ -740,8 +743,8 @@ async function openNotify() {
     if (fresh) rules = [newRule('Work', '08:30', [0, 1, 2, 3, 4]), newRule('Home', '07:00', [0, 1, 2, 3, 4]), newRule('Home', '08:00', [5, 6])];
     $('#ntTopic').textContent = ntCfg.topic; $('#ntDetail').value = ntCfg.detail || 'titles';
     $('#ntRules').innerHTML = rules.map(ruleHtml).join('');
-    $('#ntStatus').textContent = fresh ? 'Suggested schedules — adjust and press Save.'
-      : (j.triggerOn ? '✓ Notifications are active.' : 'Saved schedules found, but notifications are not switched on yet — press Save.');
+    $('#ntStatus').textContent = fresh ? L('Suggested schedules — adjust and press Save.', 'תזמונים מוצעים — התאם ולחץ שמירה.')
+      : (j.triggerOn ? L('✓ Notifications are active.', '✓ ההתראות פעילות.') : L('Saved schedules found, but notifications are not switched on yet — press Save.', 'נמצאו תזמונים שמורים, אבל ההתראות עוד לא הופעלו — לחץ שמירה.'));
   } catch (e) { $('#ntStatus').textContent = e.message; }
 }
 $('#ntRules').addEventListener('click', async (e) => {
@@ -770,7 +773,7 @@ $('#ntSave').addEventListener('click', async () => {
   try {
     const j = await api('POST', { action: 'saveNotify', config: cfg });
     ntCfg = j.config;
-    $('#ntStatus').textContent = j.triggerOn ? '✓ Saved — notifications are active.' : (j.note || 'Saved.');
+    $('#ntStatus').textContent = j.triggerOn ? L('✓ Saved — notifications are active.', '✓ נשמר — ההתראות פעילות.') : (j.note || tr('Saved'));
     toast('Notification schedules saved');
   } catch (e) { $('#ntStatus').textContent = 'Not saved: ' + e.message; }
 });
@@ -798,7 +801,7 @@ function suggHtml() {
 function openSuggest() {
   const f = $('#frmSuggest');
   f.reset();
-  f.elements.namedItem('area').innerHTML = data.areas.map(a => `<option>${esc(a)}</option>`).join('');
+  f.elements.namedItem('area').innerHTML = data.areas.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
   $('#dlgSuggest').showModal(); setTimeout(() => f.elements.namedItem('item').focus(), 50);
 }
 $('#frmSuggest').addEventListener('submit', async (e) => {
@@ -819,7 +822,7 @@ const inviteLink = () => appBase() + '#join=' + encodeURIComponent(settings.url 
 function renderGuests() {
   $('#guestList').innerHTML = guests.length ? guests.map(g => `<div class="gcard ${g.on === false ? 'off' : ''}" data-gid="${esc(g.id)}">
       <b dir="auto">${esc(g.name)}</b>${(g.areas || []).map(a => pill(a, AREA_C[a])).join('')}
-      <span class="hint" style="margin:0">${g.canSuggest ? '✎ can suggest' : 'view only'}${g.on === false ? ' · access off' : ''}</span>
+      <span class="hint" style="margin:0">${tr(g.canSuggest ? '✎ can suggest' : 'view only')}${g.on === false ? L(' · access off', ' · גישה כבויה') : ''}</span>
       <span class="grow"></span>
       <button type="button" class="btn ghost" data-ginvite>🔗 Invite</button>
       <button type="button" class="btn ghost" data-gedit>Edit</button>
@@ -835,8 +838,8 @@ function resetGuestForm(g) {
   E('gpw').placeholder = g ? 'leave empty to keep the current password' : 'at least 6 characters';
   E('canSuggest').checked = g ? !!g.canSuggest : true; E('on').checked = g ? g.on !== false : true;
   gAreas = g ? (g.areas || []).slice() : ['Home'].filter(a => data.areas.includes(a));
-  $('#guestFormTitle').textContent = g ? `Edit ${g.name}` : 'Add a guest';
-  $('#guestSave').textContent = g ? 'Save changes' : 'Add guest';
+  $('#guestFormTitle').textContent = g ? L(`Edit ${g.name}`, `עריכת ${g.name}`) : tr('Add a guest');
+  $('#guestSave').textContent = tr(g ? 'Save changes' : 'Add guest');
   $('#guestCancel').hidden = !g;
   renderGuestAreas();
 }
@@ -860,7 +863,7 @@ $('#frmGuest').addEventListener('submit', async (e) => {
   try {
     guests = (await api('POST', { action: 'saveGuest', guest: g })).guests || [];
     renderGuests(); resetGuestForm(null);
-    $('#shareStatus').textContent = `✓ Saved. Tap 🔗 Invite next to ${g.name} to copy their link, and send the password separately.`;
+    $('#shareStatus').textContent = L(`✓ Saved. Tap 🔗 Invite next to ${g.name} to copy their link, and send the password separately.`, `✓ נשמר. לחץ 🔗 הזמנה ליד ${g.name} כדי להעתיק את הקישור, ושלח את הסיסמה בהודעה נפרדת.`);
   } catch (err) { $('#shareStatus').textContent = 'Not saved: ' + err.message; }
 });
 $('#guestList').addEventListener('click', async (e) => {
@@ -874,7 +877,8 @@ $('#guestList').addEventListener('click', async (e) => {
   }
   if (e.target.closest('[data-ginvite]')) {
     if (!settings.url) { $('#shareStatus').textContent = 'Connect your sheet first.'; return; }
-    const msg = `Hi ${g.name}, here's my Action Items list (${(g.areas || []).join(', ')}):\n${inviteLink()}\nOpen it, enter the password I'll send you, and you can add it to your home screen.`;
+    const msg = L(`Hi ${g.name}, here's my Action Items list (${(g.areas || []).join(', ')}):\n${inviteLink()}\nOpen it, enter the password I'll send you, and you can add it to your home screen.`,
+      `היי ${g.name}, זו רשימת המשימות שלי (${(g.areas || []).map(tr).join(', ')}):\n${inviteLink()}\nפתח/י את הקישור, הזינ/י את הסיסמה שאשלח לך, ואפשר להוסיף למסך הבית.`);
     try { await navigator.clipboard.writeText(msg); $('#shareStatus').innerText = '✓ Invite copied — paste it into WhatsApp/SMS. Send the password in a separate message:\n\n' + msg; }
     catch (err) { $('#shareStatus').innerText = 'Copy this invite:\n\n' + msg; }
   }
@@ -884,12 +888,12 @@ $('#guestList').addEventListener('click', async (e) => {
 function renderPending() {
   if (!pending.length) { $('#pendingList').innerHTML = '<div class="empty"><b>📭</b>No suggestions waiting.</div>'; return; }
   $('#pendingList').innerHTML = pending.map(p => `<div class="pcard" data-pid="${esc(p.id)}">
-    <div class="who">From <b>${esc(p.from)}</b> · ${fmt(p.submitted, true)}</div>
+    <div class="who">${L('From', 'מאת')} <b>${esc(p.from)}</b> · ${fmt(p.submitted, true)}</div>
     <div class="grid">
       <label>Action item<input class="p-item" value="${esc(p.item)}" dir="auto"></label>
-      <label>Area<select class="p-area">${data.areas.map(a => `<option ${a === p.area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
+      <label>Area<select class="p-area">${data.areas.map(a => `<option value="${esc(a)}" ${a === p.area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
       <label>Due<input type="date" class="p-due" value="${esc(p.due)}"></label>
-      <label>Priority<select class="p-prio">${PRIO.map(x => `<option ${x === p.prio ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+      <label>Priority<select class="p-prio">${PRIO.map(x => `<option value="${x}" ${x === p.prio ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
     </div>
     ${p.com ? `<p class="hint" dir="auto">💬 ${esc(p.com)}</p>` : ''}
     <div class="sheet-actions"><button type="button" class="btn danger" data-preject>Reject</button><span class="grow"></span><button type="button" class="btn primary" data-papprove>✓ Approve &amp; add</button></div>
@@ -953,7 +957,7 @@ frmLock.addEventListener('submit', async (e) => {
     const j = await api('GET');
     if (LK('remember').checked) store.set('ai.pw', password); else { sess.set('ai.pw', password); try { localStorage.removeItem('ai.pw'); } catch (err) { /* ignore */ } }
     applyList(j);
-    hideLock(); setSync('synced ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })); render();
+    hideLock(); setSync(L('synced ', 'סונכרן ') + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })); render();
   } catch (err) {
     password = '';
     $('#lockErr').textContent = err.message;

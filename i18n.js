@@ -1,0 +1,137 @@
+/* Action Items — English / Hebrew interface.
+   Exact-text dictionary: any interface text that matches a key is shown in Hebrew.
+   Item titles, comments and the manager email are never translated. */
+'use strict';
+const HE = {
+  // header, tabs, KPIs, groups
+  'Action Items': 'משימות', 'Focus': 'פוקוס', 'Week': 'שבוע', 'All open': 'כל הפתוחות', 'Waiting': 'ממתין', 'Done': 'בוצע',
+  'Overdue': 'באיחור', 'Today': 'היום', 'This week': 'השבוע', 'Next week': 'שבוע הבא', 'This month': 'החודש', 'Later': 'בהמשך',
+  'No date': 'ללא תאריך', 'Done wk': 'בוצעו השבוע', 'Open': 'פתוחות', 'Completed': 'הושלמו', 'Waiting on others': 'ממתין לאחרים',
+  'All': 'הכל', 'Search…': 'חיפוש…', 'Refresh': 'רענון', 'Menu': 'תפריט', 'Weekly report': 'דוח שבועי', 'Close': 'סגירה',
+  'Add action item': 'הוספת משימה', 'Pending approvals': 'ממתינות לאישור', 'Suggestions waiting for approval': 'הצעות שממתינות לאישור',
+  'Nothing overdue, due today or this week.': 'אין משימות באיחור, להיום או לשבוע הזה.',
+  'Check "All open" for later items.': 'משימות מאוחרות יותר נמצאות ב"כל הפתוחות".', 'No items here.': 'אין כאן משימות.',
+  'Your suggestions': 'ההצעות שלך',
+  // areas / status / priority / recurrence
+  'Work': 'עבודה', 'Home': 'בית', 'Personal': 'אישי', 'M.Sc': 'תואר שני', 'Reserve Duty': 'מילואים', 'Family': 'משפחה',
+  'Finance': 'כספים', 'Health': 'בריאות',
+  'Not started': 'טרם התחיל', 'In progress': 'בתהליך', 'Cancelled': 'בוטל',
+  '1 - High': '1 - גבוהה', '2 - Medium': '2 - בינונית', '3 - Low': '3 - נמוכה', 'High': 'גבוהה', 'Medium': 'בינונית', 'Low': 'נמוכה',
+  'None': 'ללא', 'Daily': 'יומי', 'Weekly': 'שבועי', 'Monthly': 'חודשי', 'Quarterly': 'רבעוני', 'Yearly': 'שנתי',
+  // edit dialog
+  'New action item': 'משימה חדשה', 'Edit action item': 'עריכת משימה', 'Action item': 'משימה', 'Status': 'סטטוס', 'Area': 'תחום',
+  'Priority': 'עדיפות', 'Due date': 'תאריך יעד', 'Start time': 'שעת התחלה', 'Topic': 'נושא', 'Focal / who': 'אחראי',
+  'Recurring': 'חוזרת', 'Est. hours (duration)': 'שעות מוערכות (משך)', 'Done on': 'בוצע בתאריך', 'Actual hours': 'שעות בפועל',
+  'Comments / next step': 'הערות / צעד הבא', '🔒 Private — never shown to guests': '🔒 פרטי — לא יוצג לאורחים',
+  'Delete': 'מחיקה', 'Cancel': 'ביטול', 'Save': 'שמירה',
+  // hours / confirm
+  'Nice work! ✓': 'כל הכבוד! ✓', 'How many hours did it actually take?': 'כמה שעות זה לקח בפועל?', 'Skip': 'דלג',
+  'Update the plan?': 'לעדכן את התכנון?', 'Check your estimate': 'בדוק את ההערכה',
+  // settings / lock
+  'Settings': 'הגדרות', 'Web-app URL': 'כתובת ה-Web app', 'Test in browser': 'בדיקה בדפדפן', 'Try demo data': 'נסה נתוני דמו',
+  "The Web-app URL of your sheet's Apps Script (ends with /exec). Saved only on this device.": 'כתובת ה-Web app של הסקריפט בגיליון (מסתיימת ב-/exec). נשמרת רק במכשיר הזה.',
+  '"Test in browser" should show {"ok":true,"app":"Action Items API"…}. A Google sign-in page means the deployment access isn\'t set to Anyone.':
+    '"בדיקה בדפדפן" צריכה להציג {"ok":true,"app":"Action Items API"…}. דף התחברות של Google אומר שהגישה בפרסום אינה "Anyone".',
+  'Enter your password to continue': 'הזן סיסמה כדי להמשיך', 'Web-app URL (first time on this device)': 'כתובת ה-Web app (בפעם הראשונה במכשיר)',
+  'Password': 'סיסמה', 'Remember on this device': 'זכור במכשיר הזה', 'Unlock': 'כניסה', 'Change sheet URL': 'שינוי כתובת גיליון',
+  'Try demo': 'נסה דמו', 'Checking…': 'בודק…',
+  // menu
+  'Phone notifications': 'התראות לטלפון', 'Sharing & guests': 'שיתוף ואורחים', 'Suggestions to approve': 'הצעות לאישור',
+  'Sheet connection': 'חיבור לגיליון', 'Lock the app': 'נעילת האפליקציה',
+  // report
+  'Coming week': 'השבוע הבא', 'To (name)': 'אל (שם)', 'To (email)': 'אל (מייל)', 'Areas in the email:': 'תחומים במייל:',
+  '📋 Copy formatted email': '📋 העתק מייל מעוצב', 'Outlook web': 'Outlook באינטרנט', 'Outlook app': 'אפליקציית Outlook', 'Gmail': 'Gmail',
+  'Copy, open Outlook or Gmail (recipient and subject are filled in), click in the message body and paste (Ctrl+V / long-press › Paste).':
+    'העתק, פתח את Outlook או Gmail (הנמען והנושא ממולאים), לחץ בגוף ההודעה והדבק (Ctrl+V / לחיצה ארוכה › הדבק).',
+  // calendar export
+  'Export week to Outlook': 'ייצוא השבוע ל-Outlook', 'Areas:': 'תחומים:', 'Give items without a start time a slot from 09:00': 'שבץ משימות ללא שעה החל מ-09:00',
+  'Reminder 15 minutes before': 'תזכורת 15 דקות לפני', '⬇ Download .ics': '⬇ הורדת קובץ .ics', '📅 Export to Outlook': '📅 ייצוא ל-Outlook',
+  'Outlook (PC): double-click the file › Save & Close / Import. Outlook web: Calendar › Add calendar › Upload from file. iPhone: tap the file › Add All.':
+    'Outlook במחשב: לחיצה כפולה על הקובץ › שמירה וסגירה / ייבוא. Outlook באינטרנט: לוח שנה › הוספת לוח שנה › העלאה מקובץ. אייפון: הקש על הקובץ › הוסף הכל.',
+  'Changes save to your sheet automatically · Undo reverses them': 'שינויים נשמרים לגיליון אוטומטית · ביטול מחזיר אותם',
+  // notifications
+  'One-time phone setup': 'הגדרה חד-פעמית בטלפון', 'Install the free': 'התקן את האפליקציה החינמית', 'app (App Store / Google Play).': '(App Store / Google Play).',
+  'In ntfy tap': 'ב-ntfy לחץ', ', subscribe to this topic (server': ', הירשם לנושא הזה (שרת', ') and allow notifications:': ') ואשר התראות:',
+  "The topic name works like a password for your notifications — don't share it.": 'שם הנושא משמש כמו סיסמה להתראות שלך — אל תשתף אותו.',
+  'Copy': 'העתקה', 'Notification content': 'תוכן ההתראה', 'Show item titles': 'הצג את שמות המשימות', 'Counts only (more private)': 'מספרים בלבד (פרטי יותר)',
+  'Schedules': 'תזמונים', '＋ Add schedule': '＋ הוספת תזמון', 'Test': 'בדיקה', '📱 Push': '📱 פוש', '✉ Email': '✉ מייל', 'Both': 'שניהם',
+  // sharing
+  "Guests open the same app with their own password. They only see the areas you choose, never items marked 🔒 Private, and can't change anything. If allowed, they can suggest items — you approve them in 📥.":
+    'אורחים פותחים את אותה אפליקציה עם סיסמה משלהם. הם רואים רק את התחומים שבחרת, לעולם לא משימות שסומנו 🔒 פרטי, ולא יכולים לשנות דבר. אם תאפשר, הם יכולים להציע משימות — ואתה מאשר אותן ב-📥.',
+  'Add a guest': 'הוספת אורח', 'Name': 'שם', 'Can see:': 'יכול לראות:', 'Can suggest new items (you approve them)': 'יכול להציע משימות (באישורך)',
+  'Access active': 'גישה פעילה', 'Cancel edit': 'ביטול עריכה', 'Add guest': 'הוספת אורח', 'Save changes': 'שמירת שינויים',
+  'e.g. Neta': 'למשל נטע', 'at least 6 characters': 'לפחות 6 תווים', 'leave empty to keep the current password': 'השאר ריק כדי לשמור את הסיסמה הנוכחית',
+  '🔗 Invite': '🔗 הזמנה', 'Edit': 'עריכה', 'Remove': 'הסרה', 'No guests yet — add one below.': 'אין עדיין אורחים — הוסף למטה.',
+  '✎ can suggest': '✎ יכול להציע', 'view only': 'צפייה בלבד',
+  // approvals / suggestions
+  'Due': 'יעד', 'Reject': 'דחייה', '✓ Approve & add': '✓ אישור והוספה', 'No suggestions waiting.': 'אין הצעות ממתינות.',
+  'Suggest an action item': 'הצעת משימה', 'What needs doing?': 'מה צריך לעשות?', 'Comments': 'הערות',
+  'It will be added after approval.': 'המשימה תתווסף לאחר אישור.', 'Send suggestion': 'שליחת הצעה',
+  '⏳ Waiting for approval': '⏳ ממתין לאישור', '✓ Approved': '✓ אושר', '✕ Not approved': '✕ לא אושר',
+  // toasts (exact)
+  'Saved': 'נשמר', 'Added': 'נוסף', 'Deleted': 'נמחק', 'Done ✓': 'בוצע ✓', 'Copied ✓': 'הועתק ✓', 'Topic copied': 'הנושא הועתק',
+  'Notification schedules saved': 'התזמונים נשמרו', 'Test sent — check your phone': 'נשלחה בדיקה — בדוק את הטלפון',
+  'Approved ✓ — added to your list': 'אושר ✓ — נוסף לרשימה', 'Rejected': 'נדחה', 'Sent ✓ — it will appear once approved': 'נשלח ✓ — יופיע לאחר אישור',
+  'Deleted — tap ↶ Undo to bring it back': 'נמחק — לחץ ↶ ביטול כדי להחזיר', 'Keep at least one area': 'השאר לפחות תחום אחד',
+  'Demo mode — nothing is saved to your sheet': 'מצב דמו — דבר לא נשמר בגיליון', 'Nothing to export for these areas': 'אין מה לייצא בתחומים האלה',
+  'Paste the Web-app URL first': 'הדבק קודם את כתובת ה-Web app', 'Wrong password': 'סיסמה שגויה',
+  'Too many wrong attempts — try again in 15 minutes': 'יותר מדי ניסיונות שגויים — נסה שוב בעוד 15 דקות',
+  'Read-only access': 'גישת צפייה בלבד', 'Loading…': 'טוען…', 'Saving…': 'שומר…', 'Sending…': 'שולח…'
+};
+
+const LANG_KEY = 'ai.lang';
+let LANG = (() => { try { const v = localStorage.getItem(LANG_KEY); if (v) return JSON.parse(v); } catch (e) { /* ignore */ } return /^he\b/i.test(navigator.language || '') ? 'he' : 'en'; })();
+const isHe = () => LANG === 'he';
+const L = (en, he) => (isHe() ? he : en);                 // for texts with numbers/names inside
+const tr = (s) => (isHe() && Object.prototype.hasOwnProperty.call(HE, s) ? HE[s] : s);
+const locale = () => (isHe() ? 'he-IL' : 'en-GB');
+
+const I18N_SKIP = 'script,style,textarea,code,.title,.note,.t,#repPreview,#repSubject,.no-i18n';
+function skipText(node) {
+  const el = node.parentElement;
+  if (!el || el.closest(I18N_SKIP)) return true;
+  if (el.tagName === 'OPTION' && !el.hasAttribute('value')) return true;   // option text = its value → never change
+  return false;
+}
+function trTextNode(n) {
+  if (skipText(n)) return;
+  if (n.__en === undefined) {
+    const key = n.nodeValue.trim();
+    if (!key || !Object.prototype.hasOwnProperty.call(HE, key)) return;
+    n.__en = n.nodeValue;
+  }
+  const key = n.__en.trim();
+  n.nodeValue = isHe() ? n.__en.replace(key, HE[key]) : n.__en;
+}
+function trAttrs(el) {
+  ['placeholder', 'title', 'aria-label'].forEach(a => {
+    if (!el.hasAttribute || !el.hasAttribute(a)) return;
+    el.__enA = el.__enA || {};
+    if (el.__enA[a] === undefined) { const v = el.getAttribute(a); if (!Object.prototype.hasOwnProperty.call(HE, v)) return; el.__enA[a] = v; }
+    el.setAttribute(a, isHe() ? HE[el.__enA[a]] : el.__enA[a]);
+  });
+}
+function translateTree(root) {
+  if (root.nodeType === 3) { trTextNode(root); return; }
+  if (root.nodeType !== 1) return;
+  trAttrs(root);
+  root.querySelectorAll('[placeholder],[title],[aria-label]').forEach(trAttrs);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n; while ((n = w.nextNode())) trTextNode(n);
+}
+function applyDir() {
+  document.documentElement.lang = isHe() ? 'he' : 'en';
+  document.documentElement.dir = isHe() ? 'rtl' : 'ltr';
+  document.querySelectorAll('.lang-btn').forEach(b => { b.textContent = isHe() ? 'EN' : 'עב'; b.title = isHe() ? 'Switch to English' : 'החלף לעברית'; });
+}
+function setLang(l) {
+  LANG = l === 'he' ? 'he' : 'en';
+  try { localStorage.setItem(LANG_KEY, JSON.stringify(LANG)); } catch (e) { /* ignore */ }
+  applyDir(); translateTree(document.body);
+  if (typeof render === 'function') render();
+}
+new MutationObserver(muts => {
+  if (!isHe()) return;
+  muts.forEach(m => m.addedNodes.forEach(translateTree));
+}).observe(document.documentElement, { childList: true, subtree: true });
+document.addEventListener('DOMContentLoaded', () => { applyDir(); translateTree(document.body); });

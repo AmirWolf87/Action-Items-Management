@@ -48,6 +48,9 @@ It is stored only as a salted hash inside the script.
 The script checks every 5 minutes and sends each schedule once per day.
 Push messages travel through the public ntfy.sh service — choose **Counts only** if you prefer not to send item titles.
 
+## Language
+Tap **עב / EN** at the top (also on the login screen) to switch the app between English and Hebrew (right-to-left). The choice is saved per device. Item texts and the manager email are not translated.
+
 ## Using it
 - **Focus** = overdue, today and this week. **Week** = Sun–Sat calendar (◀ ▶ other weeks, ‹ › moves an item a day).
   **📅 Export to Outlook** downloads a .ics file of the week (start time + duration from each item).

@@ -175,3 +175,10 @@ body.guest #fab:not(.can-suggest){display:none}
 .private-ic{font-size:12px}
 
 .rep-status{overflow-wrap:anywhere;word-break:break-word}
+
+/* language */
+.icon-btn.lang-btn{font-size:13px;font-weight:700;width:auto;min-width:38px;padding:0 8px}
+.lock-card{position:relative}
+.lock-lang{position:absolute;top:12px;inset-inline-end:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:4px 12px;font-weight:700;cursor:pointer}
+[dir=rtl] .wi .t,[dir=rtl] .title{text-align:right}
+[dir=rtl] .week-head .range{direction:rtl}
