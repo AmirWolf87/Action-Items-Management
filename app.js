@@ -391,6 +391,8 @@ function reportData(offset) {
     ]
   };
 }
+/* Email HTML written for Outlook (Word engine): table layout, bgcolor + background-color, no transparency/rounded tricks */
+const TINT = { '#059669': '#E3F4EE', '#2563EB': '#E6EEFD', '#DC2626': '#FCE8E8', '#7C3AED': '#F0EAFE' };
 function buildReport() {
   const offset = +$('#repWeek').value;
   const name = $('#repName').value.trim() || 'Ezra';
@@ -398,35 +400,39 @@ function buildReport() {
   const r = reportData(offset);
   const range = `${pad(r.ws.getDate())}/${pad(r.ws.getMonth() + 1)} – ${pad(r.we.getDate())}/${pad(r.we.getMonth() + 1)}/${r.we.getFullYear()}`;
   const subject = `Weekly Action Items | ${range} | ${from}`;
-  const chip = (l, n, c) => `<span style="display:inline-block;margin:0 6px 6px 0;padding:6px 12px;border-radius:14px;background:${c}1A;color:${c};font-weight:bold;">${l} ${n}</span>`;
+  const F = 'font-family:Arial,Helvetica,sans-serif;';
+  const P = (t, x) => `<p style="${F}font-size:14px;color:#1F2937;margin:0 0 12px 0;${x || ''}">${t}</p>`;
   const labels = ['Completed', 'Planned', 'Carried over', 'Waiting'];
-  let html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1F2937;">`;
-  html += `<p>Hi ${esc(name)},</p><p>Please find below my action items for the week of <b>${range}</b>.</p>`;
-  html += `<div style="margin:6px 0 16px 0;">${r.sections.map((s, i) => chip(labels[i], s.items.length, s.color)).join('')}</div>`;
+  let html = `<div style="${F}font-size:14px;color:#1F2937;">`;
+  html += P(`Hi ${esc(name)},`) + P(`Please find below my action items for the week of <b>${range}</b>.`);
+  // summary "chips" as a one-row table
+  html += `<table cellpadding="0" cellspacing="6" border="0" style="border-collapse:separate;margin:0 0 14px -6px;"><tr>` +
+    r.sections.map((s, i) => `<td bgcolor="${TINT[s.color]}" style="background-color:${TINT[s.color]};color:${s.color};${F}font-size:13px;font-weight:bold;padding:6px 14px;white-space:nowrap;">${labels[i]}&nbsp;${s.items.length}</td>`).join('') +
+    `</tr></table>`;
   let text = `Hi ${name},\n\nPlease find below my action items for the week of ${range}.\n\n`;
+  const th = (t, w) => `<th align="left" bgcolor="#F3F4F6" style="background-color:#F3F4F6;color:#4B5563;${F}font-size:11px;font-weight:bold;text-transform:uppercase;padding:7px 10px;border-bottom:1px solid #E5E7EB;text-align:left;${w ? 'width:' + w + ';' : ''}">${t}</th>`;
   r.sections.forEach(s => {
-    html += `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:860px;margin:0 0 22px 0;font-size:13px;">`;
-    html += `<tr><td colspan="6" style="background:${s.color};color:#fff;font-weight:bold;font-size:14px;padding:9px 12px;">${esc(s.title)} (${s.items.length})</td></tr>`;
+    html += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;max-width:860px;margin:0 0 20px 0;">`;
+    html += `<tr><td colspan="6" bgcolor="${s.color}" style="background-color:${s.color};color:#FFFFFF;${F}font-size:14px;font-weight:bold;padding:9px 12px;">${esc(s.title.replace(/\s+/g, ' '))} (${s.items.length})</td></tr>`;
     text += `${s.title.replace(/\s+/g, ' ')}\n────────────────────────────\n`;
     if (!s.items.length) {
-      html += `<tr><td colspan="6" style="padding:10px 12px;color:#9CA3AF;font-style:italic;border-bottom:1px solid #E5E7EB;">None</td></tr>`;
+      html += `<tr><td colspan="6" style="${F}font-size:13px;color:#9CA3AF;font-style:italic;padding:9px 12px;border-bottom:1px solid #E5E7EB;">None</td></tr>`;
       text += 'None\n';
     } else {
-      const th = (t) => `<th style="background:#F3F4F6;color:#4B5563;font-size:11px;text-transform:uppercase;padding:7px 12px;text-align:left;border-bottom:1px solid #E5E7EB;">${t}</th>`;
-      html += `<tr>${th('Action item')}${th('Topic')}${th(s.dateLabel)}${th('Priority')}${th('Status')}${th('Comments / next step')}</tr>`;
+      html += `<tr>${th('Action item', '30%')}${th('Topic', '14%')}${th(s.dateLabel, '11%')}${th('Priority', '11%')}${th('Status', '11%')}${th('Comments / next step')}</tr>`;
       s.items.forEach((it, i) => {
         const bg = i % 2 ? '#F9FAFB' : '#FFFFFF';
         const p = PRIO_C[String(it.prio).charAt(0)] || ['#F3F4F6', '#374151'];
-        const td = (v, x) => `<td dir="auto" style="padding:8px 12px;border-bottom:1px solid #E5E7EB;background:${bg};vertical-align:top;${x || ''}">${v}</td>`;
+        const td = (v, x) => `<td dir="auto" bgcolor="${bg}" valign="top" style="background-color:${bg};${F}font-size:13px;color:#1F2937;padding:8px 10px;border-bottom:1px solid #E5E7EB;vertical-align:top;${x || ''}">${v || '&nbsp;'}</td>`;
         html += '<tr>' + td(`<b>${esc(it.item)}</b>`) + td(esc(it.topic), 'color:#4B5563;') + td(fmt(it[s.dateKey], true), 'white-space:nowrap;') +
-          td(it.prio ? `<span style="background:${p[0]};color:${p[1]};font-weight:bold;padding:2px 8px;border-radius:10px;white-space:nowrap;">${esc(it.prio)}</span>` : '') +
+          td(it.prio ? `<span style="background-color:${p[0]};color:${p[1]};font-weight:bold;padding:1px 6px;white-space:nowrap;">${esc(it.prio)}</span>` : '') +
           td(esc(it.status), 'white-space:nowrap;') + td(esc(it.com), 'color:#4B5563;') + '</tr>';
         text += `${i + 1}.  ${it.item}${it[s.dateKey] ? `   |   ${s.dateLabel} ${fmt(it[s.dateKey])}` : ''}${it.prio ? '   |   ' + it.prio.replace(/^\d - /, '') : ''}\n${it.com ? '       ↳ ' + it.com + '\n' : ''}`;
       });
     }
     html += '</table>'; text += '\n';
   });
-  html += `<p>Happy to adjust priorities if needed.</p><p>Best regards,<br><b>${esc(from)}</b></p></div>`;
+  html += P('Happy to adjust priorities if needed.') + P(`Best regards,<br><b>${esc(from)}</b>`) + '</div>';
   text += `Happy to adjust priorities if needed.\n\nBest regards,\n${from}`;
   return { html, text, subject };
 }
@@ -458,14 +464,27 @@ function openReport() {
 ['repWeek', 'repName', 'repEmail'].forEach(id => $('#' + id).addEventListener('input', refreshReport));
 $('#repCopy').addEventListener('click', async () => {
   const r = buildReport();
+  const el = $('#repPreview');
+  // 1) copy the rendered preview exactly like a manual select + Ctrl+C (most faithful when pasting into Outlook)
+  let ok = false;
   try {
-    await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([r.html], { type: 'text/html' }), 'text/plain': new Blob([r.text], { type: 'text/plain' }) })]);
-    toast('Copied — open Outlook/Gmail and paste into the message');
-  } catch (e) {
-    const el = $('#repPreview'); const range = document.createRange(); range.selectNodeContents(el);
+    const range = document.createRange(); range.selectNodeContents(el);
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
-    let ok = false; try { ok = document.execCommand('copy'); } catch (err) { /* ignore */ }
-    if (ok) { sel.removeAllRanges(); toast('Copied — open Outlook/Gmail and paste'); } else toast('Select the preview and copy it manually');
+    ok = document.execCommand('copy'); sel.removeAllRanges();
+  } catch (e) { ok = false; }
+  // 2) fallback: clipboard API with a complete HTML document
+  if (!ok) {
+    try {
+      const doc = `<html><head><meta charset="utf-8"></head><body>${r.html}</body></html>`;
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([doc], { type: 'text/html' }), 'text/plain': new Blob([r.text], { type: 'text/plain' }) })]);
+      ok = true;
+    } catch (e) { ok = false; }
+  }
+  if (ok) toast('Copied ✓ — in Outlook click in the message body and press Ctrl+V');
+  else {
+    const range = document.createRange(); range.selectNodeContents(el);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    toast('The email is selected — press Ctrl+C (or long-press › Copy), then paste in Outlook');
   }
 });
 
