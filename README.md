@@ -19,13 +19,13 @@ It runs in any browser and can be installed on iPhone, iPad, Android and PC.
 > "Anyone" only means the URL can be reached — every request must carry your app password, otherwise it is refused.
 > After 10 wrong passwords the script blocks all logins for 15 minutes.
 
-### 3. Choose your app password
-Reload the sheet › **✉ Manager Report › App: set / change password** › type it twice (8+ characters).
+### 3. Choose your username and password
+Reload the sheet › **✉ Manager Report › App: set / change password** › type the password twice (8+ characters) and choose a username (default: `admin`).
 It is stored only as a salted hash inside the script.
 
 ### 4. Open the app
 1. Open `https://amirwolf87.github.io/Action-Items-Management/`
-2. The first time on each device: paste the **Web-app URL** and your **password** › **Unlock**.
+2. The first time on each device: paste the **Web-app URL**, your **username** and **password** › **Unlock**.
 3. Tick **Remember on this device** to skip the password on your own phone/PC; leave it off on shared computers.
    The 🔒 button locks the app any time.
 
@@ -35,7 +35,7 @@ It is stored only as a salted hash inside the script.
 - **PC (Chrome / Edge):** install icon in the address bar.
 
 ## Sharing with others (read-only guests)
-- ☰ › **Sharing & guests** › add a guest (e.g. *Neta*): her own password, which areas she can see, and whether she can suggest items.
+- ☰ › **Sharing & guests** › add a guest (e.g. *Neta*): her own **username** and password (you can always see both; she can change them in ☰ › *My account*), which areas she can see, and whether she can suggest items.
 - Tap **🔗 Invite** to copy a message with the link; send the password separately. The link fills in the sheet address for her.
 - Guests see only their areas, never items marked **🔒 Private** (switch in the item editor), and cannot change anything.
 - Suggestions land in a new **Pending** tab in the sheet and in the app's **📥** (badge shows how many). Adjust, then **Approve & add** or **Reject** — the guest sees the result.

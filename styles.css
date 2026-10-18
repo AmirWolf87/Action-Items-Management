@@ -241,3 +241,23 @@ body.guest .snooze{display:none}
 .ar-count{font-size:12px;color:var(--muted);text-align:center}
 .ar-row .icon-btn{width:34px;height:34px;font-size:15px}
 @media (max-width:640px){ .ar-row{grid-template-columns:14px 1fr 28px 30px 30px 30px} .ar-hints{grid-column:2 / -1;grid-row:2} }
+
+.cred{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;width:100%}
+.cred code{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.pw-row{display:flex;gap:6px}
+.pw-row input{flex:1}
+.pw-row .btn{padding:6px 10px}
+
+/* quick add title + icon */
+.quick-add{position:relative;flex-wrap:wrap;background:linear-gradient(135deg,#EEF2FF 0%,#F5F3FF 100%);border:1px solid #DDD6FE;border-radius:14px;padding:10px}
+@media (prefers-color-scheme: dark){ .quick-add{background:linear-gradient(135deg,#1E2440 0%,#251F3D 100%);border-color:#3B3363} }
+.qa-title{flex-basis:100%;display:flex;align-items:center;gap:6px;flex-direction:row;font-size:13px;font-weight:800;color:#5B21B6;margin:0 2px 2px}
+.qa-title small{font-weight:500;color:var(--muted);font-size:11.5px;margin-inline-start:4px}
+.qa-bolt{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,#F59E0B,#EF4444);color:#fff;font-size:13px;box-shadow:0 2px 6px rgba(239,68,68,.35);animation:qaPulse 2.4s ease-in-out infinite}
+@keyframes qaPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12) rotate(-6deg)}}
+@media (prefers-reduced-motion: reduce){ .qa-bolt{animation:none} }
+.qa-icon{position:absolute;inset-inline-start:22px;bottom:21px;font-size:15px;pointer-events:none;opacity:.55}
+.quick-add input{padding-inline-start:34px}
+
+.qa-title > span:not(.qa-bolt){white-space:nowrap}
+.qa-title small{flex:1;min-width:0}

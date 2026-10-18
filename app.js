@@ -32,6 +32,7 @@ const sess = {
   set(k, v) { try { v === null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) { /* ignore */ } }
 };
 let password = store.get('ai.pw', null) || sess.get('ai.pw') || '';
+let username = store.get('ai.user', null) || sess.get('ai.user') || '';
 const remembered = () => !!store.get('ai.pw', null);
 let ui = store.get('ai.ui', { tab: 'focus', area: 'All' });
 const EMPTY = () => ({ items: [], areas: Object.keys(AREA_C), people: ['Me'], report: null });
@@ -82,7 +83,8 @@ async function api(method, body) {
   if (!settings.url) throw new Error('No sheet URL yet');
   if (!password) { showLock(); throw new Error('Locked'); }
   let res;
-  const payload = Object.assign({ password }, method === 'GET' ? { action: 'list' } : body);
+  if (!username) { showLock(); throw new Error('Locked'); }
+  const payload = Object.assign({ username, password }, method === 'GET' ? { action: 'list' } : body);
   try {
     res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(payload) });
   } catch (e) {
@@ -100,7 +102,7 @@ async function api(method, body) {
 
 function setSync(text) { $('#sync').textContent = text ? '· ' + text : ''; }
 async function load(quiet) {
-  if (!settings.demo && (!settings.url || !password)) { showLock(); return false; }
+  if (!settings.demo && (!settings.url || !password || !username)) { showLock(); return false; }
   setSync(L('syncing…', 'מסנכרן…'));
   try {
     await flushQueue();
@@ -610,7 +612,7 @@ function demoApi(method, body) {
   }
   if (method === 'GET') return Promise.resolve({ ok: true, role: 'owner', pending: demoPending, items: JSON.parse(JSON.stringify(demoItems)), areas: demoAreas || Object.keys(AREA_C), people: ['Me', 'Colleague'], report: { manager: 'Manager', email: '', from: 'Me', area: 'Work' } });
   if (body.action === 'getGuests' || body.action === 'saveGuest' || body.action === 'deleteGuest') {
-    if (body.action === 'saveGuest') { const g = Object.assign({}, body.guest); delete g.password; if (!g.id) { g.id = Math.random().toString(36).slice(2, 8); demoGuests.push(g); } else demoGuests = demoGuests.map(x => x.id === g.id ? g : x); }
+    if (body.action === 'saveGuest') { const g = Object.assign({}, body.guest); if (g.password) g.pw = g.password; delete g.password; if (!g.id) { g.id = Math.random().toString(36).slice(2, 8); demoGuests.push(g); } else demoGuests = demoGuests.map(x => x.id === g.id ? g : x); }
     if (body.action === 'deleteGuest') demoGuests = demoGuests.filter(x => x.id !== body.id);
     return Promise.resolve({ ok: true, guests: demoGuests });
   }
@@ -833,7 +835,7 @@ async function flushQueue() {
     let q = queue();
     while (q.length) {
       const b = q[0];
-      const res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(Object.assign({ password }, b)) });
+      const res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(Object.assign({ username, password }, b)) });
       const j = await res.json(); if (!j.ok && j.auth) break;
       q.shift(); store.set('ai.queue', q);
     }
@@ -1230,11 +1232,13 @@ $('#frmSuggest').addEventListener('submit', async (e) => {
 /* owner: sharing & guests */
 let guests = [], gAreas = [];
 const appBase = () => location.origin + location.pathname;
-const inviteLink = () => appBase() + '#join=' + encodeURIComponent(settings.url || '');
+const inviteLink = (u) => appBase() + '#join=' + encodeURIComponent(settings.url || '') + (u ? '&u=' + encodeURIComponent(u) : '');
 function renderGuests() {
   $('#guestList').innerHTML = guests.length ? guests.map(g => `<div class="gcard ${g.on === false ? 'off' : ''}" data-gid="${esc(g.id)}">
       <b dir="auto">${esc(g.name)}</b>${(g.areas || []).map(a => pill(a, areaColor(a))).join('')}
       <span class="hint" style="margin:0">${tr(g.canSuggest ? '✎ can suggest' : 'view only')}${g.on === false ? L(' · access off', ' · גישה כבויה') : ''}</span>
+      <span class="cred"><span>👤 <code class="no-i18n">${esc(g.user || '—')}</code></span>
+        <span>🔑 <code class="no-i18n pw-mask" data-pw="${esc(g.pw || '')}">${g.pw ? '••••••' : L('(set before — type a new one to see it)', '(הוגדרה בעבר — הקלד חדשה כדי לראות)')}</code>${g.pw ? `<button type="button" class="linkish" data-gshow>👁</button>` : ''}</span></span>
       <span class="grow"></span>
       <button type="button" class="btn ghost" data-ginvite>🔗 Invite</button>
       <button type="button" class="btn ghost" data-gedit>Edit</button>
@@ -1246,8 +1250,9 @@ function renderGuestAreas() {
 }
 function resetGuestForm(g) {
   const f = $('#frmGuest'), E = (k) => f.elements.namedItem(k);
-  E('id').value = g ? g.id : ''; E('name').value = g ? g.name : ''; E('gpw').value = '';
-  E('gpw').placeholder = g ? 'leave empty to keep the current password' : 'at least 6 characters';
+  E('id').value = g ? g.id : ''; E('name').value = g ? g.name : ''; E('gpw').value = g && g.pw ? g.pw : '';
+  E('guser').value = g ? (g.user || '') : '';
+  E('gpw').placeholder = tr(g ? 'leave empty to keep the current password' : 'at least 6 characters');
   E('canSuggest').checked = g ? !!g.canSuggest : true; E('on').checked = g ? g.on !== false : true;
   gAreas = g ? (g.areas || []).slice() : ['Home'].filter(a => data.areas.includes(a));
   $('#guestFormTitle').textContent = g ? L(`Edit ${g.name}`, `עריכת ${g.name}`) : tr('Add a guest');
@@ -1270,8 +1275,12 @@ $('#frmGuest').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target, E = (k) => f.elements.namedItem(k);
   if (!gAreas.length) { $('#shareStatus').textContent = 'Choose at least one area the guest can see.'; return; }
-  const g = { id: E('id').value || undefined, name: E('name').value.trim(), password: E('gpw').value, areas: gAreas, canSuggest: E('canSuggest').checked, on: E('on').checked };
-  if (!g.id && g.password.length < 6) { $('#shareStatus').textContent = 'Give the guest a password (at least 6 characters).'; return; }
+  const orig = guests.find(x => x.id === E('id').value);
+  const g = { id: E('id').value || undefined, name: E('name').value.trim(), user: E('guser').value.trim().toLowerCase(), areas: gAreas, canSuggest: E('canSuggest').checked, on: E('on').checked };
+  const pw = E('gpw').value;
+  if (pw && (!orig || orig.pw !== pw)) g.password = pw;
+  if (!g.user) { $('#shareStatus').textContent = L('Choose a username for the guest (e.g. neta).', 'בחר שם משתמש לאורח (למשל neta).'); return; }
+  if (!g.id && (!pw || pw.length < 6)) { $('#shareStatus').textContent = L('Give the guest a password (at least 6 characters) — 🎲 makes one.', 'תן לאורח סיסמה (לפחות 6 תווים) — 🎲 יוצר אחת.'); return; }
   try {
     guests = (await api('POST', { action: 'saveGuest', guest: g })).guests || [];
     renderGuests(); resetGuestForm(null);
@@ -1281,6 +1290,7 @@ $('#frmGuest').addEventListener('submit', async (e) => {
 $('#guestList').addEventListener('click', async (e) => {
   const card = e.target.closest('[data-gid]'); if (!card) return;
   const g = guests.find(x => x.id === card.dataset.gid); if (!g) return;
+  if (e.target.closest('[data-gshow]')) { const c = card.querySelector('.pw-mask'); c.textContent = c.textContent === '••••••' ? c.dataset.pw : '••••••'; return; }
   if (e.target.closest('[data-gedit]')) { resetGuestForm(g); $('#frmGuest').scrollIntoView({ behavior: 'smooth' }); }
   if (e.target.closest('[data-gdel]')) {
     if (!confirm(`Remove ${g.name}'s access?`)) return;
@@ -1289,8 +1299,8 @@ $('#guestList').addEventListener('click', async (e) => {
   }
   if (e.target.closest('[data-ginvite]')) {
     if (!settings.url) { $('#shareStatus').textContent = 'Connect your sheet first.'; return; }
-    const msg = L(`Hi ${g.name}, here's my Action Items list (${(g.areas || []).join(', ')}):\n${inviteLink()}\nOpen it, enter the password I'll send you, and you can add it to your home screen.`,
-      `היי ${g.name}, זו רשימת המשימות שלי (${(g.areas || []).map(tr).join(', ')}):\n${inviteLink()}\nפתח/י את הקישור, הזינ/י את הסיסמה שאשלח לך, ואפשר להוסיף למסך הבית.`);
+    const msg = L(`Hi ${g.name}, here's my Action Items list (${(g.areas || []).join(', ')}):\n${inviteLink(g.user)}\nYour username: ${g.user}\nOpen the link, enter the password I'll send you separately, and you can add it to your home screen. You can change your username and password in ☰ › My account.`,
+      `היי ${g.name}, זו רשימת המשימות שלי (${(g.areas || []).map(tr).join(', ')}):\n${inviteLink(g.user)}\nשם המשתמש שלך: ${g.user}\nפתח/י את הקישור, הזינ/י את הסיסמה שאשלח בנפרד, ואפשר להוסיף למסך הבית. אפשר לשנות שם משתמש וסיסמה ב-☰ › החשבון שלי.`);
     try { await navigator.clipboard.writeText(msg); $('#shareStatus').innerText = '✓ Invite copied — paste it into WhatsApp/SMS. Send the password in a separate message:\n\n' + msg; }
     catch (err) { $('#shareStatus').innerText = 'Copy this invite:\n\n' + msg; }
   }
@@ -1325,11 +1335,48 @@ $('#pendingList').addEventListener('click', async (e) => {
   } catch (err) { toast(err.message); e.target.disabled = false; }
 });
 
+
+/* ---------- my account (owner and guests) ---------- */
+function openAccount() {
+  const f = $('#frmAccount'), E = (k) => f.elements.namedItem(k);
+  f.reset(); E('newUsername').value = username; $('#accStatus').textContent = '';
+  $('#accHint').textContent = isGuest()
+    ? L(`Signed in as ${me.name}. You can change your username and password; ${'the list owner'} can see them.`, `מחובר/ת בתור ${me.name}. אפשר לשנות שם משתמש וסיסמה; בעל הרשימה יכול לראות אותם.`)
+    : L('Your own sign-in. Guests never see it.', 'פרטי הכניסה שלך. אורחים לא רואים אותם.');
+  $('#dlgAccount').showModal();
+}
+$('#btnAccount').addEventListener('click', openAccount);
+$('#frmAccount').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target, E = (k) => f.elements.namedItem(k).value;
+  const nu = E('newUsername').trim().toLowerCase(), np = E('newPassword'), np2 = E('newPassword2');
+  if (np !== np2) { $('#accStatus').textContent = L('The two passwords are different.', 'שתי הסיסמאות שונות.'); return; }
+  if (nu === username && !np) { $('#dlgAccount').close(); return; }
+  try {
+    const j = await api('POST', { action: 'updateAccount', newUsername: nu, newPassword: np || undefined });
+    username = j.user || nu; if (np) password = np;
+    store.set('ai.lastUser', username);
+    if (remembered()) { store.set('ai.user', username); if (np) store.set('ai.pw', password); } else { sess.set('ai.user', username); if (np) sess.set('ai.pw', password); }
+    $('#dlgAccount').close(); toast(L('Account updated ✓', 'החשבון עודכן ✓'));
+  } catch (err) { $('#accStatus').textContent = err.message; }
+});
+$('#gpwGen').addEventListener('click', () => {
+  const words = 'sun moon star tree lake hill rose blue gold mint fox owl bee sky sea'.split(' ');
+  const pick = () => words[Math.floor(Math.random() * words.length)];
+  $('#frmGuest').elements.namedItem('gpw').value = pick() + '-' + pick() + '-' + (10 + Math.floor(Math.random() * 90));
+});
+$('#frmGuest').elements.namedItem('name').addEventListener('input', (e) => {
+  const u = $('#frmGuest').elements.namedItem('guser');
+  if (!$('#frmGuest').elements.namedItem('id').value && !u.dataset.touched) u.value = e.target.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+});
+$('#frmGuest').elements.namedItem('guser').addEventListener('input', (e) => { e.target.dataset.touched = '1'; });
+
 /* invite links: #join=<sheet url> pre-fills the connection */
 (function readJoin() {
-  const m = location.hash.match(/^#join=(.+)$/);
+  const m = location.hash.match(/^#join=([^&]+)(?:&u=([^&]+))?/);
   if (!m) return;
   try {
+    if (m[2]) { const nu = decodeURIComponent(m[2]).toLowerCase(); if (nu !== username) { username = ''; password = ''; } store.set('ai.lastUser', nu); }
     const u = decodeURIComponent(m[1]);
     if (/^https:\/\/script\.google\.com\/.*\/exec$/.test(u) && settings.url !== u) { settings = { url: u, demo: false }; store.set('ai.settings', settings); password = ''; }
   } catch (e) { /* ignore bad links */ }
@@ -1345,13 +1392,14 @@ function showLock(msg) {
   $('#lockUrlWrap').hidden = !!settings.url && validUrl(settings.url);
   LK('url').value = settings.url || '';
   LK('password').value = '';
+  LK('username').value = username || store.get('ai.lastUser', '') || '';
   $('#lockErr').textContent = msg || '';
   lockEl.hidden = false;
-  setTimeout(() => ($('#lockUrlWrap').hidden ? LK('password') : LK('url')).focus(), 50);
+  setTimeout(() => (!$('#lockUrlWrap').hidden ? LK('url') : LK('username').value ? LK('password') : LK('username')).focus(), 50);
 }
 function hideLock() { lockEl.hidden = true; }
 function lockApp(msg) {
-  password = ''; sess.set('ai.pw', null); store.set('ai.pw', null);
+  password = ''; username = ''; sess.set('ai.pw', null); store.set('ai.pw', null); sess.set('ai.user', null); store.set('ai.user', null);
   try { localStorage.removeItem('ai.pw'); localStorage.removeItem('ai.cache'); } catch (e) { /* ignore */ }
   data = EMPTY(); role = 'owner'; pending = []; mySugg = []; hist.undo = []; hist.redo = []; render(); showLock(msg);
 }
@@ -1364,10 +1412,13 @@ frmLock.addEventListener('submit', async (e) => {
   }
   settings.demo = false; store.set('ai.settings', settings);
   password = LK('password').value;
+  username = LK('username').value.trim().toLowerCase();
   const btn = $('#btnUnlock'); btn.disabled = true; btn.textContent = 'Checking…'; $('#lockErr').textContent = '';
   try {
     const j = await api('GET');
-    if (LK('remember').checked) store.set('ai.pw', password); else { sess.set('ai.pw', password); try { localStorage.removeItem('ai.pw'); } catch (err) { /* ignore */ } }
+    store.set('ai.lastUser', username);
+    if (LK('remember').checked) { store.set('ai.pw', password); store.set('ai.user', username); }
+    else { sess.set('ai.pw', password); sess.set('ai.user', username); try { localStorage.removeItem('ai.pw'); localStorage.removeItem('ai.user'); } catch (err) { /* ignore */ } }
     applyList(j);
     hideLock(); setSync(L('synced ', 'סונכרן ') + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })); render();
   } catch (err) {
@@ -1383,5 +1434,5 @@ $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.de
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 render();
 if (settings.demo) load(true);
-else if (settings.url && password) load(true);
+else if (settings.url && password && username) load(true);
 else showLock();

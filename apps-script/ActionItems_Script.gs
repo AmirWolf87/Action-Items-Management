@@ -176,10 +176,15 @@ function setAppPassword() {
   const r2 = ui.prompt('App password', 'Type the same password again:', ui.ButtonSet.OK_CANCEL);
   if (r2.getSelectedButton() !== ui.Button.OK) return;
   if (r2.getResponseText() !== pw) { ui.alert('The two passwords are different — nothing was changed.'); return; }
+  const r3 = ui.prompt('App username', 'Your username for signing in (current: ' + ownerUser_() + '). Leave empty to keep it:', ui.ButtonSet.OK_CANCEL);
+  let user = r3.getSelectedButton() === ui.Button.OK ? r3.getResponseText().trim().toLowerCase() : '';
+  if (user && !/^[a-z0-9._-]{3,30}$/.test(user)) { ui.alert('Username: 3-30 characters, letters/numbers/._- only. Nothing was changed.'); return; }
+  if (user && guests_().some(g => (g.user || '') === user)) { ui.alert('A guest already uses that username. Nothing was changed.'); return; }
   const salt = Utilities.getUuid();
   PropertiesService.getScriptProperties().setProperties({ PW_SALT: salt, PW_HASH: hash_(pw, salt) });
+  if (user) PropertiesService.getScriptProperties().setProperty('OWNER_USER', user);
   PropertiesService.getScriptProperties().deleteProperty('APP_KEY');
-  ui.alert('Password saved. Use it on the app\'s lock screen. (Devices that remembered the old password will ask again.)');
+  ui.alert('Saved. Sign in to the app with username "' + ownerUser_() + '" and your new password.');
 }
 
 function json_(o) {
@@ -191,20 +196,26 @@ function json_(o) {
 function guests_() {
   try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('GUESTS') || '[]'); } catch (e) { return []; }
 }
-function authenticate_(pw) {
+function ownerUser_() { return PropertiesService.getScriptProperties().getProperty('OWNER_USER') || 'admin'; }
+const cleanUser_ = (u) => String(u || '').trim().toLowerCase();
+/* username + password. 10 wrong tries for one username (or 30 overall) → blocked for 15 minutes */
+function authenticate_(user, pw) {
   const props = PropertiesService.getScriptProperties();
   const salt = props.getProperty('PW_SALT'), h = props.getProperty('PW_HASH');
   if (!salt || !h) return { err: 'No password set yet — in the sheet: ✉ Manager Report › App: set / change password' };
+  user = cleanUser_(user);
+  if (!user) return { err: 'Please sign in with your username and password' };
   const cache = CacheService.getScriptCache();
-  const fails = Number(cache.get('pw_fails') || 0);
-  if (fails >= 10) return { err: 'Too many wrong attempts — try again in 15 minutes' };
+  const key = 'pw_fails_' + Utilities.base64EncodeWebSafe(user).slice(0, 40);
+  const fails = Number(cache.get(key) || 0), all = Number(cache.get('pw_fails_all') || 0);
+  if (fails >= 10 || all >= 30) return { err: 'Too many wrong attempts — try again in 15 minutes' };
   if (pw) {
-    if (hash_(String(pw), salt) === h) return { role: 'owner' };
-    const g = guests_().find(x => x.on !== false && x.hash && hash_(String(pw), x.salt) === x.hash);
-    if (g) return { role: 'guest', guest: g };
+    if (user === ownerUser_() && hash_(String(pw), salt) === h) return { role: 'owner' };
+    const g = guests_().find(x => x.on !== false && cleanUser_(x.user) === user);
+    if (g && g.hash && hash_(String(pw), g.salt) === g.hash) return { role: 'guest', guest: g };
   }
-  cache.put('pw_fails', String(fails + 1), 900);
-  return { err: 'Wrong password' };
+  cache.put(key, String(fails + 1), 900); cache.put('pw_fails_all', String(all + 1), 900);
+  return { err: 'Wrong username or password' };
 }
 
 /* Opening the URL in a browser only shows that the API is alive — never any data */
@@ -221,13 +232,14 @@ function doGet(e) {
 function doPost(e) {
   let req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request' }); }
-  const who = authenticate_(req.password);
+  const who = authenticate_(req.username, req.password);
   if (who.err) return json_({ ok: false, auth: true, error: who.err });
   try {
     /* ---- guests: read-only + suggestions ---- */
     if (who.role === 'guest') {
       const g = who.guest;
       if (req.action === 'list') return json_(Object.assign({ ok: true }, guestView_(g)));
+      if (req.action === 'updateAccount') return withLock_(() => json_(Object.assign({ ok: true }, updateGuestAccount_(g.id, req))));
       if (req.action === 'suggest') {
         if (!g.canSuggest) return json_({ ok: false, error: 'Suggestions are not enabled for you' });
         return withLock_(() => json_({ ok: true, id: addPending_(g, req.item || {}) }));
@@ -236,10 +248,11 @@ function doPost(e) {
     }
     /* ---- owner ---- */
     switch (req.action) {
-      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner' }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending') }));
+      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending') }));
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
+      case 'updateAccount': return json_(Object.assign({ ok: true }, updateOwnerAccount_(req)));
       case 'getGuests': return json_({ ok: true, guests: guests_().map(publicGuest_) });
       case 'saveGuest': return json_({ ok: true, guests: saveGuest_(req.guest).map(publicGuest_) });
       case 'deleteGuest': return json_({ ok: true, guests: deleteGuest_(req.id).map(publicGuest_) });
@@ -267,7 +280,38 @@ function withLock_(fn) {
 }
 
 /* ---------- guests ---------- */
-function publicGuest_(g) { return { id: g.id, name: g.name, areas: g.areas, canSuggest: !!g.canSuggest, on: g.on !== false, hasPassword: !!g.hash }; }
+/* the owner sees guests' usernames AND passwords (by design) */
+function publicGuest_(g) { return { id: g.id, name: g.name, user: g.user || '', pw: g.pw || '', areas: g.areas, canSuggest: !!g.canSuggest, on: g.on !== false, hasPassword: !!g.hash }; }
+function checkNewUser_(user, selfId) {
+  if (!/^[a-z0-9._-]{3,30}$/.test(user)) throw new Error('Username: 3-30 characters — English letters, numbers, . _ -');
+  if (user === ownerUser_()) throw new Error('That username is taken');
+  if (guests_().some(x => x.id !== selfId && cleanUser_(x.user) === user)) throw new Error('That username is taken');
+}
+function setGuestPw_(g, pw) {
+  if (String(pw).length < 6) throw new Error('Password: at least 6 characters');
+  g.salt = Utilities.getUuid(); g.hash = hash_(String(pw), g.salt); g.pw = String(pw);
+}
+function updateGuestAccount_(id, req) {
+  const list = guests_(); const g = list.find(x => x.id === id); if (!g) throw new Error('Account not found');
+  if (req.newUsername !== undefined && cleanUser_(req.newUsername) !== cleanUser_(g.user)) { const u = cleanUser_(req.newUsername); checkNewUser_(u, g.id); g.user = u; }
+  if (req.newPassword) setGuestPw_(g, req.newPassword);
+  PropertiesService.getScriptProperties().setProperty('GUESTS', JSON.stringify(list));
+  return { user: g.user };
+}
+function updateOwnerAccount_(req) {
+  const P = PropertiesService.getScriptProperties();
+  if (req.newUsername !== undefined && cleanUser_(req.newUsername) !== ownerUser_()) {
+    const u = cleanUser_(req.newUsername);
+    if (!/^[a-z0-9._-]{3,30}$/.test(u)) throw new Error('Username: 3-30 characters — English letters, numbers, . _ -');
+    if (guests_().some(x => cleanUser_(x.user) === u)) throw new Error('That username is taken');
+    P.setProperty('OWNER_USER', u);
+  }
+  if (req.newPassword) {
+    if (String(req.newPassword).length < 8) throw new Error('Your password: at least 8 characters');
+    const salt = Utilities.getUuid(); P.setProperties({ PW_SALT: salt, PW_HASH: hash_(String(req.newPassword), salt) });
+  }
+  return { user: ownerUser_() };
+}
 function saveGuest_(in_) {
   if (!in_ || !String(in_.name || '').trim()) throw new Error('Guest name is required');
   const list = guests_();
@@ -277,14 +321,10 @@ function saveGuest_(in_) {
   g.areas = (in_.areas || []).map(String).slice(0, 20);
   g.canSuggest = !!in_.canSuggest;
   g.on = in_.on !== false;
-  if (in_.password) {
-    if (String(in_.password).length < 6) throw new Error('Guest password: at least 6 characters');
-    const ownerSalt = PropertiesService.getScriptProperties().getProperty('PW_SALT');
-    if (ownerSalt && hash_(String(in_.password), ownerSalt) === PropertiesService.getScriptProperties().getProperty('PW_HASH'))
-      throw new Error('Use a different password from your own');
-    if (list.some(x => x !== g && x.hash && hash_(String(in_.password), x.salt) === x.hash)) throw new Error('Another guest already uses this password');
-    g.salt = Utilities.getUuid(); g.hash = hash_(String(in_.password), g.salt);
-  }
+  const u = cleanUser_(in_.user || g.user);
+  if (!u) throw new Error('Choose a username for ' + g.name);
+  if (u !== cleanUser_(g.user)) { checkNewUser_(u, g.id); g.user = u; }
+  if (in_.password) setGuestPw_(g, in_.password);
   if (!g.hash) throw new Error('Set a password for ' + g.name);
   PropertiesService.getScriptProperties().setProperty('GUESTS', JSON.stringify(list));
   return list;

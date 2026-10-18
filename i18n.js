@@ -32,7 +32,7 @@ const HE = {
   "The Web-app URL of your sheet's Apps Script (ends with /exec). Saved only on this device.": 'כתובת ה-Web app של הסקריפט בגיליון (מסתיימת ב-/exec). נשמרת רק במכשיר הזה.',
   '"Test in browser" should show {"ok":true,"app":"Action Items API"…}. A Google sign-in page means the deployment access isn\'t set to Anyone.':
     '"בדיקה בדפדפן" צריכה להציג {"ok":true,"app":"Action Items API"…}. דף התחברות של Google אומר שהגישה בפרסום אינה "Anyone".',
-  'Enter your password to continue': 'הזן סיסמה כדי להמשיך', 'Web-app URL (first time on this device)': 'כתובת ה-Web app (בפעם הראשונה במכשיר)',
+   'Web-app URL (first time on this device)': 'כתובת ה-Web app (בפעם הראשונה במכשיר)',
   'Password': 'סיסמה', 'Remember on this device': 'זכור במכשיר הזה', 'Unlock': 'כניסה', 'Change sheet URL': 'שינוי כתובת גיליון',
   'Try demo': 'נסה דמו', 'Checking…': 'בודק…',
   // menu
@@ -88,6 +88,12 @@ const HE = {
   'Manage areas': 'ניהול תחומים', 'Add, rename, reorder or remove areas. Renaming updates all items, guests and schedules. The number shows open items in each area. Keywords help quick add recognise the area.':
     'הוסף, שנה שם, שנה סדר או מחק תחומים. שינוי שם מעדכן את כל המשימות, האורחים והתזמונים. המספר מציג משימות פתוחות בכל תחום. מילות מפתח עוזרות להוספה המהירה לזהות את התחום.',
   '＋ Add area': '＋ הוספת תחום', 'Move items': 'העברת משימות', 'Move & remove area': 'העבר ומחק את התחום', 'Up': 'למעלה', 'Down': 'למטה',
+  'Username': 'שם משתמש', 'My account': 'החשבון שלי', 'New password (leave empty to keep)': 'סיסמה חדשה (השאר ריק כדי לא לשנות)',
+  'Repeat new password': 'הקלד שוב את הסיסמה החדשה', 'e.g. neta': 'למשל neta', 'Generate': 'יצירה',
+  'Wrong username or password': 'שם משתמש או סיסמה שגויים', 'Please sign in with your username and password': 'יש להתחבר עם שם משתמש וסיסמה',
+  'That username is taken': 'שם המשתמש תפוס', 'Sign in to continue': 'התחבר כדי להמשיך',
+  'Quick add': 'הקלדה מהירה', 'Type naturally — date, time, !1, @person, ~2h': 'כתוב חופשי — תאריך, שעה, !1, @אדם, ~2h',
+  'tomorrow 9:30 Send forecast to Ezra !1 ~2h': 'מחר 9:30 לשלוח תחזית לעזרא !1 ~2h',
   'Read-only access': 'גישת צפייה בלבד', 'Loading…': 'טוען…', 'Saving…': 'שומר…', 'Sending…': 'שולח…'
 };
 
