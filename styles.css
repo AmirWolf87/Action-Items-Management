@@ -315,3 +315,9 @@ body.guest .snooze{display:none}
   label.full{margin:12px 0}
   .menu .menu-item{padding:15px 14px}
 }
+
+.nt-tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.nt-tools .btn{font-size:13px;padding:8px 10px;background:var(--card);border:1px solid var(--line)}
+.nt-diag{margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;line-height:1.6}
+.nt-diag .err{color:var(--red)}
+#ntStatus{white-space:pre-line}

@@ -13,6 +13,7 @@ function onOpen() {
     .addItem('App: set / change password', 'setAppPassword')
     .addItem('App: turn on phone notifications', 'enableNotifications')
     .addItem('App: turn off phone notifications', 'disableNotifications')
+    .addItem('App: send a test push (and authorize)', 'authorizeAndTestPush')
     .addItem('App: turn on daily archive & backup', 'enableMaintenance')
     .addToUi();
 }
@@ -254,6 +255,7 @@ function doPost(e) {
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
+      case 'notifyStatus': return json_(Object.assign({ ok: true }, notifyStatus_()));
       case 'updateAccount': return json_(Object.assign({ ok: true }, updateOwnerAccount_(req)));
       case 'getGuests': return json_({ ok: true, guests: guests_().map(publicGuest_) });
       case 'saveGuest': return json_({ ok: true, guests: saveGuest_(req.guest).map(publicGuest_) });
@@ -485,7 +487,10 @@ function notifyConfig_() {
   const p = PropertiesService.getScriptProperties();
   let cfg = {};
   try { cfg = JSON.parse(p.getProperty('NOTIFY_CFG') || '{}'); } catch (e) { cfg = {}; }
-  if (!cfg.topic) cfg.topic = 'ai-' + Utilities.getUuid().replace(/-/g, '').slice(0, 20);
+  if (!cfg.topic) {                                   // create the topic ONCE and keep it, so the phone subscription stays valid
+    cfg.topic = 'ai-' + Utilities.getUuid().replace(/-/g, '').slice(0, 20);
+    try { p.setProperty('NOTIFY_CFG', JSON.stringify(cfg)); } catch (e) { /* read-only context */ }
+  }
   if (!cfg.rules) cfg.rules = [];
   if (!cfg.tz) cfg.tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
   if (!cfg.detail) cfg.detail = 'titles';
@@ -532,8 +537,47 @@ function disableNotifications() {
   SpreadsheetApp.getUi().alert('Notifications are OFF.');
 }
 
+/* one place that talks to ntfy; logs every push so problems can be seen in the app */
+function pushNtfy_(topic, title, message, tags, priority) {
+  let code = 0, err = '';
+  try {
+    const r = UrlFetchApp.fetch('https://ntfy.sh/', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      payload: JSON.stringify({ topic: topic, title: title, message: message, tags: tags || [], click: APP_URL, priority: priority || 3 })
+    });
+    code = r.getResponseCode();
+    if (code >= 300) err = 'ntfy.sh answered ' + code + ': ' + String(r.getContentText()).slice(0, 160);
+  } catch (e) {
+    err = /permission|authoriz|UrlFetchApp/i.test(String(e)) ? 'NOT_AUTHORIZED: ' + e.message : String(e.message || e);
+  }
+  try {
+    const p = PropertiesService.getScriptProperties();
+    let log = []; try { log = JSON.parse(p.getProperty('NOTIFY_LOG') || '[]'); } catch (e) { log = []; }
+    log.push({ at: new Date().toISOString(), title: String(title).slice(0, 80), ok: !err, err: err.slice(0, 200) });
+    p.setProperty('NOTIFY_LOG', JSON.stringify(log.slice(-10)));
+  } catch (e) { /* ignore */ }
+  if (err) throw new Error(err);
+}
+function notifyStatus_() {
+  const p = PropertiesService.getScriptProperties();
+  let log = []; try { log = JSON.parse(p.getProperty('NOTIFY_LOG') || '[]'); } catch (e) { log = []; }
+  let on = false; try { on = triggerOn_(); } catch (e) { on = false; }
+  let lastTick = p.getProperty('NOTIFY_TICK') || '';
+  return { triggerOn: on, lastTick: lastTick, log: log.reverse() };
+}
+/* Run this ONCE from the Apps Script editor (select it › ▶ Run) if push doesn't arrive:
+   it asks Google for the needed permissions, turns the schedule on and sends a test push. */
+function authorizeAndTestPush() {
+  if (!triggerOn_()) ScriptApp.newTrigger('notifyTick').timeBased().everyMinutes(5).create();
+  const cfg = notifyConfig_();
+  pushNtfy_(cfg.topic, '✅ Action Items — test', 'If you see this, push notifications work.\nTopic: ' + cfg.topic, ['white_check_mark'], 4);
+  console.log('Test push sent to topic: ' + cfg.topic);
+  try { SpreadsheetApp.getUi().alert('Test push sent ✅\n\nTopic: ' + cfg.topic + '\n\nIf nothing arrives, check that the ntfy app is subscribed to exactly this topic (server ntfy.sh) and that notifications for ntfy are allowed in the phone settings.'); } catch (e) { /* run from the editor */ }
+}
+
 /* runs every 5 minutes */
 function notifyTick() {
+  try { PropertiesService.getScriptProperties().setProperty('NOTIFY_TICK', new Date().toISOString()); } catch (e) { /* ignore */ }
   const cfg = notifyConfig_();
   if (!cfg.rules.length) return;
   const now = new Date();
@@ -579,12 +623,7 @@ function sendRule_(rule, isTest, cfg) {
   const d = rule.kind === 'weekly' ? weeklyDigest_(rule.area || 'All', cfg) : digest_(rule.area || 'All', cfg);
   const title = (isTest ? '[Test] ' : '') + d.title;
   const ch = rule.channel || 'push';
-  if (ch === 'push' || ch === 'both') {
-    UrlFetchApp.fetch('https://ntfy.sh/', {
-      method: 'post', contentType: 'application/json', muteHttpExceptions: false,
-      payload: JSON.stringify({ topic: cfg.topic, title: title, message: d.message, tags: ['clipboard'], click: APP_URL, priority: 3 })
-    });
-  }
+  if (ch === 'push' || ch === 'both') pushNtfy_(cfg.topic, title, d.message, ['clipboard'], 3);
   if (ch === 'email' || ch === 'both') {
     MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, d.message + '\n\n' + APP_URL);
   }
@@ -755,8 +794,7 @@ function notifySuggestion_(from, area, text) {
   const message = (cfg.detail === 'counts' ? 'A new item is waiting for your approval' : '[' + area + '] ' + text) + '\nOpen the app › 📥 to approve or reject.';
   const ch = cfg.onSuggest.channel || 'push';
   if (ch === 'push' || ch === 'both') {
-    UrlFetchApp.fetch('https://ntfy.sh/', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-      payload: JSON.stringify({ topic: cfg.topic, title: title, message: message, tags: ['inbox_tray'], click: APP_URL, priority: 4 }) });
+    try { pushNtfy_(cfg.topic, title, message, ['inbox_tray'], 4); } catch (e) { console.error(e); }
   }
   if (ch === 'email' || ch === 'both') MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, message + '\n\n' + APP_URL);
 }
@@ -828,7 +866,6 @@ function forgotPassword_(user) {
   const title = '🔑 ' + g.name + ' forgot the password';
   const message = 'Username: ' + g.user + '\nOpen the app › 📥 to send the login on WhatsApp.';
   const ch = (cfg.onSuggest && cfg.onSuggest.channel) || 'push';
-  if (ch === 'push' || ch === 'both') UrlFetchApp.fetch('https://ntfy.sh/', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-    payload: JSON.stringify({ topic: cfg.topic, title: title, message: message, tags: ['key'], click: APP_URL, priority: 4 }) });
+  if (ch === 'push' || ch === 'both') { try { pushNtfy_(cfg.topic, title, message, ['key'], 4); } catch (e) { console.error(e); } }
   if (ch === 'email' || ch === 'both') MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, message + '\n\n' + APP_URL);
 }

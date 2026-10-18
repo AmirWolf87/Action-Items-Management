@@ -632,6 +632,7 @@ function demoApi(method, body) {
   if (body.action === 'delete') { demoItems = demoItems.filter(x => x.row !== body.row); return Promise.resolve({ ok: true }); }
   if (body.action === 'getNotify') return Promise.resolve({ ok: true, config: demoNotify || { topic: 'ai-demo-topic', rules: [], detail: 'titles' }, triggerOn: !!demoNotify, email: 'you@example.com' });
   if (body.action === 'saveNotify') { demoNotify = body.config; return Promise.resolve({ ok: true, config: demoNotify, triggerOn: true }); }
+  if (body.action === 'notifyStatus') return Promise.resolve({ ok: true, triggerOn: !!demoNotify, lastTick: demoNotify ? new Date().toISOString() : '', log: [] });
   if (body.action === 'testNotify') return Promise.resolve({ ok: true, sent: true, title: '[Test] ' + body.rule.area + ' · today', message: '(demo — nothing was sent)' });
   return Promise.resolve({ ok: false, error: 'Unknown' });
 }
@@ -784,7 +785,7 @@ async function openNotify() {
     let rules = ntCfg.rules || [];
     const fresh = !rules.length;
     if (fresh) rules = [newRule('Work', '08:30', [0, 1, 2, 3, 4]), newRule('Home', '07:00', [0, 1, 2, 3, 4]), newRule('Home', '08:00', [5, 6]), newRule('Work', '15:00', [4], 'weekly')];
-    $('#ntTopic').textContent = ntCfg.topic; $('#ntDetail').value = ntCfg.detail || 'titles';
+    $('#ntTopic').textContent = ntCfg.topic; $('#ntWeb').href = 'https://ntfy.sh/' + encodeURIComponent(ntCfg.topic); $('#ntDiagOut').hidden = true; $('#ntDetail').value = ntCfg.detail || 'titles';
     $('#ntSugOn').checked = !ntCfg.onSuggest || ntCfg.onSuggest.on !== false; $('#ntSugCh').value = (ntCfg.onSuggest && ntCfg.onSuggest.channel) || 'push';
     $('#ntRules').innerHTML = rules.map(ruleHtml).join('');
     $('#ntStatus').textContent = fresh ? L('Suggested schedules — adjust and press Save.', 'תזמונים מוצעים — התאם ולחץ שמירה.')
@@ -802,9 +803,45 @@ $('#ntRules').addEventListener('click', async (e) => {
       if (ntCfg && $('#ntTopic').textContent) await api('POST', { action: 'saveNotify', config: currentNotify() });
       const j = await api('POST', { action: 'testNotify', rule: r });
       $('#ntStatus').innerText = `Sent: ${j.title}\n${j.message}`; toast('Test sent — check your phone');
-    } catch (err) { $('#ntStatus').textContent = 'Test failed: ' + err.message; }
+    } catch (err) { $('#ntStatus').textContent = L('Test failed: ', 'הבדיקה נכשלה: ') + ntExplain(err.message); }
     finally { test.disabled = false; test.textContent = 'Test'; }
   }
+});
+function ntExplain(m) {
+  m = String(m || '');
+  if (/NOT_AUTHORIZED|permission|authoriz/i.test(m)) return L(
+    'Google has not yet allowed the script to send push messages. Open the sheet › ✉ Manager Report › "App: send a test push (and authorize)", approve the permissions, then Deploy › Manage deployments › ✏ › New version.',
+    'גוגל עוד לא אישרה לסקריפט לשלוח התראות. פתח את הגיליון › ✉ Manager Report › "App: send a test push (and authorize)", אשר את ההרשאות, ואז Deploy › Manage deployments › ✏ › New version.');
+  if (/Unknown action/i.test(m)) return L('The script in the sheet is an older version — paste the new ActionItems_Script.gs and deploy a new version.', 'הסקריפט בגיליון בגרסה ישנה — הדבק את ActionItems_Script.gs החדש ופרסם גרסה חדשה (New version).');
+  return m;
+}
+$('#ntDirect').addEventListener('click', async () => {
+  const topic = $('#ntTopic').textContent; if (!topic) return;
+  const b = $('#ntDirect'); b.disabled = true;
+  try {
+    const r = await fetch('https://ntfy.sh/' + encodeURIComponent(topic) + '?title=' + encodeURIComponent(L('✅ Test from the app', '✅ בדיקה מהאפליקציה')) + '&tags=white_check_mark',
+      { method: 'POST', body: L('If you see this, the ntfy app on your phone is set up correctly.', 'אם ההודעה הזו הגיעה — אפליקציית ntfy בטלפון מוגדרת נכון.') });
+    if (!r.ok) throw new Error('ntfy.sh ' + r.status);
+    $('#ntStatus').innerText = L('✓ Sent straight to ntfy. Did it arrive on the phone?\n• Yes → the phone is fine; if scheduled alerts still don\'t come, press 🩺 Check status.\n• No → in the ntfy app check the subscription is exactly this topic on server ntfy.sh, and that notifications for ntfy are allowed in the phone settings.',
+      '✓ נשלח ישירות ל-ntfy. האם זה הגיע לטלפון?\n• כן ← הטלפון מוגדר נכון; אם ההתראות המתוזמנות עדיין לא מגיעות, לחץ 🩺 בדיקת מצב.\n• לא ← באפליקציית ntfy בדוק שהמנוי הוא בדיוק לנושא הזה בשרת ntfy.sh, ושההתראות של ntfy מאושרות בהגדרות הטלפון.');
+  } catch (e) { $('#ntStatus').textContent = L('Could not reach ntfy.sh: ', 'אין גישה ל-ntfy.sh: ') + e.message; }
+  finally { b.disabled = false; }
+});
+$('#ntDiag').addEventListener('click', async () => {
+  const out = $('#ntDiagOut'); out.hidden = false; out.textContent = L('Checking…', 'בודק…');
+  try {
+    const j = await api('POST', { action: 'notifyStatus' });
+    const ago = (iso) => { if (!iso) return L('never', 'אף פעם'); const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? L('just now', 'עכשיו') : m < 120 ? L(`${m} min ago`, `לפני ${m} דק׳`) : new Date(iso).toLocaleString(isHe() ? 'he-IL' : 'en-GB', { hour12: false }); };
+    const tickOk = j.lastTick && (Date.now() - new Date(j.lastTick)) < 20 * 60000;
+    let h = `<div>${j.triggerOn ? '✅' : '❌'} ${L('Schedule switched on', 'התזמון מופעל')}</div>`;
+    h += `<div>${tickOk ? '✅' : '⚠️'} ${L('Last scheduled check', 'בדיקה מתוזמנת אחרונה')}: ${esc(ago(j.lastTick))}</div>`;
+    if (!j.triggerOn) h += `<p class="hint">${L('Press Save below to switch it on.', 'לחץ שמירה למטה כדי להפעיל.')}</p>`;
+    else if (!tickOk) h += `<p class="hint">${L('The schedule exists but hasn\'t run recently (it runs every 5 min). If you just pasted the new script, wait 5 minutes and check again.', 'התזמון קיים אבל לא רץ לאחרונה (הוא רץ כל 5 דקות). אם הרגע הדבקת את הסקריפט החדש — חכה 5 דקות ובדוק שוב.')}</p>`;
+    h += `<div class="nt-h">${L('Last push messages sent by the sheet', 'הודעות אחרונות שהגיליון שלח')}</div>`;
+    h += (j.log || []).length ? j.log.map(x => `<div>${x.ok ? '✅' : '❌'} <small>${esc(ago(x.at))}</small> — ${esc(x.title)}${x.ok ? '' : `<br><small class="err">${esc(ntExplain(x.err))}</small>`}</div>`).join('')
+      : `<div class="hint">${L('None yet — press "Test" on a schedule below.', 'עדיין אין — לחץ "בדיקה" באחד התזמונים למטה.')}</div>`;
+    out.innerHTML = h;
+  } catch (e) { out.textContent = ntExplain(e.message); }
 });
 $('#ntAdd').addEventListener('click', () => { $('#ntRules').insertAdjacentHTML('beforeend', ruleHtml(newRule('Work', '08:00', [0, 1, 2, 3, 4]))); });
 $('#ntCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('#ntTopic').textContent); toast('Topic copied'); } catch (e) { toast('Select the topic and copy it'); } });
