@@ -85,10 +85,12 @@
       <h2>Settings</h2>
       <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
     </div>
+    <p class="hint">"Test in browser" should show text starting with {"ok":true. A Google sign-in page means the deployment access isn't set to Anyone.</p>
     <p class="hint">Connect the app to your Google Sheet. Both values come from the sheet's Apps Script (see the setup guide). They are saved only on this device.</p>
     <label class="full">Web-app URL<input name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
     <label class="full">Private key<input name="key" type="password" autocomplete="off"></label>
     <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="btnTest">Test in browser</button>
       <button type="button" class="btn ghost" id="btnDemo">Try demo data</button>
       <span class="grow"></span>
       <button type="submit" class="btn primary">Connect</button>

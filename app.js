@@ -64,12 +64,18 @@ async function api(method, body) {
   if (settings.demo) return demoApi(method, body);
   if (!settings.url || !settings.key) throw new Error('Not connected — open ⚙ Settings');
   let res;
-  if (method === 'GET') {
-    res = await fetch(`${settings.url}?action=list&key=${encodeURIComponent(settings.key)}&t=${Date.now()}`);
-  } else {
-    res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(Object.assign({ key: settings.key }, body)) });
+  try {
+    if (method === 'GET') {
+      res = await fetch(`${settings.url}?action=list&key=${encodeURIComponent(settings.key)}&t=${Date.now()}`);
+    } else {
+      res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(Object.assign({ key: settings.key }, body)) });
+    }
+  } catch (e) {
+    throw new Error('Can\'t reach the sheet. Check: (1) URL ends with /exec, (2) Deploy › Manage deployments › Who has access = Anyone, then New version › Deploy. Tip: ⚙ › Test in browser.');
   }
-  const j = await res.json();
+  let j;
+  try { j = await res.json(); }
+  catch (e) { throw new Error('The sheet answered with a web page instead of data — check the deployment: Who has access = Anyone, URL ends with /exec'); }
   if (!j.ok) throw new Error(j.error || 'Server error');
   return j;
 }
@@ -242,8 +248,14 @@ const S = (k) => frmSet.elements.namedItem(k);
 function openSettings() { S('url').value = settings.url || ''; S('key').value = settings.key || ''; if (!dlgSet.open) dlgSet.showModal(); }
 frmSet.addEventListener('submit', (e) => {
   e.preventDefault();
-  settings = { url: S('url').value.trim(), key: S('key').value.trim(), demo: false };
+  settings = { url: S('url').value.trim().replace(/\?.*$/, ''), key: S('key').value.trim(), demo: false };
+  if (!/^https:\/\/script\.google\.com\/.*\/exec$/.test(settings.url)) { toast('The Web-app URL must start with https://script.google.com/ and end with /exec'); return; }
   store.set('ai.settings', settings); dlgSet.close(); load();
+});
+$('#btnTest').addEventListener('click', () => {
+  const u = S('url').value.trim().replace(/\?.*$/, ''), k = S('key').value.trim();
+  if (!u) { toast('Paste the Web-app URL first'); return; }
+  window.open(`${u}?action=list&key=${encodeURIComponent(k)}`, '_blank');
 });
 $('#btnDemo').addEventListener('click', () => { settings = { url: '', key: '', demo: true }; store.set('ai.settings', settings); dlgSet.close(); load(); toast('Demo mode — nothing is saved to your sheet'); });
 
