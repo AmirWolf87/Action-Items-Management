@@ -48,6 +48,17 @@ It is stored only as a salted hash inside the script.
 The script checks every 5 minutes and sends each schedule once per day.
 Push messages travel through the public ntfy.sh service — choose **Counts only** if you prefer not to send item titles.
 
+## Productivity features
+- **Quick add** (top bar): `tomorrow 9:30 Send forecast !1 #Work @Ezra ~1.5h` — date words (today/tomorrow/weekday/dd/mm, also Hebrew), time, `!1-3` priority, `#area`, `@person`, `~hours`.
+- **⏭ Tomorrow** on every card defers an item; date chips (Today / Tomorrow / Next week / +7) in the editor; **drag & drop** between days in Week view on a computer.
+- **Checklist** inside an item (progress shows as ☑ 2/5); recurring items reset their checklist each time.
+- **Waiting**: counts days since you set it to Waiting (red after 3 days), **✉ Send a reminder** shares a ready message; **People** tab groups open items by person.
+- **📊 Statistics** (☰): done per week, on-time %, planned vs actual hours by area and topic (archived items included).
+- **📅 Outlook calendar sync** (☰): one private link to subscribe in Outlook / iPhone — updates by itself.
+- **🗄 Archive & backup** (☰): nightly move of old Done items to an *Archive* tab + a backup copy in Drive › *Action Items Backups* (first time: sheet menu › *App: turn on daily archive & backup*).
+- **Weekly summary** notifications: in 🔔 choose "📊 Weekly summary" for a schedule.
+- **Offline**: changes made without connection are kept on the device and synced automatically.
+
 ## Language
 Tap **עב / EN** at the top (also on the login screen) to switch the app between English and Hebrew (right-to-left). The choice is saved per device. Item texts and the manager email are not translated.
 

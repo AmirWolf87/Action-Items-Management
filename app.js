@@ -79,6 +79,9 @@ async function api(method, body) {
   try {
     res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(payload) });
   } catch (e) {
+    if (!isGuest() && body && (body.action === 'save' || body.action === 'delete') && !navigator.onLine) {
+      queuePush(body); return { ok: true, queued: true, row: body.item ? body.item.row || 0 : 0 };
+    }
     throw new Error('Can\'t reach the sheet. Check: (1) URL ends with /exec, (2) Deploy › Manage deployments › Who has access = Anyone, then New version › Deploy. Tip: ⚙ › Test in browser.');
   }
   let j;
@@ -93,12 +96,13 @@ async function load(quiet) {
   if (!settings.demo && (!settings.url || !password)) { showLock(); return false; }
   setSync(L('syncing…', 'מסנכרן…'));
   try {
+    await flushQueue();
     const j = await api('GET');
     applyList(j);
     setSync(L('synced ', 'סונכרן ') + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {
     if (e.auth) { lockApp(e.message); return false; }
-    setSync(L('offline', 'לא מחובר'));
+    setSync(L('offline', 'לא מחובר') + (queue().length ? L(` · ${queue().length} waiting to sync`, ` · ${queue().length} ממתינים לסנכרון`) : ''));
     if (!quiet) toast(e.message);
     render(); return false;
   }
@@ -176,7 +180,8 @@ async function toggleDone(it) {
   if (h !== '') copy.acthrs = String(h);
   const nd = nextDue(it);
   if (nd && it.rec && it.rec !== 'None') {
-    copy.due = iso(nd); copy.status = 'Not started';
+    copy.due = iso(nd); copy.status = 'Not started'; copy.wsince = '';
+    if (Array.isArray(copy.checklist)) copy.checklist = copy.checklist.map(x => ({ t: x.t, d: false }));
     const plan = parseFloat(it.hrs);
     if (h !== '' && plan && Math.abs(h - plan) > 1) {
       const upd = await confirmBox(tr('Update the plan?'),
@@ -246,13 +251,16 @@ function card(it) {
   const who = it.focal && it.focal !== 'Me' ? `<span>👤 ${esc(it.focal)}</span>` : '';
   const rec = it.rec && it.rec !== 'None' ? `<span title="Recurring">↻ ${esc(it.rec)}</span>` : '';
   const priv = it.private ? '<span class="private-ic" title="Private — hidden from guests">🔒</span>' : '';
+  const cl = Array.isArray(it.checklist) && it.checklist.length ? `<span>☑ ${it.checklist.filter(x => x.d).length}/${it.checklist.length}</span>` : '';
+  const wd = waitDays(it);
+  const wait = wd !== null ? `<span class="${wd >= 3 ? 'wait-late' : ''}">⏳ ${L(`waiting ${wd}d`, `ממתין ${wd} ימ׳`)}</span>` : '';
   return `<div class="card ${cls}" data-row="${it.row}">
     <button class="check ${isClosed(it) ? 'on' : ''}" data-check="${it.row}" aria-label="Mark done">${isClosed(it) ? '✓' : ''}</button>
     <div class="body">
       <div class="title" dir="auto">${esc(it.item)}</div>
-      <div class="meta">${it.area ? pill(it.area, AREA_C[it.area]) : ''}${pr}${st}${dueLabel(it)}${who}${rec}${priv}</div>
+      <div class="meta">${it.area ? pill(it.area, AREA_C[it.area]) : ''}${pr}${st}${dueLabel(it)}${who}${wait}${cl}${rec}${priv}</div>
       ${it.com ? `<div class="note" dir="auto">${esc(it.com)}</div>` : ''}
-    </div></div>`;
+    </div>${isClosed(it) ? '' : `<button class="snooze" data-snooze="${it.row}" title="${L('Defer to tomorrow', 'דחה למחר')}">⏭ ${L('Tomorrow', 'מחר')}</button>`}</div>`;
 }
 
 function filtered() {
@@ -290,6 +298,11 @@ function render() {
   if (ui.tab === 'done') {
     const done = items.filter(isClosed).sort((a, b) => (parse(b.done) || 0) - (parse(a.done) || 0));
     html = group('Completed', done, '');
+  } else if (ui.tab === 'people') {
+    const open = items.filter(it => !isClosed(it) && it.focal && it.focal !== 'Me');
+    const names = [...new Set(open.map(it => it.focal))].sort((a, b) => a.localeCompare(b));
+    html = names.map(n => group('👤 ' + n, open.filter(it => it.focal === n).sort(sortOpen), '')).join('');
+    if (!html) html = `<div class="empty"><b>👥</b>${L('No open items assigned to other people.', 'אין משימות פתוחות שמשויכות לאנשים אחרים.')}</div>`;
   } else if (ui.tab === 'waiting') {
     html = group('Waiting on others', items.filter(it => it.status === 'Waiting').sort(sortOpen), '');
   } else {
@@ -324,6 +337,8 @@ function openEdit(it) {
     el.value = v[k] ?? '';
   });
   F('private').checked = !!v.private;
+  curCl = Array.isArray(v.checklist) ? v.checklist.map(x => ({ t: x.t, d: !!x.d })) : [];
+  renderCl(); updateWaitBox(v);
   const ro = isGuest();
   [...frm.elements].forEach(el => { if (el.name) el.disabled = ro; });
   frm.querySelector('button[type=submit]').style.display = ro ? 'none' : '';
@@ -337,13 +352,16 @@ function updateHint() {
   const nd = nextDue({ due: F('due').value, rec: F('rec').value });
   $('#nextHint').textContent = nd ? `↻ Recurring — ticking it done moves the due date to ${fmt(iso(nd), true)}.` : '';
 }
-frm.addEventListener('input', (e) => { if (e.target === F('due') || e.target === F('rec')) updateHint(); });
+frm.addEventListener('input', (e) => { if (e.target === F('due') || e.target === F('rec')) updateHint(); if (e.target === F('status')) updateWaitBox(Object.assign({}, editing || {}, { status: F('status').value, focal: F('focal').value })); });
 frm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const it = Object.assign({}, editing || {});
   ['item', 'status', 'area', 'prio', 'due', 'time', 'topic', 'focal', 'rec', 'hrs', 'done', 'acthrs', 'com'].forEach(k => { it[k] = String(F(k).value).trim(); });
   if (!it.item || isGuest()) return;
   it.private = F('private').checked;
+  it.checklist = curCl.filter(x => x.t);
+  if (it.status === 'Waiting' && (!editing || editing.status !== 'Waiting' || !editing.wsince)) it.wsince = (editing && editing.status === 'Waiting' && editing.wsince) || iso(today());
+  if (it.status !== 'Waiting') it.wsince = '';
   if (it.status === 'Done' && !it.done) it.done = iso(today());
   if (!editing) it.created = iso(today());
   const plan = parseFloat(it.hrs);
@@ -519,6 +537,10 @@ document.addEventListener('click', (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) { t.closest('dialog').close(); return; }
   if (t.closest('[data-lang-toggle]')) { setLang(isHe() ? 'en' : 'he'); return; }
+  const sz = t.closest('[data-snooze]');
+  if (sz) { e.stopPropagation(); snooze(sz.dataset.snooze); return; }
+  const qd = t.closest('[data-qd]');
+  if (qd) { const v = qd.dataset.qd; F('due').value = iso(v === 'sun' ? addDays(weekStart(today()), 7) : addDays(today(), Number(v))); updateHint(); return; }
   const mv = t.closest('[data-mv]');
   if (mv) { e.stopPropagation(); moveDay(mv.dataset.r, +mv.dataset.mv); return; }
   const wk = t.closest('[data-wk]');
@@ -546,6 +568,9 @@ $('#btnNotify').addEventListener('click', openNotify);
 $('#btnMenu').addEventListener('click', () => $('#dlgMenu').showModal());
 $('#dlgMenu').addEventListener('click', (e) => { if (e.target.closest('.menu-item')) $('#dlgMenu').close(); });
 $('#btnShare').addEventListener('click', openShare);
+$('#btnStats').addEventListener('click', openStats);
+$('#btnFeed').addEventListener('click', openFeed);
+$('#btnMaint').addEventListener('click', openMaint);
 $('#btnPending').addEventListener('click', openPending);
 $('#btnPending2').addEventListener('click', openPending);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && lockEl.hidden) load(true); });
@@ -561,7 +586,7 @@ function toast(msg) {
 }
 
 /* ---------- demo backend (no sheet needed) ---------- */
-let demoItems = null, demoNotify = null, demoGuests = [], demoPending = [];
+let demoItems = null, demoNotify = null, demoGuests = [], demoPending = [], demoFeed = {};
 function demoApi(method, body) {
   if (!demoItems) {
     const t = today(), d = (n) => iso(addDays(t, n));
@@ -580,6 +605,11 @@ function demoApi(method, body) {
     if (body.action === 'deleteGuest') demoGuests = demoGuests.filter(x => x.id !== body.id);
     return Promise.resolve({ ok: true, guests: demoGuests });
   }
+  if (body.action === 'stats') return Promise.resolve({ ok: true, archived: [] });
+  if (body.action === 'getFeed' || body.action === 'setFeed') { if (body.action === 'setFeed') demoFeed = body.areas === null ? {} : { url: 'https://script.google.com/macros/s/DEMO/exec?feed=demo123', areas: body.areas || [] }; return Promise.resolve(Object.assign({ ok: true }, demoFeed)); }
+  if (body.action === 'getMaint' || body.action === 'saveMaint') return Promise.resolve({ ok: true, on: body.action === 'saveMaint', cfg: { archiveDays: 60, keepBackups: 14 }, lastBackup: '', lastArchive: '' });
+  if (body.action === 'archiveNow') return Promise.resolve({ ok: true, moved: 0 });
+  if (body.action === 'backupNow') return Promise.resolve({ ok: true, backup: { name: 'demo backup' } });
   if (body.action === 'approve' || body.action === 'reject') { demoPending = demoPending.filter(x => x.id !== body.id); return Promise.resolve({ ok: true, row: 99 }); }
   if (body.action === 'save') {
     const it = Object.assign({}, body.item);
@@ -601,7 +631,7 @@ const weekRange = (ws) => { const we = addDays(ws, 6); return `${pad(ws.getDate(
 function wiHtml(it, overdue) {
   const c = AREA_C[it.area] || ['#F3F4F6', '#94A3B8'];
   const h = parseFloat(it.hrs);
-  return `<div class="wi" data-row="${it.row}" style="border-inline-start-color:${c[1]}">
+  return `<div class="wi" data-row="${it.row}" ${isGuest() ? '' : 'draggable="true"'} style="border-inline-start-color:${c[1]}">
     <span class="tm">${esc(it.time || '')}</span>
     <span class="t" dir="auto" title="${esc(it.item)}">${esc(it.item)}</span>
     <span class="tm">${h ? h + L('h', ' שע׳') : ''}${overdue ? ' · ' + fmt(it.due) : ''}</span>
@@ -627,7 +657,7 @@ function renderWeek(items) {
     const d = addDays(ws, i), key = iso(d);
     const its = open.filter(it => it.due === key).sort(byTime);
     const hrs = its.reduce((s0, it) => s0 + (parseFloat(it.hrs) || 0), 0);
-    html += `<div class="day ${+d === +t ? 'today' : ''}"><h4><b>${d.toLocaleDateString(locale(), { weekday: 'short' })} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}${+d === +t ? ' · ' + tr('Today') : ''}</b><span>${hrs ? hrs + L('h', ' שע׳') : ''}</span></h4>
+    html += `<div class="day ${+d === +t ? 'today' : ''}" data-date="${key}"><h4><b>${d.toLocaleDateString(locale(), { weekday: 'short' })} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}${+d === +t ? ' · ' + tr('Today') : ''}</b><span>${hrs ? hrs + L('h', ' שע׳') : ''}</span></h4>
       ${its.length ? its.map(it => wiHtml(it, false)).join('') : '<div class="empty-day">—</div>'}</div>`;
   }
   return html + '</div>';
@@ -713,13 +743,14 @@ $('#icsGo').addEventListener('click', () => {
 /* ---------- notifications ---------- */
 const DAYS_EN = ['S', 'M', 'T', 'W', 'T', 'F', 'S'], DAYS_HE = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 let ntCfg = null;
-const newRule = (area, time, days) => ({ id: Math.random().toString(36).slice(2, 10), on: true, area, time, days, channel: 'push' });
+const newRule = (area, time, days, kind) => ({ id: Math.random().toString(36).slice(2, 10), on: true, area, time, days, channel: 'push', kind: kind || 'today' });
 function ruleHtml(r) {
   const areas = ['All'].concat(data.areas);
   return `<div class="rule" data-id="${esc(r.id)}">
     <input type="checkbox" class="r-on" ${r.on !== false ? 'checked' : ''} title="On / off">
     <select class="r-area">${areas.map(a => `<option value="${esc(a)}" ${a === r.area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>
     <input type="time" class="r-time" value="${esc(r.time)}">
+    <select class="r-kind"><option value="today" ${r.kind !== 'weekly' ? 'selected' : ''}>📋 Today's items</option><option value="weekly" ${r.kind === 'weekly' ? 'selected' : ''}>📊 Weekly summary</option></select>
     <select class="r-ch"><option value="push" ${r.channel === 'push' ? 'selected' : ''}>📱 Push</option><option value="email" ${r.channel === 'email' ? 'selected' : ''}>✉ Email</option><option value="both" ${r.channel === 'both' ? 'selected' : ''}>Both</option></select>
     <button type="button" class="btn ghost r-test">Test</button>
     <button type="button" class="icon-btn dark r-del" aria-label="Delete">✕</button>
@@ -729,7 +760,7 @@ function ruleHtml(r) {
 function readRules() {
   return [...document.querySelectorAll('#ntRules .rule')].map(el => ({
     id: el.dataset.id, on: el.querySelector('.r-on').checked, area: el.querySelector('.r-area').value,
-    time: el.querySelector('.r-time').value || '08:00', channel: el.querySelector('.r-ch').value,
+    time: el.querySelector('.r-time').value || '08:00', channel: el.querySelector('.r-ch').value, kind: el.querySelector('.r-kind').value,
     days: [...el.querySelectorAll('.days .on')].map(b => Number(b.dataset.d))
   }));
 }
@@ -740,7 +771,7 @@ async function openNotify() {
     ntCfg = j.config;
     let rules = ntCfg.rules || [];
     const fresh = !rules.length;
-    if (fresh) rules = [newRule('Work', '08:30', [0, 1, 2, 3, 4]), newRule('Home', '07:00', [0, 1, 2, 3, 4]), newRule('Home', '08:00', [5, 6])];
+    if (fresh) rules = [newRule('Work', '08:30', [0, 1, 2, 3, 4]), newRule('Home', '07:00', [0, 1, 2, 3, 4]), newRule('Home', '08:00', [5, 6]), newRule('Work', '15:00', [4], 'weekly')];
     $('#ntTopic').textContent = ntCfg.topic; $('#ntDetail').value = ntCfg.detail || 'titles';
     $('#ntRules').innerHTML = rules.map(ruleHtml).join('');
     $('#ntStatus').textContent = fresh ? L('Suggested schedules — adjust and press Save.', 'תזמונים מוצעים — התאם ולחץ שמירה.')
@@ -778,6 +809,241 @@ $('#ntSave').addEventListener('click', async () => {
   } catch (e) { $('#ntStatus').textContent = 'Not saved: ' + e.message; }
 });
 
+
+
+/* ---------- offline queue ---------- */
+const queue = () => store.get('ai.queue', []) || [];
+function queuePush(body) { const q = queue(); q.push(body); store.set('ai.queue', q); toast(L('Offline — saved on this device, will sync later', 'אין חיבור — נשמר במכשיר ויסונכרן אחר כך')); }
+let flushing = false;
+async function flushQueue() {
+  if (flushing || settings.demo || !queue().length || !navigator.onLine) return;
+  flushing = true;
+  try {
+    let q = queue();
+    while (q.length) {
+      const b = q[0];
+      const res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(Object.assign({ password }, b)) });
+      const j = await res.json(); if (!j.ok && j.auth) break;
+      q.shift(); store.set('ai.queue', q);
+    }
+    if (!q.length) toast(L('Offline changes synced ✓', 'השינויים מהמצב הלא-מקוון סונכרנו ✓'));
+  } catch (e) { /* still offline */ }
+  flushing = false;
+}
+window.addEventListener('online', () => { if (lockEl.hidden) load(true); });
+
+/* ---------- waiting & reminders ---------- */
+function waitDays(it) {
+  if (it.status !== 'Waiting') return null;
+  const d = parse(it.wsince) || parse(it.created); if (!d) return null;
+  return Math.max(0, dayDiff(today(), d));
+}
+function updateWaitBox(v) {
+  const box = $('#waitBox'); if (!box) return;
+  if (v.status !== 'Waiting' || isGuest()) { box.hidden = true; return; }
+  const d = waitDays(Object.assign({ wsince: v.wsince || iso(today()) }, v)) || 0;
+  $('#waitInfo').textContent = L(`⏳ Waiting${v.focal && v.focal !== 'Me' ? ' on ' + v.focal : ''} for ${d} day${d === 1 ? '' : 's'}`, `⏳ ממתין${v.focal && v.focal !== 'Me' ? ' ל' + v.focal : ''} ${d} ימים`);
+  box.hidden = false;
+}
+$('#btnNudge').addEventListener('click', async () => {
+  const name = F('focal').value && F('focal').value !== 'Me' ? F('focal').value : '';
+  const since = editing && editing.wsince ? fmt(editing.wsince) : '';
+  const text = isHe()
+    ? `היי${name ? ' ' + name : ''}, תזכורת קטנה לגבי "${F('item').value}"${since ? ` (ממתין מ-${since})` : ''}. אשמח לעדכון כשתוכל/י. תודה!`
+    : `Hi${name ? ' ' + name : ''}, a quick reminder about "${F('item').value}"${since ? ` (waiting since ${since})` : ''}. Could you update me when you can? Thanks!`;
+  try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { /* cancelled */ }
+  try { await navigator.clipboard.writeText(text); toast(L('Reminder text copied — paste it in WhatsApp / Teams / email', 'נוסח התזכורת הועתק — הדבק בוואטסאפ / Teams / מייל')); }
+  catch (e) { prompt(L('Copy this reminder:', 'העתק את התזכורת:'), text); }
+});
+
+/* ---------- checklist ---------- */
+let curCl = [];
+function renderCl() {
+  const ro = isGuest();
+  $('#clList').innerHTML = curCl.map((x, i) => `<div class="cl-row ${x.d ? 'done' : ''}"><input type="checkbox" data-cli="${i}" ${x.d ? 'checked' : ''} ${ro ? 'disabled' : ''}><span dir="auto">${esc(x.t)}</span>${ro ? '' : `<button type="button" data-cldel="${i}" aria-label="Remove">✕</button>`}</div>`).join('');
+  $('#clCount').textContent = curCl.length ? `${curCl.filter(x => x.d).length}/${curCl.length}` : '';
+}
+function addCl() { const v = $('#clNew').value.trim(); if (!v) return; curCl.push({ t: v, d: false }); $('#clNew').value = ''; renderCl(); $('#clNew').focus(); }
+$('#clAddBtn').addEventListener('click', addCl);
+$('#clNew').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCl(); } });
+$('#clList').addEventListener('click', (e) => {
+  const c = e.target.closest('[data-cli]'); if (c) { curCl[+c.dataset.cli].d = c.checked; renderCl(); return; }
+  const d = e.target.closest('[data-cldel]'); if (d) { curCl.splice(+d.dataset.cldel, 1); renderCl(); }
+});
+
+/* ---------- snooze & drag-and-drop ---------- */
+async function snooze(row) {
+  const it = data.items.find(x => String(x.row) === String(row)); if (!it) return;
+  const d = parse(it.due), t = today();
+  const nd = (!d || d <= t) ? addDays(t, 1) : addDays(d, 1);
+  const copy = Object.assign({}, it, { due: iso(nd) });
+  if (await save(copy)) toast(L(`Deferred to ${fmt(copy.due, true)}`, `נדחה ל-${fmt(copy.due, true)}`));
+}
+let dragRow = null;
+document.addEventListener('dragstart', (e) => { const w = e.target.closest && e.target.closest('.wi[draggable=true]'); if (!w) return; dragRow = w.dataset.row; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragRow); } catch (err) { /* ignore */ } });
+document.addEventListener('dragover', (e) => { const d = e.target.closest && e.target.closest('.day[data-date]'); if (!d || !dragRow) return; e.preventDefault(); document.querySelectorAll('.day.drop').forEach(x => x !== d && x.classList.remove('drop')); d.classList.add('drop'); });
+document.addEventListener('dragleave', (e) => { const d = e.target.closest && e.target.closest('.day[data-date]'); if (d && !d.contains(e.relatedTarget)) d.classList.remove('drop'); });
+document.addEventListener('drop', async (e) => {
+  const d = e.target.closest && e.target.closest('.day[data-date]'); if (!d || !dragRow) return;
+  e.preventDefault(); d.classList.remove('drop');
+  const it = data.items.find(x => String(x.row) === String(dragRow)); dragRow = null;
+  if (!it || it.due === d.dataset.date) return;
+  if (await save(Object.assign({}, it, { due: d.dataset.date }))) toast(L(`Moved to ${fmt(d.dataset.date, true)}`, `הועבר ל-${fmt(d.dataset.date, true)}`));
+});
+document.addEventListener('dragend', () => { dragRow = null; document.querySelectorAll('.day.drop').forEach(x => x.classList.remove('drop')); });
+
+/* ---------- quick add ---------- */
+const WD_EN = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], WD_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+function areaFromWord(w) {
+  const x = w.toLowerCase();
+  return data.areas.find(a => a.toLowerCase() === x || a.toLowerCase().startsWith(x) || (HE[a] && (HE[a] === w || HE[a].startsWith(w))));
+}
+function parseQuick(text) {
+  let s = ' ' + text + ' ';
+  const out = { item: '', due: '', time: '', prio: '', area: '', focal: '', hrs: '' };
+  const take = (re, fn) => { s = s.replace(re, (...m) => { const r = fn(...m); return r === false ? m[0] : ' '; }); };
+  take(/\s!([123])(?=\s)/, (m, p) => { out.prio = PRIO[+p - 1]; });
+  take(/\s#(\S+)(?=\s)/, (m, w) => { const a = areaFromWord(w); if (!a) return false; out.area = a; });
+  take(/\s@(\S+)(?=\s)/, (m, w) => { out.focal = w; });
+  take(/\s~(\d+(?:\.\d+)?)\s*(?:h|ש(?:עות|׳)?)?(?=\s)/i, (m, h) => { out.hrs = h; });
+  take(/\s(\d{1,2}):(\d{2})(?=\s)/, (m, h, mi) => { if (+h > 23 || +mi > 59) return false; out.time = pad(+h) + ':' + mi; });
+  const t = today();
+  take(/\s(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s)/, (m, d, mo, y) => {
+    let yr = y ? (+y < 100 ? 2000 + +y : +y) : t.getFullYear(); let dt = new Date(yr, +mo - 1, +d);
+    if (dt.getMonth() !== +mo - 1) return false; if (!y && dt < t) dt = new Date(yr + 1, +mo - 1, +d); out.due = iso(dt);
+  });
+  if (!out.due) take(/\s(today|היום)(?=\s)/i, () => { out.due = iso(t); });
+  if (!out.due) take(/\s(tomorrow|tmrw|מחר)(?=\s)/i, () => { out.due = iso(addDays(t, 1)); });
+  if (!out.due) take(/\s(next week|שבוע הבא|בשבוע הבא)(?=\s)/i, () => { out.due = iso(addDays(weekStart(t), 7)); });
+  if (!out.due) take(/\s(?:on\s+|ביום\s+|יום\s+)?([A-Za-z]{3,9}|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)(?=\s)/, (m, w) => {
+    let i = WD_HE.indexOf(w); if (i < 0) i = WD_EN.indexOf(w.toLowerCase().slice(0, 3)); if (i < 0 || (/^[a-z]/i.test(w) && !/^(sun|mon|tue|wed|thu|fri|sat)/i.test(w))) return false;
+    out.due = iso(addDays(t, (i - t.getDay() + 7) % 7));
+  });
+  out.item = s.replace(/\s+/g, ' ').trim();
+  return out;
+}
+function qaPreview() {
+  const v = $('#qa').value.trim(); if (!v) { $('#qaPreview').innerHTML = ''; return; }
+  const p = parseQuick(v);
+  $('#qaPreview').innerHTML = [p.due && `<span>📅 ${fmt(p.due, true)}</span>`, p.time && `<span>🕘 ${p.time}</span>`,
+    pill(p.area || (ui.area !== 'All' ? ui.area : 'Work'), AREA_C[p.area || (ui.area !== 'All' ? ui.area : 'Work')]),
+    p.prio && pill(p.prio.replace(/^\d - /, ''), PRIO_C[p.prio.charAt(0)]), p.focal && `<span>👤 ${esc(p.focal)}</span>`, p.hrs && `<span>⏱ ${p.hrs}h</span>`]
+    .filter(Boolean).join('');
+}
+$('#qa').addEventListener('input', qaPreview);
+$('#quickAdd').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const v = $('#qa').value.trim(); if (!v) return;
+  const p = parseQuick(v); if (!p.item) { toast(L('Write what needs doing', 'כתוב מה צריך לעשות')); return; }
+  const it = { item: p.item, status: 'Not started', area: p.area || (ui.area !== 'All' ? ui.area : 'Work'), prio: p.prio || '2 - Medium',
+    due: p.due, time: p.time, focal: p.focal || 'Me', hrs: p.hrs, rec: 'None', created: iso(today()) };
+  $('#qa').value = ''; qaPreview();
+  if (await save(it)) toast(L(`Added: ${it.item}`, `נוסף: ${it.item}`));
+});
+
+/* ---------- statistics ---------- */
+async function openStats() {
+  $('#dlgStats').showModal(); $('#statsBody').innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
+  let archived = [];
+  try { archived = (await api('POST', { action: 'stats' })).archived || []; } catch (e) { /* show what we have */ }
+  const done = data.items.filter(it => it.status === 'Done').concat(archived.filter(a => a.status === 'Done'));
+  const t = today(), d30 = addDays(t, -30);
+  const recent = done.filter(it => parse(it.done) && parse(it.done) >= d30);
+  const withDue = done.filter(it => parse(it.done) && parse(it.due));
+  const onTime = withDue.filter(it => parse(it.done) <= parse(it.due)).length;
+  const both = done.filter(it => parseFloat(it.hrs) > 0 && parseFloat(it.acthrs) > 0);
+  const sum = (a, k) => a.reduce((s0, x) => s0 + (parseFloat(x[k]) || 0), 0);
+  const ratio = both.length ? sum(both, 'acthrs') / sum(both, 'hrs') : null;
+  const pct = (x) => Math.round(x * 100) + '%';
+  const diffCell = (p, a) => { if (!p) return '—'; const r = a / p - 1; return `<span class="${r > 0.1 ? 'over' : r < -0.1 ? 'under' : ''}">${r > 0 ? '+' : ''}${pct(r)}</span>`; };
+  let h = `<div class="st-kpis">
+    <div class="st-kpi"><b>${recent.length}</b><span>${L('Done · 30 days', 'בוצעו · 30 יום')}</span></div>
+    <div class="st-kpi"><b>${withDue.length ? pct(onTime / withDue.length) : '—'}</b><span>${L('On time', 'בזמן')}</span></div>
+    <div class="st-kpi"><b>${ratio ? ratio.toFixed(2) + '×' : '—'}</b><span>${L('Actual ÷ planned', 'בפועל ÷ מתוכנן')}</span></div>
+    <div class="st-kpi"><b>${data.items.filter(it => !isClosed(it)).length}</b><span>${L('Open now', 'פתוחות עכשיו')}</span></div></div>`;
+  // weekly bars (last 8 weeks)
+  const ws0 = weekStart(t); const weeks = [];
+  for (let i = 7; i >= 0; i--) { const a = addDays(ws0, -7 * i), b = addDays(a, 7); weeks.push({ label: `${pad(a.getDate())}/${pad(a.getMonth() + 1)}`, n: done.filter(it => parse(it.done) >= a && parse(it.done) < b).length }); }
+  const mx = Math.max(1, ...weeks.map(w => w.n));
+  h += `<h3 class="nt-h">${L('Completed per week', 'הושלמו בכל שבוע')}</h3><div class="bars">${weeks.map(w => `<div><b>${w.n || ''}</b><i style="height:${Math.round(w.n / mx * 85)}%"></i>${w.label}</div>`).join('')}</div>`;
+  // by area
+  const areas = [...new Set(done.map(x => x.area).filter(Boolean))];
+  h += `<h3 class="nt-h">${L('Planned vs actual hours by area', 'שעות מתוכננות מול בפועל לפי תחום')}</h3><table class="st-table"><tr><th>${tr('Area')}</th><th>${L('Done', 'בוצעו')}</th><th>${L('Planned h', 'מתוכנן')}</th><th>${L('Actual h', 'בפועל')}</th><th>${L('Difference', 'פער')}</th><th>${L('On time', 'בזמן')}</th></tr>` +
+    areas.map(a => { const x = done.filter(it => it.area === a), b2 = x.filter(it => parseFloat(it.hrs) > 0 && parseFloat(it.acthrs) > 0), wd = x.filter(it => parse(it.done) && parse(it.due));
+      return `<tr><td>${pill(a, AREA_C[a])}</td><td>${x.length}</td><td>${sum(b2, 'hrs') || '—'}</td><td>${sum(b2, 'acthrs') || '—'}</td><td>${diffCell(sum(b2, 'hrs'), sum(b2, 'acthrs'))}</td><td>${wd.length ? pct(wd.filter(it => parse(it.done) <= parse(it.due)).length / wd.length) : '—'}</td></tr>`; }).join('') + '</table>';
+  // topics with biggest gaps
+  const topics = {}; both.forEach(it => { const k = it.topic || it.item; (topics[k] = topics[k] || { p: 0, a: 0, n: 0 }); topics[k].p += parseFloat(it.hrs); topics[k].a += parseFloat(it.acthrs); topics[k].n++; });
+  const tl = Object.entries(topics).sort((x, y) => Math.abs(y[1].a - y[1].p) - Math.abs(x[1].a - x[1].p)).slice(0, 8);
+  if (tl.length) h += `<h3 class="nt-h">${L('Biggest estimate gaps (topic)', 'הפערים הגדולים בהערכה (לפי נושא)')}</h3><table class="st-table"><tr><th>${tr('Topic')}</th><th>#</th><th>${L('Planned h', 'מתוכנן')}</th><th>${L('Actual h', 'בפועל')}</th><th>${L('Difference', 'פער')}</th></tr>` +
+    tl.map(([k, v]) => `<tr><td dir="auto">${esc(k)}</td><td>${v.n}</td><td>${v.p}</td><td>${v.a}</td><td>${diffCell(v.p, v.a)}</td></tr>`).join('') + '</table>';
+  if (!done.length) h += `<p class="hint">${L('Statistics appear once you complete items (and enter actual hours).', 'הסטטיסטיקה תופיע אחרי שתסיים משימות (ותזין שעות בפועל).')}</p>`;
+  $('#statsBody').innerHTML = h;
+}
+
+/* ---------- Outlook calendar subscription ---------- */
+let feed = null;
+function renderFeed() {
+  const b = $('#feedBody');
+  if (!feed || !feed.url) {
+    b.innerHTML = `<p>${L('No calendar link yet.', 'עדיין אין קישור ללוח שנה.')}</p><button class="btn primary" id="feedCreate">${L('Create my calendar link', 'צור קישור ללוח השנה')}</button>`;
+    return;
+  }
+  const sel = feed.areas && feed.areas.length ? feed.areas : data.areas;
+  b.innerHTML = `<div class="rep-areas"><span>${tr('Areas:')}</span><div class="chips">${data.areas.map(a => `<button type="button" class="chip ${sel.includes(a) ? 'on' : ''}" data-farea="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
+    <div class="feed-url"><code class="no-i18n">${esc(feed.url)}</code><button class="btn ghost" id="feedCopy">${tr('Copy')}</button></div>
+    <ol class="steps">${isHe()
+      ? '<li><b>Outlook באינטרנט:</b> לוח שנה › הוספת לוח שנה › <b>הירשם מהאינטרנט</b> › הדבק את הקישור › שם: Action Items › ייבוא.</li><li><b>Outlook במחשב:</b> לוח שנה › הוספת לוח שנה › <b>מהאינטרנט…</b> › הדבק › אישור.</li><li><b>אייפון:</b> הגדרות › יומן › חשבונות › הוסף חשבון › אחר › <b>הוסף לוח שנה מנוי</b> › הדבק.</li>'
+      : '<li><b>Outlook on the web:</b> Calendar › Add calendar › <b>Subscribe from web</b> › paste the link › name it "Action Items" › Import.</li><li><b>Outlook desktop:</b> Calendar › Add calendar › <b>From Internet…</b> › paste › OK.</li><li><b>iPhone:</b> Settings › Calendar › Accounts › Add Account › Other › <b>Add Subscribed Calendar</b> › paste.</li>'}</ol>
+    <p class="hint">${L('The link is private — anyone who has it can see these items. Items with a start time appear as meetings with their duration; others as all-day reminders. Done items disappear.', 'הקישור פרטי — כל מי שמחזיק בו יכול לראות את המשימות. משימות עם שעה מופיעות כפגישה עם המשך שלהן; האחרות כתזכורת לכל היום. משימות שבוצעו נעלמות.')}</p>
+    <div class="sheet-actions"><button class="btn danger" id="feedOff">${L('Turn off link', 'בטל קישור')}</button><button class="btn ghost" id="feedReset">${L('New link (old stops working)', 'קישור חדש (הישן יפסיק לעבוד)')}</button></div>`;
+}
+async function openFeed() {
+  $('#dlgFeed').showModal(); $('#feedBody').innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
+  try { feed = await api('POST', { action: 'getFeed' }); renderFeed(); } catch (e) { $('#feedBody').textContent = e.message; }
+}
+$('#feedBody').addEventListener('click', async (e) => {
+  try {
+    if (e.target.closest('#feedCreate')) { feed = await api('POST', { action: 'setFeed', areas: data.areas }); renderFeed(); }
+    else if (e.target.closest('#feedReset')) { if (confirm(L('Create a new link? Calendars subscribed with the old link stop updating.', 'ליצור קישור חדש? לוחות שנרשמו עם הקישור הישן יפסיקו להתעדכן.'))) { feed = await api('POST', { action: 'setFeed', reset: true, areas: feed.areas }); renderFeed(); } }
+    else if (e.target.closest('#feedOff')) { if (confirm(L('Turn off the calendar link?', 'לבטל את הקישור ללוח השנה?'))) { feed = await api('POST', { action: 'setFeed', areas: null }); renderFeed(); } }
+    else if (e.target.closest('#feedCopy')) { await navigator.clipboard.writeText(feed.url); toast(L('Link copied', 'הקישור הועתק')); }
+    else {
+      const ch = e.target.closest('[data-farea]'); if (!ch) return;
+      const sel = (feed.areas && feed.areas.length ? feed.areas : data.areas).slice(); const i = sel.indexOf(ch.dataset.farea);
+      if (i >= 0) { if (sel.length === 1) return; sel.splice(i, 1); } else sel.push(ch.dataset.farea);
+      feed = await api('POST', { action: 'setFeed', areas: sel }); renderFeed();
+    }
+  } catch (err) { toast(err.message); }
+});
+
+/* ---------- archive & backup ---------- */
+let maint = null;
+const when = (s) => s ? new Date(s).toLocaleString(locale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+function renderMaint() {
+  $('#maintBody').innerHTML = `
+    <p class="rep-status" style="color:${maint.on ? '#15803D' : '#B45309'}">${maint.on ? L('✓ Daily archive & backup are ON (every night ~02:00)', '✓ ארכוב וגיבוי יומי פעילים (כל לילה ~02:00)') : L('Daily archive & backup are OFF', 'ארכוב וגיבוי יומי כבויים')}</p>
+    <label class="full">${L('Move Done items to the "Archive" tab after (days)', 'העבר משימות שבוצעו ללשונית "Archive" אחרי (ימים)')}<input type="number" id="mDays" min="7" max="365" value="${maint.cfg.archiveDays}"></label>
+    <label class="full">${L('Keep this many daily backups', 'מספר גיבויים יומיים לשמור')}<input type="number" id="mKeep" min="3" max="60" value="${maint.cfg.keepBackups}"></label>
+    <p class="hint">${L('Backups are full copies of the sheet in Google Drive › "Action Items Backups".', 'הגיבויים הם עותקים מלאים של הגיליון ב-Google Drive › "Action Items Backups".')}<br>${L('Last backup', 'גיבוי אחרון')}: ${when(maint.lastBackup)} · ${L('Last archive', 'ארכוב אחרון')}: ${when(maint.lastArchive)}</p>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="mArchive">${L('Archive now', 'ארכב עכשיו')}</button>
+      <button class="btn ghost" id="mBackup">${L('Back up now', 'גבה עכשיו')}</button>
+      <span class="grow"></span>
+      <button class="btn primary" id="mSave">${maint.on ? tr('Save') : L('Save & turn on', 'שמור והפעל')}</button>
+    </div><p class="rep-status" id="mStatus"></p>`;
+}
+async function openMaint() {
+  $('#dlgMaint').showModal(); $('#maintBody').innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
+  try { maint = await api('POST', { action: 'getMaint' }); renderMaint(); } catch (e) { $('#maintBody').textContent = e.message; }
+}
+$('#maintBody').addEventListener('click', async (e) => {
+  const st = (m) => { $('#mStatus').textContent = m; };
+  try {
+    if (e.target.closest('#mSave')) { maint = await api('POST', { action: 'saveMaint', cfg: { archiveDays: $('#mDays').value, keepBackups: $('#mKeep').value, on: true } }); renderMaint(); st(maint.note || L('✓ Saved', '✓ נשמר')); }
+    if (e.target.closest('#mArchive')) { st(L('Archiving…', 'מארכב…')); const j = await api('POST', { action: 'archiveNow' }); st(L(`✓ ${j.moved} item(s) moved to the Archive tab`, `✓ ${j.moved} משימות הועברו ללשונית Archive`)); load(true); }
+    if (e.target.closest('#mBackup')) { st(L('Backing up…', 'מגבה…')); const j = await api('POST', { action: 'backupNow' }); st(L(`✓ Backup created: ${j.backup.name}`, `✓ נוצר גיבוי: ${j.backup.name}`)); }
+  } catch (err) { st(err.message.includes('DriveApp') || err.message.includes('permission') ? L('Needs one-time permission: in the sheet choose ✉ Manager Report › App: turn on daily archive & backup.', 'נדרשת הרשאה חד-פעמית: בגיליון בחר ✉ Manager Report › App: turn on daily archive & backup.') : err.message); }
+});
 
 /* ---------- roles: owner / guest ---------- */
 function applyList(j) {

@@ -13,6 +13,7 @@ function onOpen() {
     .addItem('App: set / change password', 'setAppPassword')
     .addItem('App: turn on phone notifications', 'enableNotifications')
     .addItem('App: turn off phone notifications', 'disableNotifications')
+    .addItem('App: turn on daily archive & backup', 'enableMaintenance')
     .addToUi();
 }
 
@@ -154,10 +155,12 @@ function showOutlookDialog() {
 const API_SHEET = 'Action Items';
 const API_FIRST = 6, API_LAST = 505;
 const API_COLS = { item: 1, status: 2, area: 3, prio: 4, due: 5, topic: 8, focal: 9, created: 10,
-                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23, private: 24 };   // W = Start Time, X = Private (added by the app)
-const API_NCOLS = 24;
+                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23, private: 24, checklist: 25, wsince: 26 };
+// added by the app:  W = Start Time · X = Private · Y = Checklist (JSON) · Z = Waiting since
+const API_NCOLS = 26;
+const API_HEADS = { time: 'Start Time', private: 'Private', checklist: 'Checklist', wsince: 'Waiting Since' };
 const APP_URL = 'https://amirwolf87.github.io/Action-Items-Management/';
-const API_DATES = ['due', 'created', 'done'];
+const API_DATES = ['due', 'created', 'done', 'wsince'];
 
 /* ---------- password (stored only as a salted SHA-256 hash) ---------- */
 function hash_(pw, salt) {
@@ -207,6 +210,11 @@ function authenticate_(pw) {
 /* Opening the URL in a browser only shows that the API is alive — never any data */
 function doGet(e) {
   const p = PropertiesService.getScriptProperties();
+  if (e && e.parameter && e.parameter.feed) {                 // Outlook / Google Calendar subscription
+    const f = feedCfg_();
+    if (!f.token || e.parameter.feed !== f.token) return ContentService.createTextOutput('Not found');
+    return ContentService.createTextOutput(buildFeed_(f)).setMimeType(ContentService.MimeType.ICAL);
+  }
   return json_({ ok: true, app: 'Action Items API', passwordSet: !!p.getProperty('PW_HASH') });
 }
 
@@ -239,6 +247,13 @@ function doPost(e) {
       case 'delete': return withLock_(() => { clearRow_(req.row); return json_({ ok: true }); });
       case 'approve': return withLock_(() => json_({ ok: true, row: approvePending_(req.id, req.item || {}) }));
       case 'reject': return withLock_(() => { decidePending_(req.id, 'Rejected'); return json_({ ok: true }); });
+      case 'getFeed': return json_(Object.assign({ ok: true }, feedInfo_()));
+      case 'setFeed': return json_(Object.assign({ ok: true }, setFeed_(req.areas, req.reset)));
+      case 'stats': return json_({ ok: true, archived: readArchive_() });
+      case 'getMaint': return json_(Object.assign({ ok: true }, maintInfo_()));
+      case 'saveMaint': return json_(Object.assign({ ok: true }, saveMaint_(req.cfg || {})));
+      case 'archiveNow': return withLock_(() => json_({ ok: true, moved: archiveDone_() }));
+      case 'backupNow': return json_({ ok: true, backup: backupNow_() });
       default: return json_({ ok: false, error: 'Unknown action' });
     }
   } catch (err) {
@@ -360,6 +375,7 @@ function readAll_() {
       if (v instanceof Date) v = Utilities.formatDate(v, tz, k === 'time' ? 'HH:mm' : 'yyyy-MM-dd');
       o[k] = v === null || v === undefined ? '' : v;
       if (k === 'private') o[k] = v === true || String(v).toUpperCase() === 'TRUE';
+      if (k === 'checklist') { try { o[k] = v ? JSON.parse(v) : []; } catch (e) { o[k] = []; } }
     });
     items.push(o);
   });
@@ -381,6 +397,7 @@ function toCell_(k, v) {
   }
   if (k === 'hrs' || k === 'acthrs') return v === '' ? '' : Number(v);
   if (k === 'private') return v === true || v === 'TRUE' || v === 'true' ? true : '';
+  if (k === 'checklist') return Array.isArray(v) ? (v.length ? JSON.stringify(v) : '') : String(v || '');
   return v;
 }
 
@@ -396,12 +413,11 @@ function saveItem_(it) {
     if (!it.created) it.created = Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
   }
   if (row < API_FIRST || row > API_LAST) throw new Error('Bad row');
-  if (sh.getRange(5, API_COLS.time).getValue() === '') sh.getRange(5, API_COLS.time).setValue('Start Time');
-  if (sh.getRange(5, API_COLS.private).getValue() === '') sh.getRange(5, API_COLS.private).setValue('Private');
+  Object.keys(API_HEADS).forEach(k => { if (sh.getRange(5, API_COLS[k]).getValue() === '') sh.getRange(5, API_COLS[k]).setValue(API_HEADS[k]); });
   Object.keys(API_COLS).forEach(k => {
     if (!(k in it)) return;
     const cell = sh.getRange(row, API_COLS[k]);
-    if (k === 'time') cell.setNumberFormat('@');          // keep "08:30" as text
+    if (k === 'time' || k === 'checklist') cell.setNumberFormat('@');          // keep as plain text
     cell.setValue(toCell_(k, it[k]));
   });
   return row;
@@ -448,7 +464,8 @@ function saveNotify_(cfg) {
       id: String(r.id || Utilities.getUuid().slice(0, 8)), on: r.on !== false,
       area: String(r.area || 'All'), time: /^\d{2}:\d{2}$/.test(r.time) ? r.time : '08:00',
       days: (r.days || []).map(Number).filter(d => d >= 0 && d <= 6),
-      channel: ['push', 'email', 'both'].indexOf(r.channel) >= 0 ? r.channel : 'push'
+      channel: ['push', 'email', 'both'].indexOf(r.channel) >= 0 ? r.channel : 'push',
+      kind: r.kind === 'weekly' ? 'weekly' : 'today'
     }))
   };
   PropertiesService.getScriptProperties().setProperty('NOTIFY_CFG', JSON.stringify(clean));
@@ -512,7 +529,7 @@ function digest_(area, cfg) {
 
 function sendRule_(rule, isTest, cfg) {
   cfg = cfg || notifyConfig_();
-  const d = digest_(rule.area || 'All', cfg);
+  const d = rule.kind === 'weekly' ? weeklyDigest_(rule.area || 'All', cfg) : digest_(rule.area || 'All', cfg);
   const title = (isTest ? '[Test] ' : '') + d.title;
   const ch = rule.channel || 'push';
   if (ch === 'push' || ch === 'both') {
@@ -525,4 +542,159 @@ function sendRule_(rule, isTest, cfg) {
     MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, d.message + '\n\n' + APP_URL);
   }
   return { sent: true, title: title, message: d.message };
+}
+
+
+/* ---------- weekly summary notification ---------- */
+function weeklyDigest_(area, cfg) {
+  const tz = cfg.tz, now = new Date();
+  const todayStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+  const dow = Number(Utilities.formatDate(now, tz, 'u')) % 7;
+  const ws = new Date(now.getTime() - dow * 86400000), we = new Date(ws.getTime() + 6 * 86400000);
+  const nws = new Date(ws.getTime() + 7 * 86400000), nwe = new Date(ws.getTime() + 13 * 86400000);
+  const f = (d) => Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+  const all = readAll_().items.filter(it => area === 'All' || it.area === area);
+  const done = all.filter(it => it.status === 'Done' && it.done >= f(ws) && it.done <= f(we));
+  const open = all.filter(it => it.status !== 'Done' && it.status !== 'Cancelled');
+  const over = open.filter(it => it.due && it.due < todayStr);
+  const next = open.filter(it => it.due && it.due >= f(nws) && it.due <= f(nwe));
+  const title = (area === 'All' ? 'Week' : area + ' · week') + ' — ' + done.length + ' done, ' + next.length + ' next week';
+  let msg;
+  if (cfg.detail === 'counts') msg = 'Done this week: ' + done.length + '\nCarried over / overdue: ' + over.length + '\nPlanned next week: ' + next.length;
+  else {
+    const L = [];
+    if (done.length) { L.push('✔ Done this week:'); done.slice(0, 8).forEach(it => L.push('  • ' + it.item)); }
+    if (over.length) { L.push('⚠ Carried over:'); over.slice(0, 6).forEach(it => L.push('  • ' + it.item)); }
+    if (next.length) { L.push('▶ Next week:'); next.slice(0, 8).forEach(it => L.push('  • ' + it.item)); }
+    msg = L.length ? L.join('\n') : 'A quiet week — nothing done or planned.';
+  }
+  return { title: title, message: msg };
+}
+
+/* ---------- Outlook / calendar subscription feed ---------- */
+function feedCfg_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('FEED_CFG') || '{}'); } catch (e) { return {}; } }
+function feedInfo_() {
+  const f = feedCfg_();
+  let base = ''; try { base = ScriptApp.getService().getUrl(); } catch (e) { base = ''; }
+  return { on: !!f.token, areas: f.areas || [], url: f.token && base ? base + '?feed=' + f.token : '' };
+}
+function setFeed_(areas, reset) {
+  const f = feedCfg_();
+  if (reset || !f.token) f.token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8);
+  if (Array.isArray(areas)) f.areas = areas.map(String);
+  if (areas === null) { delete f.token; }
+  PropertiesService.getScriptProperties().setProperty('FEED_CFG', JSON.stringify(f));
+  return feedInfo_();
+}
+function icsEsc_(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+function icsFold_(line) {
+  const out = []; let cur = '', bytes = 0;
+  for (const ch of line) { const b = Utilities.newBlob(ch).getBytes().length; if (bytes + b > 73) { out.push(cur); cur = ' '; bytes = 1; } cur += ch; bytes += b; }
+  out.push(cur); return out.join('\r\n');
+}
+function buildFeed_(f) {
+  const ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone();
+  const now = new Date(), from = Utilities.formatDate(new Date(now.getTime() - 14 * 86400000), tz, 'yyyy-MM-dd');
+  const items = readAll_().items.filter(it => it.due && it.due >= from && it.status !== 'Cancelled' && it.status !== 'Done' &&
+    (!f.areas || !f.areas.length || f.areas.indexOf(it.area) >= 0));
+  const stamp = Utilities.formatDate(now, 'UTC', "yyyyMMdd'T'HHmmss'Z'");
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Action Items//feed//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'X-WR-CALNAME:Action Items', 'X-WR-TIMEZONE:' + tz, 'X-PUBLISHED-TTL:PT1H', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H'];
+  items.forEach(it => {
+    const d = it.due.replace(/-/g, '');
+    const dur = Math.max(0.25, Number(it.hrs) || 1);
+    L.push('BEGIN:VEVENT', 'UID:ai-row' + it.row + '@action-items', 'DTSTAMP:' + stamp);
+    if (it.time && /^\d{1,2}:\d{2}$/.test(it.time)) {
+      const p = it.time.split(':'); const st = d + 'T' + ('0' + p[0]).slice(-2) + p[1] + '00';
+      const endMin = Number(p[0]) * 60 + Number(p[1]) + Math.round(dur * 60);
+      const en = d + 'T' + ('0' + Math.floor(endMin / 60) % 24).slice(-2) + ('0' + endMin % 60).slice(-2) + '00';
+      L.push('DTSTART;TZID=' + tz + ':' + st, 'DTEND;TZID=' + tz + ':' + (endMin >= 1440 ? st : en));
+    } else {
+      const nd = Utilities.formatDate(new Date(new Date(it.due + 'T12:00:00Z').getTime() + 86400000), 'UTC', 'yyyyMMdd');
+      L.push('DTSTART;VALUE=DATE:' + d, 'DTEND;VALUE=DATE:' + nd, 'TRANSP:TRANSPARENT');
+    }
+    const desc = [it.prio && 'Priority: ' + it.prio, it.status && 'Status: ' + it.status, it.topic && 'Topic: ' + it.topic, it.com && 'Next step: ' + it.com].filter(String).join('\n');
+    L.push('SUMMARY:' + icsEsc_((it.area ? '[' + it.area + '] ' : '') + it.item), 'DESCRIPTION:' + icsEsc_(desc));
+    if (it.area) L.push('CATEGORIES:' + icsEsc_(it.area));
+    L.push('END:VEVENT');
+  });
+  L.push('END:VCALENDAR');
+  return L.map(icsFold_).join('\r\n') + '\r\n';
+}
+
+/* ---------- archive, backup, statistics ---------- */
+const ARCH_HEAD = ['Action Item', 'Status', 'Area', 'Priority', 'Due Date', 'Topic', 'Focal / Who', 'Created', 'Est. Hrs', 'Recurring', 'Done On', 'Act. Hrs', 'Comments', 'Archived On'];
+function archiveSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName('Archive');
+  if (!sh) {
+    sh = ss.insertSheet('Archive');
+    sh.getRange(1, 1, 1, ARCH_HEAD.length).setValues([ARCH_HEAD]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+function maintCfg_() { try { return Object.assign({ archiveDays: 60, keepBackups: 14 }, JSON.parse(PropertiesService.getScriptProperties().getProperty('MAINT_CFG') || '{}')); } catch (e) { return { archiveDays: 60, keepBackups: 14 }; } }
+function maintOn_() { try { return ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'dailyMaintenance'); } catch (e) { return false; } }
+function maintInfo_() {
+  const c = maintCfg_();
+  return { cfg: c, on: maintOn_(), lastBackup: PropertiesService.getScriptProperties().getProperty('LAST_BACKUP') || '',
+           lastArchive: PropertiesService.getScriptProperties().getProperty('LAST_ARCHIVE') || '' };
+}
+function saveMaint_(c) {
+  const cur = maintCfg_();
+  cur.archiveDays = Math.max(7, Math.min(365, Number(c.archiveDays) || 60));
+  cur.keepBackups = Math.max(3, Math.min(60, Number(c.keepBackups) || 14));
+  PropertiesService.getScriptProperties().setProperty('MAINT_CFG', JSON.stringify(cur));
+  let note = '';
+  if (c.on === true && !maintOn_()) {
+    try { ScriptApp.newTrigger('dailyMaintenance').timeBased().everyDays(1).atHour(2).create(); }
+    catch (e) { note = 'To switch it on, open the sheet once and choose ✉ Manager Report › App: turn on daily archive & backup.'; }
+  }
+  if (c.on === false) ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'dailyMaintenance').forEach(t => ScriptApp.deleteTrigger(t));
+  return Object.assign(maintInfo_(), { note: note });
+}
+function enableMaintenance() {
+  if (!maintOn_()) ScriptApp.newTrigger('dailyMaintenance').timeBased().everyDays(1).atHour(2).create();
+  const b = backupNow_();
+  SpreadsheetApp.getUi().alert('Daily archive & backup are ON (every night ~02:00).\n\nFirst backup created: ' + b.name);
+}
+function dailyMaintenance() {
+  try { archiveDone_(); } catch (e) { console.error(e); }
+  try { backupNow_(); } catch (e) { console.error(e); }
+}
+function archiveDone_() {
+  const ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone();
+  const cutoff = Utilities.formatDate(new Date(Date.now() - maintCfg_().archiveDays * 86400000), tz, 'yyyy-MM-dd');
+  const items = readAll_().items.filter(it => (it.status === 'Done' || it.status === 'Cancelled') && (it.done || it.due || '') && (it.done || it.due) < cutoff);
+  if (!items.length) { PropertiesService.getScriptProperties().setProperty('LAST_ARCHIVE', new Date().toISOString()); return 0; }
+  const toD = (s) => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : ''; };
+  const rows = items.map(it => [it.item, it.status, it.area, it.prio, toD(it.due), it.topic, it.focal, toD(it.created), it.hrs, it.rec, toD(it.done), it.acthrs, it.com, new Date()]);
+  const ar = archiveSheet_();
+  ar.getRange(ar.getLastRow() + 1, 1, rows.length, ARCH_HEAD.length).setValues(rows);
+  items.forEach(it => clearRow_(it.row));
+  PropertiesService.getScriptProperties().setProperty('LAST_ARCHIVE', new Date().toISOString());
+  return items.length;
+}
+function backupNow_() {
+  const ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone();
+  const name = ss.getName() + ' — backup ' + Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
+  const it = DriveApp.getFoldersByName('Action Items Backups');
+  const folder = it.hasNext() ? it.next() : DriveApp.createFolder('Action Items Backups');
+  DriveApp.getFileById(ss.getId()).makeCopy(name, folder);
+  const files = []; const fi = folder.getFiles(); while (fi.hasNext()) files.push(fi.next());
+  files.sort((a, b) => b.getDateCreated() - a.getDateCreated());
+  files.slice(maintCfg_().keepBackups).forEach(f => f.setTrashed(true));
+  PropertiesService.getScriptProperties().setProperty('LAST_BACKUP', new Date().toISOString());
+  return { name: name, folder: folder.getUrl() };
+}
+function readArchive_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName('Archive');
+  if (!sh || sh.getLastRow() < 2) return [];
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  const d = (v) => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v || '');
+  return sh.getRange(2, 1, Math.min(sh.getLastRow() - 1, 3000), ARCH_HEAD.length).getValues().filter(r => r[0]).map(r => ({
+    item: String(r[0]), status: String(r[1]), area: String(r[2]), prio: String(r[3]), due: d(r[4]), topic: String(r[5]),
+    hrs: r[8], done: d(r[10]), acthrs: r[11]
+  }));
 }

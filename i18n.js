@@ -76,6 +76,13 @@ const HE = {
   'Demo mode — nothing is saved to your sheet': 'מצב דמו — דבר לא נשמר בגיליון', 'Nothing to export for these areas': 'אין מה לייצא בתחומים האלה',
   'Paste the Web-app URL first': 'הדבק קודם את כתובת ה-Web app', 'Wrong password': 'סיסמה שגויה',
   'Too many wrong attempts — try again in 15 minutes': 'יותר מדי ניסיונות שגויים — נסה שוב בעוד 15 דקות',
+  // v11 additions
+  'People': 'אנשים', 'Tomorrow': 'מחר', '+7': '+7', 'Checklist': "צ'קליסט", 'Add a step…': 'הוסף שלב…', '✉ Send a reminder': '✉ שלח תזכורת',
+  'Quick add: tomorrow 9:00 Send report !1 #Work @Ezra ~2h': 'הוספה מהירה: מחר 9:00 לשלוח דוח !1 #עבודה @עזרא ~2h',
+  'Statistics': 'סטטיסטיקה', 'Outlook calendar sync': 'סנכרון ללוח השנה של Outlook', 'Archive & backup': 'ארכוב וגיבוי',
+  'Subscribe once and your action items appear in Outlook as a separate "Action Items" calendar that updates by itself (Outlook refreshes subscribed calendars every few hours).':
+    'נרשמים פעם אחת והמשימות מופיעות ב-Outlook כלוח שנה נפרד "Action Items" שמתעדכן לבד (Outlook מרענן לוחות מנויים כל כמה שעות).',
+  "📋 Today's items": '📋 משימות היום', '📊 Weekly summary': '📊 סיכום שבועי', 'Add': 'הוספה', 'Defer to tomorrow': 'דחה למחר',
   'Read-only access': 'גישת צפייה בלבד', 'Loading…': 'טוען…', 'Saving…': 'שומר…', 'Sending…': 'שולח…'
 };
 
@@ -129,6 +136,7 @@ function setLang(l) {
   try { localStorage.setItem(LANG_KEY, JSON.stringify(LANG)); } catch (e) { /* ignore */ }
   applyDir(); translateTree(document.body);
   if (typeof render === 'function') render();
+  if (typeof load === 'function' && typeof lockEl !== 'undefined' && lockEl.hidden && typeof settings !== 'undefined' && (settings.demo || settings.url)) load(true);
 }
 new MutationObserver(muts => {
   if (!isHe()) return;
