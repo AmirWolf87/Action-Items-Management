@@ -1531,7 +1531,9 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+const APP_VERSION = 24;
+$('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
 if (settings.demo) load(true);
 else if (settings.url && password && username) load(true);
