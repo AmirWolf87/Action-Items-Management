@@ -267,7 +267,7 @@ function card(it) {
     <button class="check ${isClosed(it) ? 'on' : ''}" data-check="${it.row}" aria-label="Mark done">${isClosed(it) ? '✓' : ''}</button>
     <div class="body">
       <div class="title" dir="auto">${esc(it.item)}</div>
-      <div class="meta">${it.area ? pill(it.area, areaColor(it.area)) : ''}${pr}${st}${dueLabel(it)}${who}${wait}${cl}${rec}${priv}</div>
+      <div class="meta">${it.area ? pill(it.area, areaColor(it.area)) : ''}${pr}${st}${dueLabel(it)}${who}${wait}${cl}${rec}${priv}${it.cal && !isGuest() ? `<span class="cal-ic" title="${esc(L('In iPhone calendar: ', 'ביומן האייפון: ') + it.cal)}">📅 ${esc(it.cal)}</span>` : ''}</div>
       ${it.com ? `<div class="note" dir="auto">${esc(it.com)}</div>` : ''}
     </div>${isClosed(it) ? '' : `<button class="snooze" data-snooze="${it.row}" title="${L('Defer to tomorrow', 'דחה למחר')}" aria-label="${L('Defer to tomorrow', 'דחה למחר')}">⏭<span class="snz-t"> ${L('Tomorrow', 'מחר')}</span></button>`}</div>`;
 }
@@ -403,6 +403,9 @@ function openEdit(it) {
     el.value = v[k] ?? '';
   });
   F('private').checked = !!v.private;
+  fillSelect(F('cal'), calCfg.names || []);
+  if (v.cal && ![...F('cal').options].some(o => o.value === v.cal)) F('cal').insertAdjacentHTML('beforeend', `<option value="${esc(v.cal)}">${esc(v.cal)}</option>`);
+  F('calOn').checked = !!v.cal; F('cal').value = v.cal || (calCfg.map || {})[v.area] || (calCfg.names || [])[0] || ''; updateCalBox();
   curCl = Array.isArray(v.checklist) ? v.checklist.map(x => ({ t: x.t, d: !!x.d })) : [];
   renderCl(); updateWaitBox(v);
   const ro = isGuest();
@@ -418,7 +421,15 @@ function updateHint() {
   const nd = nextDue({ due: F('due').value, rec: F('rec').value });
   $('#nextHint').textContent = nd ? `↻ Recurring — ticking it done moves the due date to ${fmt(iso(nd), true)}.` : '';
 }
-frm.addEventListener('input', (e) => { if (e.target === F('due') || e.target === F('rec')) updateHint(); if (e.target === F('status')) updateWaitBox(Object.assign({}, editing || {}, { status: F('status').value, focal: F('focal').value })); });
+function updateCalBox() {
+  const on = F('calOn').checked; $('#calPick').hidden = !on;
+  $('#calNeedDate').hidden = !(on && !F('due').value);
+}
+frm.addEventListener('change', (e) => {
+  if (e.target === F('calOn')) { if (e.target.checked && !editing?.cal) F('cal').value = (calCfg.map || {})[F('area').value] || F('cal').value; updateCalBox(); }
+  if (e.target === F('area') && F('calOn').checked && !editing?.cal && (calCfg.map || {})[F('area').value]) F('cal').value = calCfg.map[F('area').value];
+});
+frm.addEventListener('input', (e) => { if (e.target === F('due')) updateCalBox(); if (e.target === F('due') || e.target === F('rec')) updateHint(); if (e.target === F('status')) updateWaitBox(Object.assign({}, editing || {}, { status: F('status').value, focal: F('focal').value })); });
 frm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const it = Object.assign({}, editing || {});
@@ -426,6 +437,7 @@ frm.addEventListener('submit', async (e) => {
   if (it.time) { const nt = normTime(it.time); if (nt === null) { toast(L('Start time: use 24-hour HH:MM, e.g. 17:30', 'שעת התחלה: פורמט 24 שעות HH:MM, למשל 17:30')); F('time').focus(); return; } it.time = nt; }
   if (!it.item || isGuest()) return;
   it.private = F('private').checked;
+  it.cal = F('calOn').checked ? F('cal').value : '';
   it.checklist = curCl.filter(x => x.t);
   if (it.status === 'Waiting' && (!editing || editing.status !== 'Waiting' || !editing.wsince)) it.wsince = (editing && editing.status === 'Waiting' && editing.wsince) || iso(today());
   if (it.status !== 'Waiting') it.wsince = '';
@@ -696,6 +708,7 @@ function demoApi(method, body) {
   if (body.action === 'delete') { demoItems = demoItems.filter(x => x.row !== body.row); return Promise.resolve({ ok: true }); }
   if (body.action === 'getNotify') return Promise.resolve({ ok: true, config: demoNotify || { topic: 'ai-demo-topic', rules: [], detail: 'titles' }, triggerOn: !!demoNotify, email: 'you@example.com' });
   if (body.action === 'saveNotify') { demoNotify = body.config; return Promise.resolve({ ok: true, config: demoNotify, triggerOn: true }); }
+  if (body.action === 'getCal' || body.action === 'saveCal' || body.action === 'calResend') return Promise.resolve({ ok: false, error: 'demo' });
   if (body.action === 'getSiri' || body.action === 'resetSiri') return Promise.resolve({ ok: true, key: 'sk_demo' });
   if (body.action === 'notifyStatus') return Promise.resolve({ ok: true, triggerOn: !!demoNotify, lastTick: demoNotify ? new Date().toISOString() : '', log: [] });
   if (body.action === 'testNotify') return Promise.resolve({ ok: true, sent: true, title: '[Test] ' + body.rule.area + ' · today', message: '(demo — nothing was sent)' });
@@ -1241,6 +1254,7 @@ $('#ordSave').addEventListener('click', async () => {
 
 /* ---------- 🎙 Siri / iPhone Shortcuts ---------- */
 let siriKey = '';
+let calCfg = { names: [], map: {} };
 async function openSiri() {
   const box = $('#siriBody'); $('#dlgSiri').showModal();
   if (settings.demo) { box.innerHTML = `<p class="hint">${L('Connect your sheet first — Siri adds items straight into it.', 'חבר קודם את הגיליון — סירי מוסיפה משימות ישירות אליו.')}</p>`; return; }
@@ -1291,6 +1305,71 @@ $('#siriBody').addEventListener('click', async (e) => {
   }
 });
 $('#btnSiri').addEventListener('click', openSiri);
+
+/* ---------- 📅 iPhone (iCloud) calendar sync via a Shortcut ---------- */
+async function openCal() {
+  const box = $('#calBody'); $('#dlgCal').showModal();
+  if (settings.demo) { box.innerHTML = `<p class="hint">${L('Connect your sheet first.', 'חבר קודם את הגיליון.')}</p>`; return; }
+  box.innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
+  let j; try { j = await api('POST', { action: 'getCal' }); }
+  catch (e) { box.innerHTML = `<p class="hint">${esc(/Unknown action/i.test(e.message) ? L('Paste the new ActionItems_Script.gs into Apps Script and deploy a new version first.', 'קודם הדבק את ActionItems_Script.gs החדש ב-Apps Script ופרסם גרסה חדשה (New version).') : e.message)}</p>`; return; }
+  calCfg = j.calCfg; siriKey = j.key; renderCal(j);
+}
+function calWhen(iso) { if (!iso) return L('never', 'אף פעם'); const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? L('just now', 'עכשיו') : m < 120 ? L(`${m} min ago`, `לפני ${m} דק׳`) : new Date(iso).toLocaleString(locale(), { hour12: false, day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function renderCal(j) {
+  const names = calCfg.names || [];
+  const opt = (sel) => `<option value="">${L('— none —', '— ללא —')}</option>` + names.map(n => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  const field = (k, v) => `<code>${k}</code> = ${v}`;
+  $('#calBody').innerHTML = `
+    <p class="hint">${L('Tick “📅 Add to iPhone calendar” in an item (it needs a due date) and choose the calendar. A Shortcut on your iPhone then puts it into that iCloud calendar — and updates or removes it when the item changes.',
+      'מסמנים "📅 להוסיף ליומן האייפון" במשימה (צריך תאריך יעד) ובוחרים יומן. קיצור באייפון מכניס אותה ללוח השנה ב-iCloud — ומעדכן או מוחק כשהמשימה משתנה.')}</p>
+    <div class="cal-status"><span>📅 ${L(`${j.linked} items linked`, `${j.linked} משימות מקושרות`)}</span><span>${j.pending ? '⏳ ' + L(`${j.pending} waiting for the iPhone`, `${j.pending} ממתינות לאייפון`) : '✅ ' + L('All synced', 'הכל מסונכרן')}</span><span>${L('Last sync', 'סנכרון אחרון')}: ${esc(calWhen(j.lastAck))}</span></div>
+    <h3 class="nt-h">${L('Your iPhone calendars', 'לוחות השנה שלך באייפון')}</h3>
+    <p class="hint">${L('Names exactly as in the iPhone Calendar app, one per line.', 'השמות בדיוק כמו באפליקציית לוח שנה, שם בכל שורה.')}</p>
+    <textarea id="calNames" rows="5" dir="auto">${esc(names.join('\n'))}</textarea>
+    <h3 class="nt-h">${L('Default calendar per area', 'יומן ברירת מחדל לכל תחום')}</h3>
+    <div class="cal-map">${data.areas.map(a => `<label>${esc(tr(a))}<select data-calmap="${esc(a)}">${opt((calCfg.map || {})[a])}</select></label>`).join('')}</div>
+    <label class="full">${L('Items without a start time', 'משימות בלי שעת התחלה')}<select id="calTime"><option value="">${L('All-day event', 'אירוע של יום שלם')}</option>${['07:00', '08:00', '09:00', '10:00', '12:00', '17:00', '20:00'].map(t => `<option ${calCfg.time === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <div class="sheet-actions"><button type="button" class="btn ghost" id="calResend">${L('↻ Send all again', '↻ לשלוח הכל מחדש')}</button><span class="grow"></span><button type="button" class="btn primary" id="calSave">${tr('Save')}</button></div>
+    <p class="hint" id="calStatusMsg"></p>
+    <details class="cal-guide"><summary>${L('One-time iPhone setup — the “Sync calendar” shortcut (~5 min)', 'הגדרה חד-פעמית באייפון — קיצור "סנכרון יומן" (כ-5 דקות)')}</summary>
+      <div class="siri-keys">
+        <label>${L('Web-app URL', 'כתובת ה-Web app')}<div class="pw-row"><input readonly dir="ltr" value="${esc(settings.url)}"><button type="button" class="btn ghost" data-ccopy="${esc(settings.url)}">${L('Copy', 'העתקה')}</button></div></label>
+        <label>${L('Key (same as the Siri key)', 'מפתח (אותו מפתח של סירי)')}<div class="pw-row"><input readonly dir="ltr" value="${esc(siriKey)}"><button type="button" class="btn ghost" data-ccopy="${esc(siriKey)}">${L('Copy', 'העתקה')}</button></div></label>
+      </div>
+      <p class="hint">${L('In the Shortcuts app › ＋ › name it “Sync calendar”, and add these actions in order:', 'באפליקציית קיצורים › ＋ › קרא לו "סנכרון יומן", והוסף את הפעולות האלה לפי הסדר:')}</p>
+      <ol class="siri-steps">
+        <li>${L('<b>Get Contents of URL</b> — paste the URL · ▸ Method <b>POST</b> · Request Body <b>JSON</b> · fields:', '<b>קבל תוכן של URL</b> — הדבק את הכתובת · ▸ שיטה <b>POST</b> · גוף <b>JSON</b> · שדות:')}<div class="siri-fields">${field('action', '<code>calFeed</code>')}<br>${field('key', L('the key', 'המפתח'))}</div></li>
+        <li>${L('<b>Get Dictionary Value</b> › key <code>events</code> (rename the result variable to <b>Events</b>). Also add <b>Get Dictionary Value</b> › <code>batch</code> from the URL contents (rename to <b>Batch</b>).', '<b>קבל ערך ממילון</b> › מפתח <code>events</code> (שנה את שם התוצאה ל-<b>Events</b>). ועוד <b>קבל ערך ממילון</b> › <code>batch</code> מתוכן ה-URL (שנה שם ל-<b>Batch</b>).')}</li>
+        <li>${L('<b>Repeat with Each</b> item in <b>Events</b>. Inside it:', '<b>חזור עם כל פריט</b> ב-<b>Events</b>. בתוכו:')}
+          <div class="siri-fields">
+          a. ${L('<b>Get Dictionary Value</b> from <i>Repeat Item</i> for each key: <code>tag</code>, <code>op</code>, <code>cal</code>, <code>title</code>, <code>start</code>, <code>end</code>, <code>allday</code>, <code>notes</code> (8 actions — rename each result to the key name).', '<b>קבל ערך ממילון</b> מ-<i>פריט חוזר</i> לכל מפתח: <code>tag</code>, <code>op</code>, <code>cal</code>, <code>title</code>, <code>start</code>, <code>end</code>, <code>allday</code>, <code>notes</code> (8 פעולות — שנה את שם כל תוצאה לשם המפתח).')}<br>
+          b. ${L('<b>Find Calendar Events</b> where <b>Notes</b> contains <code>tag</code> (start date: is in the last 2 years — or no date filter) → <b>Remove Events</b> (turn off “Confirm”).', '<b>מצא אירועי לוח שנה</b> שבהם <b>הערות</b> מכיל <code>tag</code> → <b>הסר אירועים</b> (כבה "אישור לפני הסרה").')}<br>
+          c. ${L('<b>If</b> <code>op</code> is <code>add</code>: <b>Add New Event</b> — Title = <code>title</code>, Calendar = variable <code>cal</code>, Start = <code>start</code>, End = <code>end</code>, Notes = <code>notes</code>, All-day = on when <code>allday</code> is <code>yes</code> (use an inner If with two Add New Event actions).', '<b>אם</b> <code>op</code> הוא <code>add</code>: <b>הוסף אירוע חדש</b> — כותרת = <code>title</code>, לוח שנה = המשתנה <code>cal</code>, התחלה = <code>start</code>, סיום = <code>end</code>, הערות = <code>notes</code>, כל היום = מופעל כש-<code>allday</code> הוא <code>yes</code> (If פנימי עם שתי פעולות "הוסף אירוע").')}
+          </div></li>
+        <li>${L('After the repeat: <b>Get Contents of URL</b> (same URL, POST, JSON) with fields', 'אחרי החזרה: <b>קבל תוכן של URL</b> (אותה כתובת, POST, JSON) עם השדות')}<div class="siri-fields">${field('action', '<code>calAck</code>')}<br>${field('key', L('the key', 'המפתח'))}<br>${field('batch', L('the <b>Batch</b> variable', 'המשתנה <b>Batch</b>'))}</div></li>
+        <li>${L('Run it once to approve calendar access. Then in <b>Automation</b> › ＋ › <b>App</b> › Calendar › “Is Opened” › Run Immediately › this shortcut — plus a <b>Time of Day</b> automation (e.g. 07:00) so it also syncs on its own.', 'הרץ אותו פעם אחת כדי לאשר גישה ללוח השנה. אחר כך ב<b>אוטומציה</b> › ＋ › <b>יישום</b> › לוח שנה › "נפתח" › הפעל מיד › הקיצור הזה — ועוד אוטומציה של <b>שעה ביום</b> (למשל 07:00) כדי שיסתנכרן גם לבד.')}</li>
+      </ol>
+      <p class="hint">${L('If the Calendar field doesn\'t accept the <code>cal</code> variable on your iPhone, use one <b>If cal is …</b> block per calendar instead.', 'אם שדה "לוח שנה" לא מקבל את המשתנה <code>cal</code> באייפון שלך — השתמש בבלוק <b>אם cal הוא …</b> לכל יומן.')}</p>
+    </details>`;
+}
+$('#calBody').addEventListener('click', async (e) => {
+  const c = e.target.closest('[data-ccopy]');
+  if (c) { try { await navigator.clipboard.writeText(c.dataset.ccopy); toast(L('Copied', 'הועתק')); } catch (err) { toast(c.dataset.ccopy); } return; }
+  if (e.target.id === 'calSave') {
+    const names = $('#calNames').value.split('\n').map(x => x.trim()).filter(Boolean);
+    const map = {}; document.querySelectorAll('[data-calmap]').forEach(sel => { if (sel.value) map[sel.dataset.calmap] = sel.value; });
+    $('#calStatusMsg').textContent = tr('Saving…');
+    try { const j = await api('POST', { action: 'saveCal', config: { names, map, time: $('#calTime').value } }); calCfg = j.calCfg; renderCal(j); toast(L('Saved', 'נשמר')); render(); }
+    catch (err) { $('#calStatusMsg').textContent = err.message; }
+  }
+  if (e.target.id === 'calResend') {
+    if (!await confirmBox(L('Send everything again?', 'לשלוח הכל מחדש?'), L('Next time the shortcut runs it will re-create all linked events (old copies are removed first, so nothing is duplicated).', 'בהרצה הבאה של הקיצור כל האירועים המקושרים ייווצרו מחדש (העותקים הישנים נמחקים קודם, כך שאין כפילויות).'), L('Send again', 'שלח מחדש'), L('Cancel', 'ביטול'))) return;
+    try { renderCal(await api('POST', { action: 'calResend' })); } catch (err) { toast(err.message); }
+  }
+});
+$('#calBody').addEventListener('input', (e) => { if (e.target.id === 'calNames') $('#calStatusMsg').textContent = L('Press Save to keep the changes.', 'לחץ שמירה כדי לשמור את השינויים.'); });
+$('#btnCal').addEventListener('click', openCal);
 
 /* ---------- statistics ---------- */
 async function openStats() {
@@ -1402,6 +1481,7 @@ function applyList(j) {
   me = { name: j.name || '', canSuggest: !!j.canSuggest };
   pending = j.pending || [];
   pwReq = j.pwRequests || [];
+  if (j.calCfg) calCfg = j.calCfg;
   mySugg = j.mySuggestions || [];
   data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report, areaHints: j.areaHints || {} };
   if (!data.areas.includes(ui.area) && ui.area !== 'All') ui.area = 'All';
@@ -1699,7 +1779,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 29;
+const APP_VERSION = 30;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

@@ -156,10 +156,11 @@ function showOutlookDialog() {
 const API_SHEET = 'Action Items';
 const API_FIRST = 6, API_LAST = 505;
 const API_COLS = { item: 1, status: 2, area: 3, prio: 4, due: 5, topic: 8, focal: 9, created: 10,
-                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23, private: 24, checklist: 25, wsince: 26 };
-// added by the app:  W = Start Time · X = Private · Y = Checklist (JSON) · Z = Waiting since
-const API_NCOLS = 26;
-const API_HEADS = { time: 'Start Time', private: 'Private', checklist: 'Checklist', wsince: 'Waiting Since' };
+                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23, private: 24, checklist: 25, wsince: 26, cal: 27 };
+// added by the app:  W = Start Time · X = Private · Y = Checklist (JSON) · Z = Waiting since · AA = iPhone calendar
+const API_NCOLS = 27;
+const API_HEADS = { time: 'Start Time', private: 'Private', checklist: 'Checklist', wsince: 'Waiting Since', cal: 'iPhone Calendar' };
+function ensureCols_(sh) { if (sh.getMaxColumns() < API_NCOLS) sh.insertColumnsAfter(sh.getMaxColumns(), API_NCOLS - sh.getMaxColumns()); }
 const APP_URL = 'https://amirwolf87.github.io/Action-Items-Management/';
 const API_DATES = ['due', 'created', 'done', 'wsince'];
 
@@ -233,6 +234,7 @@ function doGet(e) {
 function doPost(e) {
   let req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request' }); }
+  if (req.action === 'calFeed' || req.action === 'calAck') { try { return json_(req.action === 'calFeed' ? calFeed_(req) : calAck_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message, events: [] }); } }
   if (req.action === 'siriAdd') { try { return json_(siriAdd_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message, error: err.message }); } }   // own key, no password
   if (req.action === 'forgot') { try { forgotPassword_(req.username); } catch (e) { console.error(e); } return json_({ ok: true }); }   // no sign-in needed; never reveals if the user exists
   const who = authenticate_(req.username, req.password);
@@ -251,11 +253,14 @@ function doPost(e) {
     }
     /* ---- owner ---- */
     switch (req.action) {
-      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending'), pwRequests: pwRequests_().filter(r => !r.handled) }));
+      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending'), pwRequests: pwRequests_().filter(r => !r.handled), calCfg: calCfg_() }));
       case 'pwHandled': { const L = pwRequests_(); L.forEach(r => { if (r.id === req.id) r.handled = true; }); PropertiesService.getScriptProperties().setProperty('PW_REQUESTS', JSON.stringify(L)); return json_({ ok: true }); }
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
+      case 'getCal': return json_(Object.assign({ ok: true, key: siriKey_(false) }, calStatus_()));
+      case 'saveCal': return json_(Object.assign({ ok: true }, saveCalCfg_(req.config), calStatus_()));
+      case 'calResend': { PropertiesService.getScriptProperties().deleteProperty('CAL_SYNCED'); return json_(Object.assign({ ok: true }, calStatus_())); }
       case 'getSiri': return json_({ ok: true, key: siriKey_(false) });
       case 'resetSiri': return json_({ ok: true, key: siriKey_(true) });
       case 'notifyStatus': return json_(Object.assign({ ok: true }, notifyStatus_()));
@@ -415,6 +420,7 @@ function readAll_() {
   const ss = SpreadsheetApp.getActive();
   const tz = ss.getSpreadsheetTimeZone();
   const sh = ss.getSheetByName(API_SHEET);
+  ensureCols_(sh);
   const vals = sh.getRange(API_FIRST, 1, API_LAST - API_FIRST + 1, API_NCOLS).getValues();
   const items = [];
   vals.forEach((r, i) => {
@@ -454,6 +460,7 @@ function toCell_(k, v) {
 function saveItem_(it) {
   if (!it || String(it.item || '').trim() === '') throw new Error('Action Item text is required');
   const sh = SpreadsheetApp.getActive().getSheetByName(API_SHEET);
+  ensureCols_(sh);
   let row = Number(it.row) || 0;
   if (!row) {
     const a = sh.getRange(API_FIRST, 1, API_LAST - API_FIRST + 1, 1).getValues();
@@ -866,6 +873,81 @@ function saveAreas_(req) {
   return Object.assign({ moved: changed }, readAll_());
 }
 
+
+/* =====================================================================
+ *  iPhone (iCloud) calendar sync — done by an iPhone Shortcut:
+ *  calFeed → list of events to add / remove (each tagged #AI-…) · calAck → mark them synced.
+ *  Adding always removes the old copy first (by its tag), so running twice never duplicates.
+ * ===================================================================== */
+const CAL_DEFAULT_NAMES_ = ['נטע ואמיר', 'עבודה', 'משפחת וולף', 'אמיר', 'מילואים'];
+function calCfg_() {
+  let c = {}; try { c = JSON.parse(PropertiesService.getScriptProperties().getProperty('CAL_CFG') || '{}'); } catch (e) { c = {}; }
+  if (!Array.isArray(c.names) || !c.names.length) c.names = CAL_DEFAULT_NAMES_.slice();
+  if (!c.map) c.map = {};
+  if (!c.time) c.time = '';                                         // '' = items without a time become all-day events
+  return c;
+}
+function saveCalCfg_(cfg) {
+  const names = (cfg && cfg.names || []).map(n => String(n || '').trim().slice(0, 50)).filter(String).slice(0, 20);
+  if (!names.length) throw new Error('Add at least one calendar name');
+  const map = {}; Object.keys(cfg.map || {}).forEach(a => { if (names.indexOf(cfg.map[a]) >= 0) map[String(a)] = cfg.map[a]; });
+  const c = { names: names, map: map, time: /^\d{2}:\d{2}$/.test(cfg.time || '') ? cfg.time : '' };
+  PropertiesService.getScriptProperties().setProperty('CAL_CFG', JSON.stringify(c));
+  return { calCfg: c };
+}
+function calSynced_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('CAL_SYNCED') || '{}'); } catch (e) { return {}; } }
+function calTag_(it) { return 'AI-' + it.row + '-' + String(it.created || '').replace(/-/g, ''); }
+function calWanted_() {
+  const cfg = calCfg_(), out = {};
+  readAll_().items.forEach(it => {
+    if (!it.cal || !it.due || it.status === 'Cancelled') return;
+    const tag = calTag_(it), time = it.time || cfg.time || '', allDay = !time;
+    const hrs = parseFloat(it.hrs) > 0 ? parseFloat(it.hrs) : 1;
+    let start = it.due, end = it.due;
+    if (!allDay) {
+      const p = it.due.split('-').map(Number), t = time.split(':').map(Number);
+      const s0 = new Date(p[0], p[1] - 1, p[2], t[0], t[1]), e0 = new Date(s0.getTime() + hrs * 3600000);
+      const f = (d) => d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+      start = f(s0); end = f(e0);
+    }
+    const ev = { tag: tag, op: 'add', cal: String(it.cal), title: String(it.item), start: start, end: end, allday: allDay ? 'yes' : 'no',
+      notes: (it.com ? it.com + '\n\n' : '') + 'Action Items · ' + it.area + '\n' + APP_URL + '\n#' + tag };
+    ev.sig = hash_([ev.cal, ev.title, ev.start, ev.end, ev.allday, ev.notes].join('|'), 'cal').slice(0, 16);
+    out[tag] = ev;
+  });
+  return out;
+}
+function calCheckKey_(req) {
+  const key = PropertiesService.getScriptProperties().getProperty('SIRI_KEY') || '';
+  return key && String(req.key || '') === key;
+}
+function calFeed_(req) {
+  if (!calCheckKey_(req)) return { ok: false, message: 'המפתח לא נכון — העתק אותו שוב מהאפליקציה (☰ › יומן אייפון).', events: [] };
+  const want = calWanted_(), synced = calSynced_(), events = [], apply = {};
+  Object.keys(synced).forEach(tag => { if (!want[tag]) { events.push({ tag: tag, op: 'del', cal: '', title: '', start: '', end: '', allday: 'no', notes: '' }); apply[tag] = null; } });
+  Object.keys(want).forEach(tag => { if (synced[tag] !== want[tag].sig) { const e = Object.assign({}, want[tag]); delete e.sig; events.push(e); apply[tag] = want[tag].sig; } });
+  const list = events.slice(0, 40), batch = Utilities.getUuid().slice(0, 8);
+  const ap = {}; list.forEach(e => { ap[e.tag] = apply[e.tag]; });
+  const P = PropertiesService.getScriptProperties();
+  P.setProperty('CAL_BATCH', JSON.stringify({ id: batch, apply: ap })); P.setProperty('CAL_LASTFEED', new Date().toISOString());
+  const adds = list.filter(e => e.op === 'add').length, dels = list.length - adds;
+  return { ok: true, batch: batch, events: list, count: list.length,
+    message: list.length ? 'יומן: ' + (adds ? adds + ' לעדכון' : '') + (adds && dels ? ', ' : '') + (dels ? dels + ' להסרה' : '') : 'היומן מעודכן ✓' };
+}
+function calAck_(req) {
+  if (!calCheckKey_(req)) return { ok: false, message: 'המפתח לא נכון' };
+  const P = PropertiesService.getScriptProperties();
+  let b = {}; try { b = JSON.parse(P.getProperty('CAL_BATCH') || '{}'); } catch (e) { b = {}; }
+  if (!b.id || b.id !== String(req.batch || '')) return { ok: true, message: 'אין מה לאשר' };
+  const s = calSynced_(); Object.keys(b.apply || {}).forEach(t => { if (b.apply[t] === null) delete s[t]; else s[t] = b.apply[t]; });
+  P.setProperty('CAL_SYNCED', JSON.stringify(s)); P.deleteProperty('CAL_BATCH'); P.setProperty('CAL_LASTACK', new Date().toISOString());
+  return { ok: true, message: 'היומן סונכרן ✓' };
+}
+function calStatus_() {
+  const P = PropertiesService.getScriptProperties(), want = calWanted_(), synced = calSynced_();
+  let pending = 0; Object.keys(want).forEach(t => { if (synced[t] !== want[t].sig) pending++; }); Object.keys(synced).forEach(t => { if (!want[t]) pending++; });
+  return { calCfg: calCfg_(), linked: Object.keys(want).length, pending: pending, lastFeed: P.getProperty('CAL_LASTFEED') || '', lastAck: P.getProperty('CAL_LASTACK') || '' };
+}
 
 /* =====================================================================
  *  Siri / iPhone Shortcuts: add an item by voice.
