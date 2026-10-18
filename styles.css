@@ -387,3 +387,4 @@ body.guest .nb-check{pointer-events:none}
 .ord-row.dragging{box-shadow:0 8px 20px rgba(0,0,0,.18);transform:scale(1.02);background:var(--card)}
 .ord-handle{cursor:grab;font-size:20px;color:var(--muted);padding:6px 8px;touch-action:none}
 .ord-name{flex:1;border-radius:999px;padding:6px 12px;font-weight:700;font-size:14.5px}
+.ord-btn{border-style:dashed}

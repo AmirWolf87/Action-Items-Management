@@ -298,7 +298,7 @@ function render() {
   ].map(([l, n, c, tab]) => `<button class="kpi ${c}" data-goto="${tab}"><b>${n}</b><span>${l}</span></button>`).join('');
 
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#areaChips').innerHTML = ['All'].concat(data.areas).map(a => `<button class="chip ${ui.area === a ? 'on' : ''}" data-area="${esc(a)}">${esc(a)}</button>`).join('') + ORDER_BTN();
+  $('#areaChips').innerHTML = ORDER_BTN() + ['All'].concat(data.areas).map(a => `<button class="chip ${ui.area === a ? 'on' : ''}" data-area="${esc(a)}">${esc(a)}</button>`).join('');
 
   const items = filtered();
   let html = '';
@@ -357,7 +357,7 @@ function renderNotebook() {
   };
   const openN = list.filter(it => !isClosed(it)).length;
   return `<div class="nb-wrap">
-    <div class="nb-tabs">${tabs}${ORDER_BTN('nb-tab nb-ord')}</div>
+    <div class="nb-tabs">${ORDER_BTN('nb-tab nb-ord')}${tabs}</div>
     <div class="nb-paper" style="--area-ink:${(areaColor(page) || ['', '#374151'])[1]};--area-bg:${(areaColor(page) || ['#E5E7EB'])[0]}">
       <div class="nb-rings" aria-hidden="true">${'<i></i>'.repeat(9)}</div>
       <div class="nb-head"><h2>${esc(tr(page))}</h2><span>${openN ? L(`${openN} to do`, `${openN} לביצוע`) : L('All done ✓', 'הכל בוצע ✓')}</span></div>
@@ -1198,7 +1198,8 @@ $('#areasSave').addEventListener('click', async () => {
 });
 
 /* ---------- order of areas (tabs on the main screen and in the Notebook) ---------- */
-const ORDER_BTN = (cls = 'chip') => isGuest() ? '' : `<button class="${cls} ord-btn" data-order title="${esc(L('Change the order of the areas', 'שינוי סדר התחומים'))}" aria-label="${esc(L('Change the order of the areas', 'שינוי סדר התחומים'))}">⇅</button>`;
+const ORDER_BTN = (cls = 'chip') => isGuest() ? '' : `<button class="${cls} ord-btn" data-order title="${esc(L('Change the order of the areas', 'שינוי סדר התחומים'))}">⇅ ${L('Order', 'סדר')}</button>`;
+$('#btnOrder').addEventListener('click', openOrder);
 function openOrder() {
   $('#ordStatus').textContent = '';
   $('#ordList').innerHTML = data.areas.map(a => { const c = areaColor(a) || ['#E5E7EB', '#374151'];
@@ -1644,7 +1645,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 27;
+const APP_VERSION = 28;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
