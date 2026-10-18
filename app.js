@@ -785,7 +785,7 @@ async function openNotify() {
     let rules = ntCfg.rules || [];
     const fresh = !rules.length;
     if (fresh) rules = [newRule('Work', '08:30', [0, 1, 2, 3, 4]), newRule('Home', '07:00', [0, 1, 2, 3, 4]), newRule('Home', '08:00', [5, 6]), newRule('Work', '15:00', [4], 'weekly')];
-    $('#ntTopic').textContent = ntCfg.topic; $('#ntWeb').href = 'https://ntfy.sh/' + encodeURIComponent(ntCfg.topic); $('#ntDiagOut').hidden = true; $('#ntDetail').value = ntCfg.detail || 'titles';
+    $('#ntTopic').textContent = ntCfg.topic; $('#ntWeb').href = 'https://ntfy.sh/' + encodeURIComponent(ntCfg.topic); $('#ntDiagOut').hidden = true; $('#ntToken').value = ''; ntTokenSet = undefined; $('#ntTokenState').textContent = j.hasToken ? '✅ ' + (j.tokenHint || '') : L('— recommended', '— מומלץ'); $('#ntFallback').checked = ntCfg.fallbackEmail !== false; $('#ntDetail').value = ntCfg.detail || 'titles';
     $('#ntSugOn').checked = !ntCfg.onSuggest || ntCfg.onSuggest.on !== false; $('#ntSugCh').value = (ntCfg.onSuggest && ntCfg.onSuggest.channel) || 'push';
     $('#ntRules').innerHTML = rules.map(ruleHtml).join('');
     $('#ntStatus').textContent = fresh ? L('Suggested schedules — adjust and press Save.', 'תזמונים מוצעים — התאם ולחץ שמירה.')
@@ -812,6 +812,11 @@ function ntExplain(m) {
   if (/NOT_AUTHORIZED|permission|authoriz/i.test(m)) return L(
     'Google has not yet allowed the script to send push messages. Open the sheet › ✉ Manager Report › "App: send a test push (and authorize)", approve the permissions, then Deploy › Manage deployments › ✏ › New version.',
     'גוגל עוד לא אישרה לסקריפט לשלוח התראות. פתח את הגיליון › ✉ Manager Report › "App: send a test push (and authorize)", אשר את ההרשאות, ואז Deploy › Manage deployments › ✏ › New version.');
+  const mailed = /EMAIL_SENT/.test(m) ? L(' (It was sent to your email instead.)', ' (ההודעה נשלחה במקום זה למייל שלך.)') : '';
+  if (/\b429\b|limit reached|quota/i.test(m)) return L(
+    'ntfy.sh daily limit reached. Without an account, ntfy counts messages per sending address, and Google\'s servers are shared with many other users, so the free quota is already used up. Fix: open "🔑 ntfy account token" above, create a free token and press Save.',
+    'הגעת למגבלה היומית של ntfy.sh. בלי חשבון, ntfy סופר הודעות לפי כתובת השולח, והשרתים של גוגל משותפים להרבה משתמשים אחרים, כך שהמכסה החינמית כבר נוצלה. הפתרון: פתח למעלה את "🔑 טוקן חשבון ntfy", צור טוקן חינמי ולחץ שמירה.') + mailed;
+  if (/\b401\b|\b403\b|unauthorized|forbidden/i.test(m)) return L('ntfy.sh rejected the token — create a new one at ntfy.sh/account and paste it again.', 'ntfy.sh דחה את הטוקן — צור טוקן חדש ב-ntfy.sh/account והדבק אותו שוב.') + mailed;
   if (/Unknown action/i.test(m)) return L('The script in the sheet is an older version — paste the new ActionItems_Script.gs and deploy a new version.', 'הסקריפט בגיליון בגרסה ישנה — הדבק את ActionItems_Script.gs החדש ופרסם גרסה חדשה (New version).');
   return m;
 }
@@ -838,14 +843,16 @@ $('#ntDiag').addEventListener('click', async () => {
     if (!j.triggerOn) h += `<p class="hint">${L('Press Save below to switch it on.', 'לחץ שמירה למטה כדי להפעיל.')}</p>`;
     else if (!tickOk) h += `<p class="hint">${L('The schedule exists but hasn\'t run recently (it runs every 5 min). If you just pasted the new script, wait 5 minutes and check again.', 'התזמון קיים אבל לא רץ לאחרונה (הוא רץ כל 5 דקות). אם הרגע הדבקת את הסקריפט החדש — חכה 5 דקות ובדוק שוב.')}</p>`;
     h += `<div class="nt-h">${L('Last push messages sent by the sheet', 'הודעות אחרונות שהגיליון שלח')}</div>`;
-    h += (j.log || []).length ? j.log.map(x => `<div>${x.ok ? '✅' : '❌'} <small>${esc(ago(x.at))}</small> — ${esc(x.title)}${x.ok ? '' : `<br><small class="err">${esc(ntExplain(x.err))}</small>`}</div>`).join('')
+    h += (j.log || []).length ? j.log.map(x => `<div>${x.ok ? '✅' : x.via === 'email' ? '✉️' : '❌'} <small>${esc(ago(x.at))}</small> — ${esc(x.title)}${x.ok ? '' : `<br><small class="err">${esc(ntExplain(x.err))}</small>`}</div>`).join('')
       : `<div class="hint">${L('None yet — press "Test" on a schedule below.', 'עדיין אין — לחץ "בדיקה" באחד התזמונים למטה.')}</div>`;
     out.innerHTML = h;
   } catch (e) { out.textContent = ntExplain(e.message); }
 });
 $('#ntAdd').addEventListener('click', () => { $('#ntRules').insertAdjacentHTML('beforeend', ruleHtml(newRule('Work', '08:00', [0, 1, 2, 3, 4]))); });
 $('#ntCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('#ntTopic').textContent); toast('Topic copied'); } catch (e) { toast('Select the topic and copy it'); } });
-const currentNotify = () => ({ topic: $('#ntTopic').textContent, detail: $('#ntDetail').value, onSuggest: { on: $('#ntSugOn').checked, channel: $('#ntSugCh').value }, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem', rules: readRules() });
+let ntTokenSet;
+$('#ntTokenClear').addEventListener('click', () => { $('#ntToken').value = ''; ntTokenSet = ''; $('#ntTokenState').textContent = L('— will be removed on Save', '— יוסר בשמירה'); });
+const currentNotify = () => ({ token: $('#ntToken').value.trim() ? $('#ntToken').value.trim() : ntTokenSet, fallbackEmail: $('#ntFallback').checked, topic: $('#ntTopic').textContent, detail: $('#ntDetail').value, onSuggest: { on: $('#ntSugOn').checked, channel: $('#ntSugCh').value }, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem', rules: readRules() });
 $('#ntSave').addEventListener('click', async () => {
   const cfg = currentNotify();
   const bad = cfg.rules.find(r => r.on && !r.days.length);
@@ -853,7 +860,7 @@ $('#ntSave').addEventListener('click', async () => {
   $('#ntStatus').textContent = 'Saving…';
   try {
     const j = await api('POST', { action: 'saveNotify', config: cfg });
-    ntCfg = j.config;
+    ntCfg = j.config; if (cfg.token) { $('#ntToken').value = ''; $('#ntTokenState').textContent = '✅'; } else if (cfg.token === '') $('#ntTokenState').textContent = L('— recommended', '— מומלץ'); ntTokenSet = undefined;
     $('#ntStatus').textContent = j.triggerOn ? L('✓ Saved — notifications are active.', '✓ נשמר — ההתראות פעילות.') : (j.note || tr('Saved'));
     toast('Notification schedules saved');
   } catch (e) { $('#ntStatus').textContent = 'Not saved: ' + e.message; }

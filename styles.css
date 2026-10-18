@@ -321,3 +321,9 @@ body.guest .snooze{display:none}
 .nt-diag{margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;line-height:1.6}
 .nt-diag .err{color:var(--red)}
 #ntStatus{white-space:pre-line}
+
+.nt-token{margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.nt-token summary{cursor:pointer;font-weight:700;font-size:14px}
+.nt-token summary span{font-weight:500;color:var(--muted);font-size:12.5px}
+.nt-token ol{padding-inline-start:20px;margin:6px 0}
+.ntfy-box .remember{margin:10px 0 0}

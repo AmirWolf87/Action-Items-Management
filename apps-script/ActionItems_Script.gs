@@ -495,6 +495,7 @@ function notifyConfig_() {
   if (!cfg.tz) cfg.tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
   if (!cfg.detail) cfg.detail = 'titles';
   if (!cfg.onSuggest) cfg.onSuggest = { on: true, channel: 'push' };
+  if (cfg.fallbackEmail === undefined) cfg.fallbackEmail = true;
   return cfg;
 }
 function triggerOn_() {
@@ -503,7 +504,8 @@ function triggerOn_() {
 function getNotify_() {
   const cfg = notifyConfig_();
   let on = false; try { on = triggerOn_(); } catch (e) { on = false; }
-  return { config: cfg, triggerOn: on, email: Session.getEffectiveUser().getEmail() };
+  const tk = PropertiesService.getScriptProperties().getProperty('NTFY_TOKEN') || '';
+  return { config: cfg, triggerOn: on, email: Session.getEffectiveUser().getEmail(), hasToken: !!tk, tokenHint: tk ? tk.slice(0, 5) + '…' + tk.slice(-4) : '' };
 }
 function saveNotify_(cfg) {
   if (!cfg || !Array.isArray(cfg.rules)) throw new Error('Bad settings');
@@ -520,6 +522,14 @@ function saveNotify_(cfg) {
       kind: r.kind === 'weekly' ? 'weekly' : 'today'
     }))
   };
+  PropertiesService.getScriptProperties().setProperty('NOTIFY_CFG', JSON.stringify(clean));
+  if (typeof cfg.token === 'string') {                 // '' = remove; otherwise a ntfy.sh access token (tk_…)
+    const tk = cfg.token.trim();
+    if (!tk) PropertiesService.getScriptProperties().deleteProperty('NTFY_TOKEN');
+    else if (/^tk_[A-Za-z0-9]{10,}$/.test(tk)) PropertiesService.getScriptProperties().setProperty('NTFY_TOKEN', tk);
+    else throw new Error('The ntfy token should start with tk_');
+  }
+  clean.fallbackEmail = cfg.fallbackEmail !== false;
   PropertiesService.getScriptProperties().setProperty('NOTIFY_CFG', JSON.stringify(clean));
   let on = false, note = '';
   try { if (!triggerOn_()) ScriptApp.newTrigger('notifyTick').timeBased().everyMinutes(5).create(); on = true; }
@@ -539,10 +549,12 @@ function disableNotifications() {
 
 /* one place that talks to ntfy; logs every push so problems can be seen in the app */
 function pushNtfy_(topic, title, message, tags, priority) {
-  let code = 0, err = '';
+  let code = 0, err = '', via = 'push';
+  const token = PropertiesService.getScriptProperties().getProperty('NTFY_TOKEN') || '';
   try {
     const r = UrlFetchApp.fetch('https://ntfy.sh/', {
       method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: token ? { Authorization: 'Bearer ' + token } : {},
       payload: JSON.stringify({ topic: topic, title: title, message: message, tags: tags || [], click: APP_URL, priority: priority || 3 })
     });
     code = r.getResponseCode();
@@ -550,13 +562,17 @@ function pushNtfy_(topic, title, message, tags, priority) {
   } catch (e) {
     err = /permission|authoriz|UrlFetchApp/i.test(String(e)) ? 'NOT_AUTHORIZED: ' + e.message : String(e.message || e);
   }
+  // push failed (e.g. ntfy daily limit) → don't lose the alert: send it by email instead
+  if (err && notifyConfig_().fallbackEmail !== false) {
+    try { MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, message + '\n\n' + APP_URL + '\n\n(Sent by email because the phone push failed: ' + err.slice(0, 120) + ')'); via = 'email'; } catch (e) { /* ignore */ }
+  }
   try {
     const p = PropertiesService.getScriptProperties();
     let log = []; try { log = JSON.parse(p.getProperty('NOTIFY_LOG') || '[]'); } catch (e) { log = []; }
-    log.push({ at: new Date().toISOString(), title: String(title).slice(0, 80), ok: !err, err: err.slice(0, 200) });
+    log.push({ at: new Date().toISOString(), title: String(title).slice(0, 80), ok: !err, via: via, err: err.slice(0, 200) });
     p.setProperty('NOTIFY_LOG', JSON.stringify(log.slice(-10)));
   } catch (e) { /* ignore */ }
-  if (err) throw new Error(err);
+  if (err) throw new Error(err + (via === 'email' ? ' [EMAIL_SENT]' : ''));
 }
 function notifyStatus_() {
   const p = PropertiesService.getScriptProperties();
