@@ -298,7 +298,7 @@ function render() {
   ].map(([l, n, c, tab]) => `<button class="kpi ${c}" data-goto="${tab}"><b>${n}</b><span>${l}</span></button>`).join('');
 
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#areaChips').innerHTML = ['All'].concat(data.areas).map(a => `<button class="chip ${ui.area === a ? 'on' : ''}" data-area="${esc(a)}">${esc(a)}</button>`).join('');
+  $('#areaChips').innerHTML = ['All'].concat(data.areas).map(a => `<button class="chip ${ui.area === a ? 'on' : ''}" data-area="${esc(a)}">${esc(a)}</button>`).join('') + ORDER_BTN();
 
   const items = filtered();
   let html = '';
@@ -357,7 +357,7 @@ function renderNotebook() {
   };
   const openN = list.filter(it => !isClosed(it)).length;
   return `<div class="nb-wrap">
-    <div class="nb-tabs">${tabs}</div>
+    <div class="nb-tabs">${tabs}${ORDER_BTN('nb-tab nb-ord')}</div>
     <div class="nb-paper" style="--area-ink:${(areaColor(page) || ['', '#374151'])[1]};--area-bg:${(areaColor(page) || ['#E5E7EB'])[0]}">
       <div class="nb-rings" aria-hidden="true">${'<i></i>'.repeat(9)}</div>
       <div class="nb-head"><h2>${esc(tr(page))}</h2><span>${openN ? L(`${openN} to do`, `${openN} לביצוע`) : L('All done ✓', 'הכל בוצע ✓')}</span></div>
@@ -617,6 +617,7 @@ document.addEventListener('click', (e) => {
   if (t.closest('[data-redo]')) { redo(); return; }
   const wi = t.closest('.wi');
   if (wi) { const it = data.items.find(x => String(x.row) === wi.dataset.row); if (it) openEdit(it); return; }
+  if (t.closest('[data-order]')) { openOrder(); return; }
   const nbt = t.closest('[data-nb]');
   if (nbt) { ui.nbArea = nbt.dataset.nb; store.set('ai.ui', ui); render(); return; }
   const nbc = t.closest('[data-nbcheck]');
@@ -1196,6 +1197,46 @@ $('#areasSave').addEventListener('click', async () => {
   } catch (err) { $('#areasStatus').textContent = err.message; }
 });
 
+/* ---------- order of areas (tabs on the main screen and in the Notebook) ---------- */
+const ORDER_BTN = (cls = 'chip') => isGuest() ? '' : `<button class="${cls} ord-btn" data-order title="${esc(L('Change the order of the areas', 'שינוי סדר התחומים'))}" aria-label="${esc(L('Change the order of the areas', 'שינוי סדר התחומים'))}">⇅</button>`;
+function openOrder() {
+  $('#ordStatus').textContent = '';
+  $('#ordList').innerHTML = data.areas.map(a => { const c = areaColor(a) || ['#E5E7EB', '#374151'];
+    return `<li class="ord-row" data-a="${esc(a)}"><span class="ord-handle" aria-hidden="true">☰</span><span class="ord-name" style="background:${c[0]};color:${c[1]}">${esc(tr(a))}</span>
+      <button type="button" class="icon-btn dark" data-ou aria-label="${esc(L('Move up', 'הזז למעלה'))}">↑</button><button type="button" class="icon-btn dark" data-od aria-label="${esc(L('Move down', 'הזז למטה'))}">↓</button></li>`; }).join('');
+  $('#dlgOrder').showModal();
+}
+$('#ordList').addEventListener('click', (e) => {
+  const row = e.target.closest('.ord-row'); if (!row) return;
+  if (e.target.closest('[data-ou]') && row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+  if (e.target.closest('[data-od]') && row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+});
+// drag with finger or mouse on the ☰ handle
+let ordDrag = null;
+$('#ordList').addEventListener('pointerdown', (e) => {
+  const h = e.target.closest('.ord-handle'); if (!h) return;
+  e.preventDefault(); ordDrag = h.closest('.ord-row'); ordDrag.classList.add('dragging'); h.setPointerCapture(e.pointerId);
+});
+$('#ordList').addEventListener('pointermove', (e) => {
+  if (!ordDrag) return;
+  const rows = [...$('#ordList').children].filter(r => r !== ordDrag);
+  const after = rows.find(r => { const b = r.getBoundingClientRect(); return e.clientY < b.top + b.height / 2; });
+  if (after) $('#ordList').insertBefore(ordDrag, after); else $('#ordList').appendChild(ordDrag);
+});
+const ordEnd = () => { if (ordDrag) { ordDrag.classList.remove('dragging'); ordDrag = null; } };
+$('#ordList').addEventListener('pointerup', ordEnd); $('#ordList').addEventListener('pointercancel', ordEnd);
+$('#ordSave').addEventListener('click', async () => {
+  const areas = [...$('#ordList').children].map(r => r.dataset.a);
+  if (areas.join('\u0001') === data.areas.join('\u0001')) { $('#dlgOrder').close(); return; }
+  const prev = data.areas; data.areas = areas; render();               // show the new order right away
+  $('#ordStatus').textContent = tr('Saving…'); $('#ordSave').disabled = true;
+  try {
+    const j = await api('POST', { action: 'saveAreas', areas, renames: {}, moveTo: {}, hints: data.areaHints || {} });
+    applyList(j); render(); $('#dlgOrder').close(); toast(L('Order saved', 'הסדר נשמר'));
+  } catch (err) { data.areas = prev; render(); $('#ordStatus').textContent = err.message; }
+  finally { $('#ordSave').disabled = false; }
+});
+
 /* ---------- statistics ---------- */
 async function openStats() {
   $('#dlgStats').showModal(); $('#statsBody').innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
@@ -1603,7 +1644,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 26;
+const APP_VERSION = 27;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
