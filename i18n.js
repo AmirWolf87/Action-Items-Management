@@ -37,7 +37,7 @@ const HE = {
   'Try demo': 'נסה דמו', 'Checking…': 'בודק…',
   // menu
   'Phone notifications': 'התראות לטלפון', 'Sharing & guests': 'שיתוף ואורחים', 'Suggestions to approve': 'הצעות לאישור',
-  'Sheet connection': 'חיבור לגיליון', 'Lock the app': 'נעילת האפליקציה',
+  'Sheet connection': 'חיבור לגיליון', 'Appearance': 'מראה', 'Auto': 'אוטומטי', 'Light': 'בהיר', 'Dark': 'כהה', 'Lock the app': 'נעילת האפליקציה',
   // report
   'Coming week': 'השבוע הבא', 'To (name)': 'אל (שם)', 'To (email)': 'אל (מייל)', 'Areas in the email:': 'תחומים במייל:',
   '📋 Copy formatted email': '📋 העתק מייל מעוצב', 'Outlook web': 'Outlook באינטרנט', 'Outlook app': 'אפליקציית Outlook', 'Gmail': 'Gmail',

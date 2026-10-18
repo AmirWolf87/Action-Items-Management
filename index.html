@@ -11,7 +11,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="stylesheet" href="styles.css?v=18">
+<script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
 <header class="top">
@@ -235,6 +236,7 @@
   <button class="menu-item owner-only" id="btnStats">📊 <span>Statistics</span></button>
   <button class="menu-item owner-only" id="btnFeed">📅 <span>Outlook calendar sync</span></button>
   <button class="menu-item owner-only" id="btnMaint">🗄 <span>Archive &amp; backup</span></button>
+  <div class="theme-row"><span>🌓 <span>Appearance</span></span><div class="seg" id="themeSeg"><button type="button" data-theme-set="auto">Auto</button><button type="button" data-theme-set="light">Light</button><button type="button" data-theme-set="dark">Dark</button></div></div>
   <button class="menu-item" id="btnSettings">⚙ <span>Sheet connection</span></button>
   <button class="menu-item" id="btnAccount">👤 <span>My account</span></button>
   <button class="menu-item" id="btnLock">🔒 <span>Lock the app</span></button>
@@ -346,7 +348,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=18"></script>
-<script src="app.js?v=18"></script>
+<script src="i18n.js?v=19"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

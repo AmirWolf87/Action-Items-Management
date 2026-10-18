@@ -269,7 +269,7 @@ function card(it) {
       <div class="title" dir="auto">${esc(it.item)}</div>
       <div class="meta">${it.area ? pill(it.area, areaColor(it.area)) : ''}${pr}${st}${dueLabel(it)}${who}${wait}${cl}${rec}${priv}</div>
       ${it.com ? `<div class="note" dir="auto">${esc(it.com)}</div>` : ''}
-    </div>${isClosed(it) ? '' : `<button class="snooze" data-snooze="${it.row}" title="${L('Defer to tomorrow', 'דחה למחר')}">⏭ ${L('Tomorrow', 'מחר')}</button>`}</div>`;
+    </div>${isClosed(it) ? '' : `<button class="snooze" data-snooze="${it.row}" title="${L('Defer to tomorrow', 'דחה למחר')}" aria-label="${L('Defer to tomorrow', 'דחה למחר')}">⏭<span class="snz-t"> ${L('Tomorrow', 'מחר')}</span></button>`}</div>`;
 }
 
 function filtered() {
@@ -1369,6 +1369,14 @@ function openAccount() {
   $('#dlgAccount').showModal();
 }
 $('#btnAccount').addEventListener('click', openAccount);
+/* appearance: auto (follow the phone) / light / dark */
+function applyTheme(t) {
+  t = (t === 'light' || t === 'dark') ? t : 'auto';
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  document.querySelectorAll('[data-theme-set]').forEach(b => b.classList.toggle('on', b.dataset.themeSet === t));
+}
+applyTheme(store.get('ai.theme', 'auto'));
+$('#themeSeg').addEventListener('click', e => { const b = e.target.closest('[data-theme-set]'); if (!b) return; store.set('ai.theme', b.dataset.themeSet); applyTheme(b.dataset.themeSet); });
 $('#frmAccount').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target, E = (k) => f.elements.namedItem(k).value;
