@@ -10,6 +10,13 @@ const PRIO_C = { '1': ['#FDE2E1', '#B91C1C'], '2': ['#FEF3C7', '#92400E'], '3': 
 const AREA_C = { 'Work': ['#DBEAFE', '#1E40AF'], 'Home': ['#FCE7F3', '#9D174D'], 'Personal': ['#FEF9C3', '#854D0E'],
   'M.Sc': ['#EDE9FE', '#5B21B6'], 'Reserve Duty': ['#E9EDD5', '#4D5527'], 'Family': ['#FFE4E6', '#9F1239'],
   'Finance': ['#DCFCE7', '#166534'], 'Health': ['#CCFBF1', '#115E59'] };
+const AREA_PALETTE = [['#E0F2FE', '#075985'], ['#FFEDD5', '#9A3412'], ['#ECFCCB', '#3F6212'], ['#FAE8FF', '#86198F'], ['#E0E7FF', '#3730A3'], ['#FEF3C7', '#92400E'], ['#CFFAFE', '#155E75'], ['#FFE4E6', '#9F1239']];
+function areaColor(a) {
+  if (!a) return null;
+  if (AREA_C[a]) return AREA_C[a];
+  let h = 0; for (const ch of String(a)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AREA_PALETTE[h % AREA_PALETTE.length];
+}
 const HORIZONS = ['Overdue', 'Today', 'This week', 'Next week', 'This month', 'Later', 'No date'];
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -258,7 +265,7 @@ function card(it) {
     <button class="check ${isClosed(it) ? 'on' : ''}" data-check="${it.row}" aria-label="Mark done">${isClosed(it) ? '✓' : ''}</button>
     <div class="body">
       <div class="title" dir="auto">${esc(it.item)}</div>
-      <div class="meta">${it.area ? pill(it.area, AREA_C[it.area]) : ''}${pr}${st}${dueLabel(it)}${who}${wait}${cl}${rec}${priv}</div>
+      <div class="meta">${it.area ? pill(it.area, areaColor(it.area)) : ''}${pr}${st}${dueLabel(it)}${who}${wait}${cl}${rec}${priv}</div>
       ${it.com ? `<div class="note" dir="auto">${esc(it.com)}</div>` : ''}
     </div>${isClosed(it) ? '' : `<button class="snooze" data-snooze="${it.row}" title="${L('Defer to tomorrow', 'דחה למחר')}">⏭ ${L('Tomorrow', 'מחר')}</button>`}</div>`;
 }
@@ -570,6 +577,7 @@ $('#btnMenu').addEventListener('click', () => $('#dlgMenu').showModal());
 $('#dlgMenu').addEventListener('click', (e) => { if (e.target.closest('.menu-item')) $('#dlgMenu').close(); });
 $('#btnShare').addEventListener('click', openShare);
 $('#btnStats').addEventListener('click', openStats);
+$('#btnAreas').addEventListener('click', openAreas);
 $('#btnFeed').addEventListener('click', openFeed);
 $('#btnMaint').addEventListener('click', openMaint);
 $('#btnPending').addEventListener('click', openPending);
@@ -587,7 +595,7 @@ function toast(msg) {
 }
 
 /* ---------- demo backend (no sheet needed) ---------- */
-let demoItems = null, demoNotify = null, demoGuests = [], demoPending = [], demoFeed = {};
+let demoAreas = null, demoItems = null, demoNotify = null, demoGuests = [], demoPending = [], demoFeed = {};
 function demoApi(method, body) {
   if (!demoItems) {
     const t = today(), d = (n) => iso(addDays(t, n));
@@ -600,13 +608,14 @@ function demoApi(method, body) {
       { row: 11, item: 'Send WIP report', status: 'Done', area: 'Work', prio: '2 - Medium', due: d(-3), done: d(-3), topic: 'WIP', focal: 'Me', rec: 'None', com: '' }
     ];
   }
-  if (method === 'GET') return Promise.resolve({ ok: true, role: 'owner', pending: demoPending, items: JSON.parse(JSON.stringify(demoItems)), areas: Object.keys(AREA_C), people: ['Me', 'Colleague'], report: { manager: 'Manager', email: '', from: 'Me', area: 'Work' } });
+  if (method === 'GET') return Promise.resolve({ ok: true, role: 'owner', pending: demoPending, items: JSON.parse(JSON.stringify(demoItems)), areas: demoAreas || Object.keys(AREA_C), people: ['Me', 'Colleague'], report: { manager: 'Manager', email: '', from: 'Me', area: 'Work' } });
   if (body.action === 'getGuests' || body.action === 'saveGuest' || body.action === 'deleteGuest') {
     if (body.action === 'saveGuest') { const g = Object.assign({}, body.guest); delete g.password; if (!g.id) { g.id = Math.random().toString(36).slice(2, 8); demoGuests.push(g); } else demoGuests = demoGuests.map(x => x.id === g.id ? g : x); }
     if (body.action === 'deleteGuest') demoGuests = demoGuests.filter(x => x.id !== body.id);
     return Promise.resolve({ ok: true, guests: demoGuests });
   }
   if (body.action === 'stats') return Promise.resolve({ ok: true, archived: [] });
+  if (body.action === 'saveAreas') { demoItems.forEach(it => { if (body.renames[it.area] !== undefined) it.area = body.renames[it.area]; else if (body.moveTo[it.area] !== undefined) it.area = body.moveTo[it.area]; }); demoAreas = body.areas; return demoApi('GET'); }
   if (body.action === 'getFeed' || body.action === 'setFeed') { if (body.action === 'setFeed') demoFeed = body.areas === null ? {} : { url: 'https://script.google.com/macros/s/DEMO/exec?feed=demo123', areas: body.areas || [] }; return Promise.resolve(Object.assign({ ok: true }, demoFeed)); }
   if (body.action === 'getMaint' || body.action === 'saveMaint') return Promise.resolve({ ok: true, on: body.action === 'saveMaint', cfg: { archiveDays: 60, keepBackups: 14 }, lastBackup: '', lastArchive: '' });
   if (body.action === 'archiveNow') return Promise.resolve({ ok: true, moved: 0 });
@@ -630,7 +639,7 @@ function demoApi(method, body) {
 const byTime = (a, b) => String(a.time || '99:99').localeCompare(String(b.time || '99:99')) || prioRank(a.prio) - prioRank(b.prio);
 const weekRange = (ws) => { const we = addDays(ws, 6); return `${pad(ws.getDate())}/${pad(ws.getMonth() + 1)} – ${pad(we.getDate())}/${pad(we.getMonth() + 1)}/${we.getFullYear()}`; };
 function wiHtml(it, overdue) {
-  const c = AREA_C[it.area] || ['#F3F4F6', '#94A3B8'];
+  const c = areaColor(it.area) || ['#F3F4F6', '#94A3B8'];
   const h = parseFloat(it.hrs);
   return `<div class="wi" data-row="${it.row}" ${isGuest() ? '' : 'draggable="true"'} style="border-inline-start-color:${c[1]}">
     <span class="tm">${esc(it.time || '')}</span>
@@ -936,7 +945,7 @@ function guessArea(text, focal) {
   const score = {};
   data.areas.forEach(a => {
     let sc = 0;
-    const hints = (AREA_HINTS[a] || '').toLowerCase().split(/\s+/);
+    const hints = ((AREA_HINTS[a] || '') + ' ' + ((data.areaHints || {})[a] || '') + ' ' + a + ' ' + (HE[a] || '')).toLowerCase().replace(/,/g, ' ').split(/\s+/);
     ws.forEach(w => { if (hints.some(h => h && (h === w || (h.length > 3 && (w.startsWith(h) || h.startsWith(w)) && Math.min(h.length, w.length) >= 4)))) sc += 2; });
     score[a] = sc;
   });
@@ -987,7 +996,7 @@ function qaPreview() {
   const v = $('#qa').value.trim(); if (!v) { $('#qaPreview').innerHTML = ''; return; }
   const p = parseQuick(v);
   $('#qaPreview').innerHTML = [p.due && `<span>📅 ${fmt(p.due, true)}</span>`, p.time && `<span>🕘 ${p.time}</span>`,
-    p.area ? pill(p.area, AREA_C[p.area]) + (p.auto ? `<span title="${L('detected automatically', 'זוהה אוטומטית')}">✨</span>` : '') : `<span>❓ ${L('area: will ask', 'תחום: אשאל אותך')}</span>`,
+    p.area ? pill(p.area, areaColor(p.area)) + (p.auto ? `<span title="${L('detected automatically', 'זוהה אוטומטית')}">✨</span>` : '') : `<span>❓ ${L('area: will ask', 'תחום: אשאל אותך')}</span>`,
     p.prio && pill(p.prio.replace(/^\d - /, ''), PRIO_C[p.prio.charAt(0)]), p.focal && `<span>👤 ${esc(p.focal)}</span>`, p.hrs && `<span>⏱ ${p.hrs}h</span>`]
     .filter(Boolean).join('');
 }
@@ -1016,6 +1025,66 @@ $('#quickAdd').addEventListener('submit', async (e) => {
     due: p.due, time: p.time, focal: p.focal || 'Me', hrs: p.hrs, rec: 'None', created: iso(today()) };
   $('#qa').value = ''; qaPreview();
   if (await save(it)) toast(L(`Added to ${it.area}: ${it.item}`, `נוסף ל${tr(it.area)}: ${it.item}`));
+});
+
+
+/* ---------- manage areas ---------- */
+function areaRow(name, orig, hints) {
+  const c = areaColor(name || orig || 'x') || ['#F3F4F6', '#6B7280'];
+  return `<div class="ar-row" data-orig="${esc(orig || '')}">
+    <span class="ar-dot" style="background:${c[1]}"></span>
+    <input class="ar-name" value="${esc(name)}" placeholder="${L('Area name', 'שם התחום')}" maxlength="30" dir="auto">
+    <input class="ar-hints" value="${esc(hints || '')}" placeholder="${L('Keywords for quick add (optional)', 'מילות מפתח להוספה מהירה (לא חובה)')}" dir="auto">
+    <span class="ar-count">${orig ? data.items.filter(it => it.area === orig && !isClosed(it)).length : 0}</span>
+    <button type="button" class="icon-btn dark" data-arup aria-label="Up">↑</button>
+    <button type="button" class="icon-btn dark" data-ardown aria-label="Down">↓</button>
+    <button type="button" class="icon-btn dark" data-ardel aria-label="Remove">✕</button></div>`;
+}
+let areasRemoved = [];
+function openAreas() {
+  areasRemoved = [];
+  $('#areaRows').innerHTML = data.areas.map(a => areaRow(a, a, (data.areaHints || {})[a])).join('');
+  $('#areasStatus').textContent = '';
+  $('#dlgAreas').showModal();
+}
+$('#areaRows').addEventListener('click', (e) => {
+  const row = e.target.closest('.ar-row'); if (!row) return;
+  if (e.target.closest('[data-ardel]')) { if (row.dataset.orig) areasRemoved.push(row.dataset.orig); row.remove(); }
+  if (e.target.closest('[data-arup]') && row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+  if (e.target.closest('[data-ardown]') && row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+});
+$('#areaAdd').addEventListener('click', () => { $('#areaRows').insertAdjacentHTML('beforeend', areaRow('', '', '')); $('#areaRows .ar-row:last-child .ar-name').focus(); });
+function askMove(from, count, options) {
+  return new Promise(resolve => {
+    const d = $('#dlgMoveArea');
+    $('#moveMsg').textContent = L(`"${from}" still has ${count} open item(s). Move them to:`, `ב"${tr(from)}" יש עדיין ${count} משימות פתוחות. להעביר אותן ל:`);
+    $('#movePick').innerHTML = options.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('') + `<option value="">${L('— no area —', '— ללא תחום —')}</option>`;
+    let done = false; const fin = (v) => { if (done) return; done = true; if (d.open) d.close(); resolve(v); };
+    $('#moveOk').onclick = () => fin($('#movePick').value); $('#moveCancel').onclick = () => fin(null); d.oncancel = () => fin(null);
+    d.showModal();
+  });
+}
+$('#areasSave').addEventListener('click', async () => {
+  const rows = [...document.querySelectorAll('#areaRows .ar-row')];
+  const areas = rows.map(r => r.querySelector('.ar-name').value.trim()).filter(Boolean);
+  if (!areas.length) { $('#areasStatus').textContent = L('Keep at least one area.', 'השאר לפחות תחום אחד.'); return; }
+  if (new Set(areas.map(a => a.toLowerCase())).size !== areas.length) { $('#areasStatus').textContent = L('Two areas have the same name.', 'יש שני תחומים עם אותו שם.'); return; }
+  const renames = {}, hints = {};
+  rows.forEach(r => { const o = r.dataset.orig, n = r.querySelector('.ar-name').value.trim(); if (o && n && o !== n) renames[o] = n; if (o && !n) areasRemoved.push(o); if (n) hints[n] = r.querySelector('.ar-hints').value.trim(); });
+  const moveTo = {};
+  for (const a of [...new Set(areasRemoved)]) {
+    const cnt = data.items.filter(it => it.area === a && !isClosed(it)).length;
+    const any = data.items.filter(it => it.area === a).length;
+    if (!any) continue;
+    if (cnt) { const target = await askMove(a, cnt, areas); if (target === null) return; moveTo[a] = target; }
+    else moveTo[a] = '';
+  }
+  $('#areasStatus').textContent = tr('Saving…');
+  try {
+    const j = await api('POST', { action: 'saveAreas', areas, renames, moveTo, hints });
+    applyList(j); render(); $('#dlgAreas').close();
+    toast(L(`Areas saved${j.moved ? ` · ${j.moved} item(s) updated` : ''}`, `התחומים נשמרו${j.moved ? ` · ${j.moved} משימות עודכנו` : ''}`));
+  } catch (err) { $('#areasStatus').textContent = err.message; }
 });
 
 /* ---------- statistics ---------- */
@@ -1047,7 +1116,7 @@ async function openStats() {
   const areas = [...new Set(done.map(x => x.area).filter(Boolean))];
   h += `<h3 class="nt-h">${L('Planned vs actual hours by area', 'שעות מתוכננות מול בפועל לפי תחום')}</h3><table class="st-table"><tr><th>${tr('Area')}</th><th>${L('Done', 'בוצעו')}</th><th>${L('Planned h', 'מתוכנן')}</th><th>${L('Actual h', 'בפועל')}</th><th>${L('Difference', 'פער')}</th><th>${L('On time', 'בזמן')}</th></tr>` +
     areas.map(a => { const x = done.filter(it => it.area === a), b2 = x.filter(it => parseFloat(it.hrs) > 0 && parseFloat(it.acthrs) > 0), wd = x.filter(it => parse(it.done) && parse(it.due));
-      return `<tr><td>${pill(a, AREA_C[a])}</td><td>${x.length}</td><td>${sum(b2, 'hrs') || '—'}</td><td>${sum(b2, 'acthrs') || '—'}</td><td>${diffCell(sum(b2, 'hrs'), sum(b2, 'acthrs'))}</td><td>${wd.length ? pct(wd.filter(it => parse(it.done) <= parse(it.due)).length / wd.length) : '—'}</td></tr>`; }).join('') + '</table>';
+      return `<tr><td>${pill(a, areaColor(a))}</td><td>${x.length}</td><td>${sum(b2, 'hrs') || '—'}</td><td>${sum(b2, 'acthrs') || '—'}</td><td>${diffCell(sum(b2, 'hrs'), sum(b2, 'acthrs'))}</td><td>${wd.length ? pct(wd.filter(it => parse(it.done) <= parse(it.due)).length / wd.length) : '—'}</td></tr>`; }).join('') + '</table>';
   // topics with biggest gaps
   const topics = {}; both.forEach(it => { const k = it.topic || it.item; (topics[k] = topics[k] || { p: 0, a: 0, n: 0 }); topics[k].p += parseFloat(it.hrs); topics[k].a += parseFloat(it.acthrs); topics[k].n++; });
   const tl = Object.entries(topics).sort((x, y) => Math.abs(y[1].a - y[1].p) - Math.abs(x[1].a - x[1].p)).slice(0, 8);
@@ -1128,7 +1197,7 @@ function applyList(j) {
   me = { name: j.name || '', canSuggest: !!j.canSuggest };
   pending = j.pending || [];
   mySugg = j.mySuggestions || [];
-  data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report };
+  data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report, areaHints: j.areaHints || {} };
   if (!data.areas.includes(ui.area) && ui.area !== 'All') ui.area = 'All';
   if (isGuest() && (ui.tab === 'waiting')) ui.tab = 'focus';
   if (!settings.demo && remembered()) store.set('ai.cache', data);
@@ -1137,7 +1206,7 @@ function suggHtml() {
   const col = { Pending: '#B45309', Approved: '#15803D', Rejected: '#B91C1C' };
   return `<section class="group"><h3>Your suggestions <span class="n">${mySugg.length}</span></h3>` +
     mySugg.slice(0, 8).map(x => `<div class="card sugg"><div class="body"><div class="title" dir="auto">${esc(x.item)}</div>
-      <div class="meta">${pill(x.area, AREA_C[x.area])}<span class="st" style="color:${col[x.status] || '#6B7280'}">${x.status === 'Pending' ? '⏳ Waiting for approval' : x.status === 'Approved' ? '✓ Approved' : '✕ Not approved'}</span>${x.due ? `<span>${fmt(x.due, true)}</span>` : ''}</div></div></div>`).join('') + '</section>';
+      <div class="meta">${pill(x.area, areaColor(x.area))}<span class="st" style="color:${col[x.status] || '#6B7280'}">${x.status === 'Pending' ? '⏳ Waiting for approval' : x.status === 'Approved' ? '✓ Approved' : '✕ Not approved'}</span>${x.due ? `<span>${fmt(x.due, true)}</span>` : ''}</div></div></div>`).join('') + '</section>';
 }
 
 /* guest: suggest */
@@ -1164,7 +1233,7 @@ const appBase = () => location.origin + location.pathname;
 const inviteLink = () => appBase() + '#join=' + encodeURIComponent(settings.url || '');
 function renderGuests() {
   $('#guestList').innerHTML = guests.length ? guests.map(g => `<div class="gcard ${g.on === false ? 'off' : ''}" data-gid="${esc(g.id)}">
-      <b dir="auto">${esc(g.name)}</b>${(g.areas || []).map(a => pill(a, AREA_C[a])).join('')}
+      <b dir="auto">${esc(g.name)}</b>${(g.areas || []).map(a => pill(a, areaColor(a))).join('')}
       <span class="hint" style="margin:0">${tr(g.canSuggest ? '✎ can suggest' : 'view only')}${g.on === false ? L(' · access off', ' · גישה כבויה') : ''}</span>
       <span class="grow"></span>
       <button type="button" class="btn ghost" data-ginvite>🔗 Invite</button>

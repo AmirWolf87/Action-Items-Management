@@ -48,6 +48,11 @@ It is stored only as a salted hash inside the script.
 The script checks every 5 minutes and sends each schedule once per day.
 Push messages travel through the public ntfy.sh service — choose **Counts only** if you prefer not to send item titles.
 
+## Areas
+☰ › **🏷 Manage areas**: add, rename, reorder or remove areas, and give each one optional keywords for quick add.
+Renaming updates every item, guest, calendar link and notification. Removing an area with open items asks where to move them;
+guests never gain access to another area because of a removal. (The sheet's Dashboard shows the first 8 areas.)
+
 ## Productivity features
 - **Quick add** (top bar): `tomorrow 9:30 Send forecast !1 #Work @Ezra ~1.5h` — date words (today/tomorrow/weekday/dd/mm, also Hebrew), time, `!1-3` priority, `#area`, `@person`, `~hours`.
 - **⏭ Tomorrow** on every card defers an item; date chips (Today / Tomorrow / Next week / +7) in the editor; **drag & drop** between days in Week view on a computer.

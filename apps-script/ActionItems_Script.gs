@@ -254,6 +254,7 @@ function doPost(e) {
       case 'saveMaint': return json_(Object.assign({ ok: true }, saveMaint_(req.cfg || {})));
       case 'archiveNow': return withLock_(() => json_({ ok: true, moved: archiveDone_() }));
       case 'backupNow': return json_({ ok: true, backup: backupNow_() });
+      case 'saveAreas': return withLock_(() => json_(Object.assign({ ok: true }, saveAreas_(req))));
       default: return json_({ ok: false, error: 'Unknown action' });
     }
   } catch (err) {
@@ -381,10 +382,10 @@ function readAll_() {
     items.push(o);
   });
   const lists = ss.getSheetByName('Lists');
-  const col = (c) => lists.getRange(c + '5:' + c + '24').getValues().map(x => String(x[0]).trim()).filter(String);
+  const col = (c) => lists.getRange(5, c === 'B' ? 2 : 5, 20, 1).getValues().map(x => String(x[0]).trim()).filter(String);
   const mr = ss.getSheetByName('Manager Report');
   return {
-    items: items, areas: col('B'), people: col('E'),
+    items: items, areas: col('B'), people: col('E'), areaHints: areaHints_(),
     report: mr ? { manager: mr.getRange('C3').getDisplayValue(), email: mr.getRange('E3').getDisplayValue(),
                    from: mr.getRange('C4').getDisplayValue(), area: mr.getRange('C5').getDisplayValue() } : null
   };
@@ -715,4 +716,52 @@ function notifySuggestion_(from, area, text) {
       payload: JSON.stringify({ topic: cfg.topic, title: title, message: message, tags: ['inbox_tray'], click: APP_URL, priority: 4 }) });
   }
   if (ch === 'email' || ch === 'both') MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, message + '\n\n' + APP_URL);
+}
+
+
+/* ---------- manage areas (add / remove / rename / reorder) ---------- */
+function areaHints_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('AREA_HINTS') || '{}'); } catch (e) { return {}; } }
+function saveAreas_(req) {
+  const names = (req.areas || []).map(a => String(a || '').trim().slice(0, 30)).filter(String);
+  if (!names.length) throw new Error('Keep at least one area');
+  if (names.length > 20) throw new Error('Up to 20 areas');
+  if (new Set(names.map(n => n.toLowerCase())).size !== names.length) throw new Error('Two areas have the same name');
+  const renames = req.renames || {};          // { oldName: newName }
+  const moveTo = req.moveTo || {};            // { removedName: targetName or '' }
+  const ss = SpreadsheetApp.getActive();
+  const mapArea = (a) => {
+    a = String(a || '');
+    if (renames[a] !== undefined) return renames[a];
+    if (moveTo[a] !== undefined) return moveTo[a];
+    return a;
+  };
+  // 1) Action Items (column C)
+  const sh = ss.getSheetByName(API_SHEET);
+  const rng = sh.getRange(API_FIRST, API_COLS.area, API_LAST - API_FIRST + 1, 1);
+  const vals = rng.getValues(); let changed = 0;
+  vals.forEach(r => { const n = mapArea(r[0]); if (n !== r[0]) { r[0] = n; changed++; } });
+  if (changed) rng.setValues(vals);
+  // 2) Pending + Archive keep history consistent for renames only
+  [['Pending', 4], ['Archive', 3]].forEach(([name, col]) => {
+    const s2 = ss.getSheetByName(name); if (!s2 || s2.getLastRow() < 2) return;
+    const r2 = s2.getRange(2, col, s2.getLastRow() - 1, 1), v2 = r2.getValues(); let c2 = 0;
+    v2.forEach(r => { if (renames[r[0]] !== undefined) { r[0] = renames[r[0]]; c2++; } });
+    if (c2) r2.setValues(v2);
+  });
+  // 3) Lists tab (B5:B24) — the dropdowns and Dashboard read from here
+  const lists = ss.getSheetByName('Lists');
+  const out = []; for (let i = 0; i < 20; i++) out.push([names[i] || '']);
+  lists.getRange(5, 2, 20, 1).setValues(out);
+  // 4) guests, calendar feed, notification rules, keywords
+  const fix = (arr) => (arr || []).map(mapArea).filter(a => a && names.indexOf(a) >= 0).filter((a, i, x) => x.indexOf(a) === i);
+  const P = PropertiesService.getScriptProperties();
+  // guests: follow renames only — a removed area is never replaced by another one (no accidental extra access)
+  const gs = guests_(); gs.forEach(g => { g.areas = (g.areas || []).map(a => renames[a] !== undefined ? renames[a] : a).filter(a => names.indexOf(a) >= 0).filter((a, i, x) => x.indexOf(a) === i); });
+  P.setProperty('GUESTS', JSON.stringify(gs));
+  const f = feedCfg_(); if (f.areas) { f.areas = fix(f.areas); P.setProperty('FEED_CFG', JSON.stringify(f)); }
+  const nc = notifyConfig_(); nc.rules.forEach(r => { if (r.area !== 'All') { const a = mapArea(r.area); r.area = names.indexOf(a) >= 0 ? a : 'All'; } }); P.setProperty('NOTIFY_CFG', JSON.stringify(nc));
+  const hints = {}; const inH = req.hints || {};
+  names.forEach(n => { const h = String(inH[n] || '').trim().slice(0, 500); if (h) hints[n] = h; });
+  P.setProperty('AREA_HINTS', JSON.stringify(hints));
+  return Object.assign({ moved: changed }, readAll_());
 }

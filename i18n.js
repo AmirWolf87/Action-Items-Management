@@ -85,6 +85,9 @@ const HE = {
     'נרשמים פעם אחת והמשימות מופיעות ב-Outlook כלוח שנה נפרד "Action Items" שמתעדכן לבד (Outlook מרענן לוחות מנויים כל כמה שעות).',
   "📋 Today's items": '📋 משימות היום', '📊 Weekly summary': '📊 סיכום שבועי', 'Add': 'הוספה', 'Defer to tomorrow': 'דחה למחר',
   'Suggestions from guests': 'הצעות מאורחים', 'Notify me when someone suggests a new item': 'שלח לי התראה כשמישהו מציע משימה חדשה',
+  'Manage areas': 'ניהול תחומים', 'Add, rename, reorder or remove areas. Renaming updates all items, guests and schedules. The number shows open items in each area. Keywords help quick add recognise the area.':
+    'הוסף, שנה שם, שנה סדר או מחק תחומים. שינוי שם מעדכן את כל המשימות, האורחים והתזמונים. המספר מציג משימות פתוחות בכל תחום. מילות מפתח עוזרות להוספה המהירה לזהות את התחום.',
+  '＋ Add area': '＋ הוספת תחום', 'Move items': 'העברת משימות', 'Move & remove area': 'העבר ומחק את התחום', 'Up': 'למעלה', 'Down': 'למטה',
   'Read-only access': 'גישת צפייה בלבד', 'Loading…': 'טוען…', 'Saving…': 'שומר…', 'Sending…': 'שולח…'
 };
 
