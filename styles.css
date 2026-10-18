@@ -86,3 +86,20 @@ textarea{resize:vertical}
 input,select,textarea{min-width:0;max-width:100%}
 input[type=date]{-webkit-appearance:none;appearance:none;min-height:40px}
 dialog form,dialog.wide{overflow-x:hidden}
+
+/* lock screen */
+.lock{position:fixed;inset:0;z-index:50;background:linear-gradient(160deg,#26355D 0%,#1B2440 100%);display:grid;place-items:center;padding:24px}
+.lock[hidden]{display:none}
+.lock-card{background:var(--card);color:var(--ink);width:min(380px,100%);border-radius:20px;padding:28px 24px;box-shadow:0 24px 60px rgba(0,0,0,.35);text-align:center}
+.lock-logo{width:64px;height:64px;border-radius:16px}
+.lock-card h1{margin:12px 0 4px;font-size:22px}
+.lock-sub{margin:0 0 14px;color:var(--muted);font-size:14px}
+.lock-card label{text-align:start}
+.remember{flex-direction:row;align-items:center;gap:8px;font-weight:500;margin:4px 0 14px;color:var(--ink);font-size:14px}
+.remember input{width:18px;height:18px;margin:0}
+.btn.block{width:100%;padding:12px}
+.lock-err{color:var(--red);font-size:13px;min-height:18px;margin:10px 0 0}
+.lock-links{display:flex;justify-content:space-between;margin-top:8px}
+.linkish{background:none;border:0;color:var(--accent);font-size:13px;cursor:pointer;padding:4px}
+
+[hidden]{display:none!important}

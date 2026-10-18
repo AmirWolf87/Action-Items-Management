@@ -19,9 +19,16 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
 };
 
-let settings = store.get('ai.settings', { url: '', key: '', demo: false });
+let settings = store.get('ai.settings', { url: '', demo: false });
+const sess = {
+  get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { v === null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+};
+let password = store.get('ai.pw', null) || sess.get('ai.pw') || '';
+const remembered = () => !!store.get('ai.pw', null);
 let ui = store.get('ai.ui', { tab: 'focus', area: 'All' });
-let data = store.get('ai.cache', null) || { items: [], areas: Object.keys(AREA_C), people: ['Me'], report: null };
+const EMPTY = () => ({ items: [], areas: Object.keys(AREA_C), people: ['Me'], report: null });
+let data = (store.get('ai.pw', null) && store.get('ai.cache', null)) || EMPTY();
 let search = '';
 
 /* ---------- dates ---------- */
@@ -62,38 +69,38 @@ const sortOpen = (a, b) => (parse(a.due) || new Date(9e15)) - (parse(b.due) || n
 /* ---------- API ---------- */
 async function api(method, body) {
   if (settings.demo) return demoApi(method, body);
-  if (!settings.url || !settings.key) throw new Error('Not connected — open ⚙ Settings');
+  if (!settings.url) throw new Error('No sheet URL yet');
+  if (!password) { showLock(); throw new Error('Locked'); }
   let res;
+  const payload = Object.assign({ password }, method === 'GET' ? { action: 'list' } : body);
   try {
-    if (method === 'GET') {
-      res = await fetch(`${settings.url}?action=list&key=${encodeURIComponent(settings.key)}&t=${Date.now()}`);
-    } else {
-      res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(Object.assign({ key: settings.key }, body)) });
-    }
+    res = await fetch(settings.url, { method: 'POST', body: JSON.stringify(payload) });
   } catch (e) {
     throw new Error('Can\'t reach the sheet. Check: (1) URL ends with /exec, (2) Deploy › Manage deployments › Who has access = Anyone, then New version › Deploy. Tip: ⚙ › Test in browser.');
   }
   let j;
   try { j = await res.json(); }
   catch (e) { throw new Error('The sheet answered with a web page instead of data — check the deployment: Who has access = Anyone, URL ends with /exec'); }
-  if (!j.ok) throw new Error(j.error || 'Server error');
+  if (!j.ok) { const err = new Error(j.error || 'Server error'); err.auth = !!j.auth; throw err; }
   return j;
 }
 
 function setSync(text) { $('#sync').textContent = text ? '· ' + text : ''; }
 async function load(quiet) {
-  if (!settings.demo && (!settings.url || !settings.key)) { render(); openSettings(); return; }
+  if (!settings.demo && (!settings.url || !password)) { showLock(); return false; }
   setSync('syncing…');
   try {
     const j = await api('GET');
     data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report };
-    if (!settings.demo) store.set('ai.cache', data);
+    if (!settings.demo && remembered()) store.set('ai.cache', data);
     setSync('synced ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {
+    if (e.auth) { lockApp(e.message); return false; }
     setSync('offline');
     if (!quiet) toast(e.message);
+    render(); return false;
   }
-  render();
+  render(); return true;
 }
 
 async function save(it) {
@@ -107,7 +114,7 @@ async function save(it) {
     it.row = j.row;
     const k = data.items.findIndex(x => x._tmp);
     if (k >= 0) { data.items[k] = Object.assign({}, it); }
-    if (!settings.demo) store.set('ai.cache', data);
+    if (!settings.demo && remembered()) store.set('ai.cache', data);
     render();
     return true;
   } catch (e) {
@@ -117,7 +124,7 @@ async function save(it) {
 async function remove(row) {
   const before = JSON.stringify(data.items);
   data.items = data.items.filter(x => x.row !== row); render();
-  try { await api('POST', { action: 'delete', row }); if (!settings.demo) store.set('ai.cache', data); toast('Deleted'); }
+  try { await api('POST', { action: 'delete', row }); if (!settings.demo && remembered()) store.set('ai.cache', data); toast('Deleted'); }
   catch (e) { data.items = JSON.parse(before); render(); toast('Not deleted: ' + e.message); }
 }
 
@@ -198,7 +205,6 @@ function render() {
   if (!html) html = ui.tab === 'focus'
     ? `<div class="empty"><b>🎉</b>Nothing overdue, due today or this week.<br>Check "All open" for later items.</div>`
     : `<div class="empty"><b>🗂</b>No items here.</div>`;
-  if (!settings.demo && (!settings.url || !settings.key)) html = `<div class="empty"><b>🔌</b>Not connected yet.<br>Tap ⚙ to connect your Google Sheet, or try the demo.</div>`;
   $('#list').innerHTML = html;
 }
 function group(title, arr, cls) {
@@ -245,19 +251,21 @@ $('#btnDelete').addEventListener('click', () => {
 /* ---------- settings ---------- */
 const dlgSet = $('#dlgSettings'), frmSet = $('#frmSettings');
 const S = (k) => frmSet.elements.namedItem(k);
-function openSettings() { S('url').value = settings.url || ''; S('key').value = settings.key || ''; if (!dlgSet.open) dlgSet.showModal(); }
+function openSettings() { S('url').value = settings.url || ''; if (!dlgSet.open) dlgSet.showModal(); }
 frmSet.addEventListener('submit', (e) => {
   e.preventDefault();
-  settings = { url: S('url').value.trim().replace(/\?.*$/, ''), key: S('key').value.trim(), demo: false };
-  if (!/^https:\/\/script\.google\.com\/.*\/exec$/.test(settings.url)) { toast('The Web-app URL must start with https://script.google.com/ and end with /exec'); return; }
-  store.set('ai.settings', settings); dlgSet.close(); load();
+  const u = cleanUrl(S('url').value);
+  if (!validUrl(u)) { toast('The Web-app URL must start with https://script.google.com/ and end with /exec'); return; }
+  settings = { url: u, demo: false }; store.set('ai.settings', settings); dlgSet.close();
+  if (password) load(); else showLock();
 });
 $('#btnTest').addEventListener('click', () => {
-  const u = S('url').value.trim().replace(/\?.*$/, ''), k = S('key').value.trim();
+  const u = cleanUrl(S('url').value);
   if (!u) { toast('Paste the Web-app URL first'); return; }
-  window.open(`${u}?action=list&key=${encodeURIComponent(k)}`, '_blank');
+  window.open(u, '_blank');
 });
-$('#btnDemo').addEventListener('click', () => { settings = { url: '', key: '', demo: true }; store.set('ai.settings', settings); dlgSet.close(); load(); toast('Demo mode — nothing is saved to your sheet'); });
+function startDemo() { settings = { url: settings.url || '', demo: true }; store.set('ai.settings', settings); if (dlgSet.open) dlgSet.close(); hideLock(); load(); toast('Demo mode — nothing is saved to your sheet'); }
+$('#btnDemo').addEventListener('click', startDemo);
 
 /* ---------- weekly report ---------- */
 const dlgRep = $('#dlgReport');
@@ -370,7 +378,7 @@ $('#fab').addEventListener('click', () => openEdit(null));
 $('#btnSettings').addEventListener('click', openSettings);
 $('#btnRefresh').addEventListener('click', () => load());
 $('#btnReport').addEventListener('click', openReport);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) load(true); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && lockEl.hidden) load(true); });
 
 let toastTimer;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2800); }
@@ -400,7 +408,53 @@ function demoApi(method, body) {
   return Promise.resolve({ ok: false, error: 'Unknown' });
 }
 
+/* ---------- lock screen ---------- */
+const cleanUrl = (u) => String(u || '').trim().replace(/\?.*$/, '');
+const validUrl = (u) => /^https:\/\/script\.google\.com\/.*\/exec$/.test(u);
+const lockEl = $('#lock'), frmLock = $('#frmLock'), LK = (k) => frmLock.elements.namedItem(k);
+function showLock(msg) {
+  document.querySelectorAll('dialog[open]').forEach(d => d.close());
+  $('#lockUrlWrap').hidden = !!settings.url && validUrl(settings.url);
+  LK('url').value = settings.url || '';
+  LK('password').value = '';
+  $('#lockErr').textContent = msg || '';
+  lockEl.hidden = false;
+  setTimeout(() => ($('#lockUrlWrap').hidden ? LK('password') : LK('url')).focus(), 50);
+}
+function hideLock() { lockEl.hidden = true; }
+function lockApp(msg) {
+  password = ''; sess.set('ai.pw', null); store.set('ai.pw', null);
+  try { localStorage.removeItem('ai.pw'); localStorage.removeItem('ai.cache'); } catch (e) { /* ignore */ }
+  data = EMPTY(); render(); showLock(msg);
+}
+frmLock.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!$('#lockUrlWrap').hidden) {
+    const u = cleanUrl(LK('url').value);
+    if (!validUrl(u)) { $('#lockErr').textContent = 'The Web-app URL must start with https://script.google.com/ and end with /exec'; return; }
+    settings = { url: u, demo: false }; store.set('ai.settings', settings);
+  }
+  settings.demo = false; store.set('ai.settings', settings);
+  password = LK('password').value;
+  const btn = $('#btnUnlock'); btn.disabled = true; btn.textContent = 'Checking…'; $('#lockErr').textContent = '';
+  try {
+    const j = await api('GET');
+    if (LK('remember').checked) store.set('ai.pw', password); else { sess.set('ai.pw', password); try { localStorage.removeItem('ai.pw'); } catch (err) { /* ignore */ } }
+    data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report };
+    if (remembered()) store.set('ai.cache', data);
+    hideLock(); setSync('synced ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })); render();
+  } catch (err) {
+    password = '';
+    $('#lockErr').textContent = err.message;
+  } finally { btn.disabled = false; btn.textContent = 'Unlock'; }
+});
+$('#lockChangeUrl').addEventListener('click', () => { $('#lockUrlWrap').hidden = false; LK('url').focus(); });
+$('#lockDemo').addEventListener('click', startDemo);
+$('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
+
 /* ---------- start ---------- */
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 render();
-load(true);
+if (settings.demo) load(true);
+else if (settings.url && password) load(true);
+else showLock();

@@ -1,7 +1,7 @@
 /**
  * Action Items — Google Sheet script
  *  1) "✉ Manager Report" menu: formatted email for Outlook (copy-paste) or a Gmail draft
- *  2) API for the Action Items web app (GitHub Pages) — protected by a private key
+ *  2) API for the Action Items web app (GitHub Pages) — protected by your app password
  * Paste into: Extensions › Apps Script (replace everything), Save, reload the sheet.
  */
 function onOpen() {
@@ -10,8 +10,7 @@ function onOpen() {
     .addItem('Copy formatted email for Outlook', 'showOutlookDialog')
     .addItem('Create formatted Gmail draft', 'createManagerDraft')
     .addSeparator()
-    .addItem('App: show my private key', 'showAppKey')
-    .addItem('App: create a NEW key (old one stops working)', 'resetAppKey')
+    .addItem('App: set / change password', 'setAppPassword')
     .addToUi();
 }
 
@@ -147,6 +146,7 @@ function showOutlookDialog() {
 /* =====================================================================
  *  Web-app API  (deploy: Deploy › New deployment › Web app,
  *                Execute as: Me · Who has access: Anyone)
+ *  Every request must carry the app password (set it from the sheet menu).
  *  Only the white (input) columns are ever written — formulas are never touched.
  * ===================================================================== */
 const API_SHEET = 'Action Items';
@@ -155,37 +155,58 @@ const API_COLS = { item: 1, status: 2, area: 3, prio: 4, due: 5, topic: 8, focal
                    hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16 };
 const API_DATES = ['due', 'created', 'done'];
 
-function getKey_() {
-  const p = PropertiesService.getScriptProperties();
-  let k = p.getProperty('APP_KEY');
-  if (!k) { k = Utilities.getUuid().replace(/-/g, ''); p.setProperty('APP_KEY', k); }
-  return k;
+/* ---------- password (stored only as a salted SHA-256 hash) ---------- */
+function hash_(pw, salt) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + '|' + pw, Utilities.Charset.UTF_8);
+  return bytes.map(b => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
 }
-function showAppKey() {
-  SpreadsheetApp.getUi().alert('Your private app key',
-    getKey_() + '\n\nPaste it into the app (⚙ Settings). Keep it secret — anyone with the key and the web-app URL can edit your list.',
-    SpreadsheetApp.getUi().ButtonSet.OK);
-}
-function resetAppKey() {
+function setAppPassword() {
+  const ui = SpreadsheetApp.getUi();
+  const r1 = ui.prompt('App password', 'Choose a password for the Action Items app (at least 8 characters):', ui.ButtonSet.OK_CANCEL);
+  if (r1.getSelectedButton() !== ui.Button.OK) return;
+  const pw = r1.getResponseText();
+  if (pw.length < 8) { ui.alert('Too short — use at least 8 characters.'); return; }
+  const r2 = ui.prompt('App password', 'Type the same password again:', ui.ButtonSet.OK_CANCEL);
+  if (r2.getSelectedButton() !== ui.Button.OK) return;
+  if (r2.getResponseText() !== pw) { ui.alert('The two passwords are different — nothing was changed.'); return; }
+  const salt = Utilities.getUuid();
+  PropertiesService.getScriptProperties().setProperties({ PW_SALT: salt, PW_HASH: hash_(pw, salt) });
   PropertiesService.getScriptProperties().deleteProperty('APP_KEY');
-  showAppKey();
+  ui.alert('Password saved. Use it on the app\'s lock screen. (Devices that remembered the old password will ask again.)');
 }
 
 function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
-function authorised_(key) { return key && key === getKey_(); }
 
+/* returns null if OK, otherwise an error message. 10 wrong tries → locked for 15 minutes */
+function checkPassword_(pw) {
+  const props = PropertiesService.getScriptProperties();
+  const salt = props.getProperty('PW_SALT'), h = props.getProperty('PW_HASH');
+  if (!salt || !h) return 'No password set yet — in the sheet: ✉ Manager Report › App: set / change password';
+  const cache = CacheService.getScriptCache();
+  const fails = Number(cache.get('pw_fails') || 0);
+  if (fails >= 10) return 'Too many wrong attempts — try again in 15 minutes';
+  if (pw && hash_(String(pw), salt) === h) return null;
+  cache.put('pw_fails', String(fails + 1), 900);
+  return 'Wrong password';
+}
+
+/* Opening the URL in a browser only shows that the API is alive — never any data */
 function doGet(e) {
-  if (!authorised_(e.parameter.key)) return json_({ ok: false, error: 'Wrong or missing key' });
-  try { return json_(Object.assign({ ok: true }, readAll_())); }
-  catch (err) { return json_({ ok: false, error: String(err) }); }
+  const p = PropertiesService.getScriptProperties();
+  return json_({ ok: true, app: 'Action Items API', passwordSet: !!p.getProperty('PW_HASH') });
 }
 
 function doPost(e) {
   let req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request' }); }
-  if (!authorised_(req.key)) return json_({ ok: false, error: 'Wrong or missing key' });
+  const bad = checkPassword_(req.password);
+  if (bad) return json_({ ok: false, auth: true, error: bad });
+  if (req.action === 'list') {
+    try { return json_(Object.assign({ ok: true }, readAll_())); }
+    catch (err) { return json_({ ok: false, error: String(err) }); }
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {

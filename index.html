@@ -24,6 +24,7 @@
       <button class="icon-btn" id="btnRefresh" title="Refresh" aria-label="Refresh">⟳</button>
       <button class="icon-btn" id="btnReport" title="Weekly report" aria-label="Weekly report">✉</button>
       <button class="icon-btn" id="btnSettings" title="Settings" aria-label="Settings">⚙</button>
+      <button class="icon-btn" id="btnLock" title="Lock" aria-label="Lock">🔒</button>
     </div>
   </div>
   <div class="kpis" id="kpis"></div>
@@ -85,15 +86,14 @@
       <h2>Settings</h2>
       <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
     </div>
-    <p class="hint">"Test in browser" should show text starting with {"ok":true. A Google sign-in page means the deployment access isn't set to Anyone.</p>
-    <p class="hint">Connect the app to your Google Sheet. Both values come from the sheet's Apps Script (see the setup guide). They are saved only on this device.</p>
+    <p class="hint">The Web-app URL of your sheet's Apps Script (ends with /exec). Saved only on this device.</p>
+    <p class="hint">"Test in browser" should show {"ok":true,"app":"Action Items API"…}. A Google sign-in page means the deployment access isn't set to Anyone.</p>
     <label class="full">Web-app URL<input name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
-    <label class="full">Private key<input name="key" type="password" autocomplete="off"></label>
     <div class="sheet-actions">
       <button type="button" class="btn ghost" id="btnTest">Test in browser</button>
       <button type="button" class="btn ghost" id="btnDemo">Try demo data</button>
       <span class="grow"></span>
-      <button type="submit" class="btn primary">Connect</button>
+      <button type="submit" class="btn primary">Save</button>
     </div>
   </form>
 </dialog>
@@ -119,6 +119,27 @@
   <div class="subject" id="repSubject"></div>
   <div class="preview" id="repPreview"></div>
 </dialog>
+
+<!-- Lock screen -->
+<div id="lock" class="lock" hidden>
+  <form id="frmLock" class="lock-card" autocomplete="on">
+    <img src="icons/icon.svg" alt="" class="lock-logo">
+    <h1>Action Items</h1>
+    <p class="lock-sub">Enter your password to continue</p>
+    <label class="full" id="lockUrlWrap" hidden>Web-app URL (first time on this device)
+      <input name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" inputmode="url">
+    </label>
+    <input type="text" name="username" value="action-items" autocomplete="username" hidden>
+    <label class="full">Password<input name="password" type="password" autocomplete="current-password" required></label>
+    <label class="remember"><input type="checkbox" name="remember"> Remember on this device</label>
+    <button type="submit" class="btn primary block" id="btnUnlock">Unlock</button>
+    <p class="lock-err" id="lockErr"></p>
+    <div class="lock-links">
+      <button type="button" class="linkish" id="lockChangeUrl">Change sheet URL</button>
+      <button type="button" class="linkish" id="lockDemo">Try demo</button>
+    </div>
+  </form>
+</div>
 
 <script src="app.js"></script>
 </body>
