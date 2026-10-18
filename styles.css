@@ -261,3 +261,7 @@ body.guest .snooze{display:none}
 
 .qa-title > span:not(.qa-bolt){white-space:nowrap}
 .qa-title small{flex:1;min-width:0}
+
+.lock-info{color:var(--green);font-size:13px;font-weight:600;margin:4px 0 0}
+.lock-info:empty{display:none}
+.lock-links{flex-wrap:wrap;gap:4px}

@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="stylesheet" href="styles.css?v=17">
+<link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
 <header class="top">
@@ -156,7 +156,9 @@
     <label class="remember"><input type="checkbox" name="remember"> Remember on this device</label>
     <button type="submit" class="btn primary block" id="btnUnlock">Unlock</button>
     <p class="lock-err" id="lockErr"></p>
+    <p class="lock-info" id="lockInfo"></p>
     <div class="lock-links">
+      <button type="button" class="linkish" id="lockForgot">Forgot password?</button>
       <button type="button" class="linkish" id="lockChangeUrl">Change sheet URL</button>
       <button type="button" class="linkish" id="lockDemo">Try demo</button>
     </div>
@@ -251,6 +253,7 @@
       <label>Username<input name="guser" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="e.g. neta" dir="ltr"></label>
       <label>Password<span class="pw-row"><input name="gpw" type="text" autocomplete="off" placeholder="at least 6 characters" dir="ltr"><button type="button" class="btn ghost" id="gpwGen" title="Generate">🎲</button></span></label>
     </div>
+    <label class="full">WhatsApp number (optional)<input name="gphone" type="tel" placeholder="050-1234567" dir="ltr" autocomplete="off"></label>
     <div class="rep-areas"><span>Can see:</span><div class="chips" id="guestAreas"></div></div>
     <label class="remember"><input type="checkbox" name="canSuggest" checked> Can suggest new items (you approve them)</label>
     <label class="remember"><input type="checkbox" name="on" checked> Access active</label>
@@ -315,8 +318,10 @@
     <div class="sheet-head"><h2>My account</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
     <p class="hint" id="accHint"></p>
     <label class="full">Username<input name="newUsername" type="text" autocapitalize="none" spellcheck="false" dir="ltr" required></label>
-    <label class="full">New password (leave empty to keep)<input name="newPassword" type="password" autocomplete="new-password" dir="ltr"></label>
-    <label class="full">Repeat new password<input name="newPassword2" type="password" autocomplete="new-password" dir="ltr"></label>
+    <div id="accPw">
+      <label class="full">New password (leave empty to keep)<input name="newPassword" type="password" autocomplete="new-password" dir="ltr"></label>
+      <label class="full">Repeat new password<input name="newPassword2" type="password" autocomplete="new-password" dir="ltr"></label>
+    </div>
     <div class="sheet-actions"><span class="grow"></span><button type="submit" class="btn primary">Save</button></div>
     <p class="rep-status" id="accStatus"></p>
   </form>
@@ -341,7 +346,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=17"></script>
-<script src="app.js?v=17"></script>
+<script src="i18n.js?v=18"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

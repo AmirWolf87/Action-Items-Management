@@ -232,6 +232,7 @@ function doGet(e) {
 function doPost(e) {
   let req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request' }); }
+  if (req.action === 'forgot') { try { forgotPassword_(req.username); } catch (e) { console.error(e); } return json_({ ok: true }); }   // no sign-in needed; never reveals if the user exists
   const who = authenticate_(req.username, req.password);
   if (who.err) return json_({ ok: false, auth: true, error: who.err });
   try {
@@ -248,7 +249,8 @@ function doPost(e) {
     }
     /* ---- owner ---- */
     switch (req.action) {
-      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending') }));
+      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending'), pwRequests: pwRequests_().filter(r => !r.handled) }));
+      case 'pwHandled': { const L = pwRequests_(); L.forEach(r => { if (r.id === req.id) r.handled = true; }); PropertiesService.getScriptProperties().setProperty('PW_REQUESTS', JSON.stringify(L)); return json_({ ok: true }); }
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
@@ -281,7 +283,7 @@ function withLock_(fn) {
 
 /* ---------- guests ---------- */
 /* the owner sees guests' usernames AND passwords (by design) */
-function publicGuest_(g) { return { id: g.id, name: g.name, user: g.user || '', pw: g.pw || '', areas: g.areas, canSuggest: !!g.canSuggest, on: g.on !== false, hasPassword: !!g.hash }; }
+function publicGuest_(g) { return { id: g.id, name: g.name, user: g.user || '', pw: g.pw || '', phone: g.phone || '', areas: g.areas, canSuggest: !!g.canSuggest, on: g.on !== false, hasPassword: !!g.hash }; }
 function checkNewUser_(user, selfId) {
   if (!/^[a-z0-9._-]{3,30}$/.test(user)) throw new Error('Username: 3-30 characters — English letters, numbers, . _ -');
   if (user === ownerUser_()) throw new Error('That username is taken');
@@ -294,7 +296,7 @@ function setGuestPw_(g, pw) {
 function updateGuestAccount_(id, req) {
   const list = guests_(); const g = list.find(x => x.id === id); if (!g) throw new Error('Account not found');
   if (req.newUsername !== undefined && cleanUser_(req.newUsername) !== cleanUser_(g.user)) { const u = cleanUser_(req.newUsername); checkNewUser_(u, g.id); g.user = u; }
-  if (req.newPassword) setGuestPw_(g, req.newPassword);
+  if (req.newPassword) throw new Error('Only the list owner can change passwords');
   PropertiesService.getScriptProperties().setProperty('GUESTS', JSON.stringify(list));
   return { user: g.user };
 }
@@ -321,6 +323,7 @@ function saveGuest_(in_) {
   g.areas = (in_.areas || []).map(String).slice(0, 20);
   g.canSuggest = !!in_.canSuggest;
   g.on = in_.on !== false;
+  g.phone = String(in_.phone || '').replace(/[^\d+]/g, '').slice(0, 16);
   const u = cleanUser_(in_.user || g.user);
   if (!u) throw new Error('Choose a username for ' + g.name);
   if (u !== cleanUser_(g.user)) { checkNewUser_(u, g.id); g.user = u; }
@@ -804,4 +807,28 @@ function saveAreas_(req) {
   names.forEach(n => { const h = String(inH[n] || '').trim().slice(0, 500); if (h) hints[n] = h; });
   P.setProperty('AREA_HINTS', JSON.stringify(hints));
   return Object.assign({ moved: changed }, readAll_());
+}
+
+
+/* ---------- "forgot password" requests (owner sends the password himself, e.g. on WhatsApp) ---------- */
+function pwRequests_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('PW_REQUESTS') || '[]'); } catch (e) { return []; } }
+function forgotPassword_(user) {
+  user = cleanUser_(user); if (!user) return;
+  const cache = CacheService.getScriptCache();
+  const k = 'forgot_' + Utilities.base64EncodeWebSafe(user).slice(0, 40);
+  const all = Number(cache.get('forgot_all') || 0);
+  if (cache.get(k) || all >= 20) return;                     // max once per 10 min per user, 20 per hour overall
+  cache.put(k, '1', 600); cache.put('forgot_all', String(all + 1), 3600);
+  const g = guests_().find(x => cleanUser_(x.user) === user && x.on !== false);
+  if (!g) return;
+  const list = pwRequests_().filter(r => !(r.user === g.user && !r.handled));
+  list.push({ id: Utilities.getUuid().slice(0, 8), guestId: g.id, user: g.user, name: g.name, at: new Date().toISOString(), handled: false });
+  PropertiesService.getScriptProperties().setProperty('PW_REQUESTS', JSON.stringify(list.slice(-20)));
+  const cfg = notifyConfig_();
+  const title = '🔑 ' + g.name + ' forgot the password';
+  const message = 'Username: ' + g.user + '\nOpen the app › 📥 to send the login on WhatsApp.';
+  const ch = (cfg.onSuggest && cfg.onSuggest.channel) || 'push';
+  if (ch === 'push' || ch === 'both') UrlFetchApp.fetch('https://ntfy.sh/', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    payload: JSON.stringify({ topic: cfg.topic, title: title, message: message, tags: ['key'], click: APP_URL, priority: 4 }) });
+  if (ch === 'email' || ch === 'both') MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, message + '\n\n' + APP_URL);
 }

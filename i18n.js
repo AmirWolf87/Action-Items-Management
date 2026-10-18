@@ -94,6 +94,7 @@ const HE = {
   'That username is taken': 'שם המשתמש תפוס', 'Sign in to continue': 'התחבר כדי להמשיך',
   'Quick add': 'הקלדה מהירה', 'Type naturally — date, time, !1, @person, ~2h': 'כתוב חופשי — תאריך, שעה, !1, @אדם, ~2h',
   'tomorrow 9:30 Send forecast to Ezra !1 ~2h': 'מחר 9:30 לשלוח תחזית לעזרא !1 ~2h',
+  'Forgot password?': 'שכחתי סיסמה', 'WhatsApp number (optional)': 'מספר וואטסאפ (לא חובה)', '💬 WhatsApp': '💬 וואטסאפ',
   'Read-only access': 'גישת צפייה בלבד', 'Loading…': 'טוען…', 'Saving…': 'שומר…', 'Sending…': 'שולח…'
 };
 

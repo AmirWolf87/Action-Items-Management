@@ -38,7 +38,7 @@ let ui = store.get('ai.ui', { tab: 'focus', area: 'All' });
 const EMPTY = () => ({ items: [], areas: Object.keys(AREA_C), people: ['Me'], report: null });
 let data = (store.get('ai.pw', null) && store.get('ai.cache', null)) || EMPTY();
 let search = '';
-let role = 'owner', me = { name: '', canSuggest: false }, pending = [], mySugg = [];
+let role = 'owner', me = { name: '', canSuggest: false }, pending = [], mySugg = [], pwReq = [];
 const isGuest = () => role === 'guest';
 let weekOff = 0;
 
@@ -284,8 +284,8 @@ function render() {
   $('#guestBar').hidden = !isGuest();
   if (isGuest()) $('#guestBar').textContent = L(`👀 Viewing as ${me.name} · read-only`, `👀 צפייה בתור ${me.name} · קריאה בלבד`) + (me.canSuggest ? L(' · tap ＋ to suggest an item', ' · לחץ ＋ כדי להציע משימה') : '');
   $('#fab').classList.toggle('can-suggest', isGuest() && me.canSuggest);
-  $('#btnPending').hidden = isGuest() || !pending.length;
-  $('#pendingBadge').textContent = pending.length || '';
+  $('#btnPending').hidden = isGuest() || !(pending.length + pwReq.length);
+  $('#pendingBadge').textContent = (pending.length + pwReq.length) || '';
   $('#today').textContent = today().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
   const open = data.items.filter(it => !isClosed(it));
   const cnt = (h) => open.filter(it => horizon(it) === h).length;
@@ -1198,6 +1198,7 @@ function applyList(j) {
   role = j.role === 'guest' ? 'guest' : 'owner';
   me = { name: j.name || '', canSuggest: !!j.canSuggest };
   pending = j.pending || [];
+  pwReq = j.pwRequests || [];
   mySugg = j.mySuggestions || [];
   data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report, areaHints: j.areaHints || {} };
   if (!data.areas.includes(ui.area) && ui.area !== 'All') ui.area = 'All';
@@ -1240,6 +1241,7 @@ function renderGuests() {
       <span class="cred"><span>👤 <code class="no-i18n">${esc(g.user || '—')}</code></span>
         <span>🔑 <code class="no-i18n pw-mask" data-pw="${esc(g.pw || '')}">${g.pw ? '••••••' : L('(set before — type a new one to see it)', '(הוגדרה בעבר — הקלד חדשה כדי לראות)')}</code>${g.pw ? `<button type="button" class="linkish" data-gshow>👁</button>` : ''}</span></span>
       <span class="grow"></span>
+      <button type="button" class="btn ghost" data-gwa ${g.pw ? '' : 'disabled'}>💬 WhatsApp</button>
       <button type="button" class="btn ghost" data-ginvite>🔗 Invite</button>
       <button type="button" class="btn ghost" data-gedit>Edit</button>
       <button type="button" class="btn danger" data-gdel>Remove</button></div>`).join('')
@@ -1252,6 +1254,7 @@ function resetGuestForm(g) {
   const f = $('#frmGuest'), E = (k) => f.elements.namedItem(k);
   E('id').value = g ? g.id : ''; E('name').value = g ? g.name : ''; E('gpw').value = g && g.pw ? g.pw : '';
   E('guser').value = g ? (g.user || '') : '';
+  E('gphone').value = g ? (g.phone || '') : '';
   E('gpw').placeholder = tr(g ? 'leave empty to keep the current password' : 'at least 6 characters');
   E('canSuggest').checked = g ? !!g.canSuggest : true; E('on').checked = g ? g.on !== false : true;
   gAreas = g ? (g.areas || []).slice() : ['Home'].filter(a => data.areas.includes(a));
@@ -1276,7 +1279,7 @@ $('#frmGuest').addEventListener('submit', async (e) => {
   const f = e.target, E = (k) => f.elements.namedItem(k);
   if (!gAreas.length) { $('#shareStatus').textContent = 'Choose at least one area the guest can see.'; return; }
   const orig = guests.find(x => x.id === E('id').value);
-  const g = { id: E('id').value || undefined, name: E('name').value.trim(), user: E('guser').value.trim().toLowerCase(), areas: gAreas, canSuggest: E('canSuggest').checked, on: E('on').checked };
+  const g = { id: E('id').value || undefined, name: E('name').value.trim(), user: E('guser').value.trim().toLowerCase(), phone: E('gphone').value.trim(), areas: gAreas, canSuggest: E('canSuggest').checked, on: E('on').checked };
   const pw = E('gpw').value;
   if (pw && (!orig || orig.pw !== pw)) g.password = pw;
   if (!g.user) { $('#shareStatus').textContent = L('Choose a username for the guest (e.g. neta).', 'בחר שם משתמש לאורח (למשל neta).'); return; }
@@ -1290,6 +1293,7 @@ $('#frmGuest').addEventListener('submit', async (e) => {
 $('#guestList').addEventListener('click', async (e) => {
   const card = e.target.closest('[data-gid]'); if (!card) return;
   const g = guests.find(x => x.id === card.dataset.gid); if (!g) return;
+  if (e.target.closest('[data-gwa]')) { window.open(waLink(g), '_blank'); return; }
   if (e.target.closest('[data-gshow]')) { const c = card.querySelector('.pw-mask'); c.textContent = c.textContent === '••••••' ? c.dataset.pw : '••••••'; return; }
   if (e.target.closest('[data-gedit]')) { resetGuestForm(g); $('#frmGuest').scrollIntoView({ behavior: 'smooth' }); }
   if (e.target.closest('[data-gdel]')) {
@@ -1307,9 +1311,19 @@ $('#guestList').addEventListener('click', async (e) => {
 });
 
 /* owner: approvals */
+function renderPwReq() {
+  if (!pwReq.length) return '';
+  return `<h3 class="nt-h">${L('Forgot password', 'שכחו סיסמה')}</h3>` + pwReq.map(r => {
+    const g = guests.find(x => x.id === r.guestId || x.user === r.user);
+    return `<div class="pcard" data-rid="${esc(r.id)}"><div class="who">🔑 <b>${esc(r.name)}</b> (${esc(r.user)}) · ${new Date(r.at).toLocaleString(locale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+      <div class="sheet-actions">${g && g.pw ? `<button type="button" class="btn link" data-rwa="${esc(g.id)}">💬 ${L('Send login on WhatsApp', 'שלח פרטי כניסה בוואטסאפ')}</button>` : `<span class="hint">${L('No visible password yet — set a new one in Sharing & guests.', 'אין סיסמה גלויה — הגדר חדשה בשיתוף ואורחים.')}</span>`}
+      <span class="grow"></span><button type="button" class="btn ghost" data-rdone>✓ ${L('Done', 'טופל')}</button></div></div>`;
+  }).join('');
+}
 function renderPending() {
+  if (!pending.length && pwReq.length) { $('#pendingList').innerHTML = renderPwReq(); return; }
   if (!pending.length) { $('#pendingList').innerHTML = '<div class="empty"><b>📭</b>No suggestions waiting.</div>'; return; }
-  $('#pendingList').innerHTML = pending.map(p => `<div class="pcard" data-pid="${esc(p.id)}">
+  $('#pendingList').innerHTML = renderPwReq() + (pwReq.length ? `<h3 class="nt-h">${L('Suggestions', 'הצעות')}</h3>` : '') + pending.map(p => `<div class="pcard" data-pid="${esc(p.id)}">
     <div class="who">${L('From', 'מאת')} <b>${esc(p.from)}</b> · ${fmt(p.submitted, true)}</div>
     <div class="grid">
       <label>Action item<input class="p-item" value="${esc(p.item)}" dir="auto"></label>
@@ -1321,8 +1335,16 @@ function renderPending() {
     <div class="sheet-actions"><button type="button" class="btn danger" data-preject>Reject</button><span class="grow"></span><button type="button" class="btn primary" data-papprove>✓ Approve &amp; add</button></div>
   </div>`).join('');
 }
-async function openPending() { $('#dlgPending').showModal(); renderPending(); await load(true); renderPending(); }
+async function openPending() {
+  $('#dlgPending').showModal(); renderPending(); await load(true);
+  if (pwReq.length) { try { guests = (await api('POST', { action: 'getGuests' })).guests || []; } catch (e) { /* ignore */ } }
+  renderPending();
+}
 $('#pendingList').addEventListener('click', async (e) => {
+  const wa = e.target.closest('[data-rwa]');
+  if (wa) { const g = guests.find(x => x.id === wa.dataset.rwa); if (g) window.open(waLink(g), '_blank'); return; }
+  const rd = e.target.closest('[data-rdone]');
+  if (rd) { const id = rd.closest('[data-rid]').dataset.rid; try { await api('POST', { action: 'pwHandled', id }); pwReq = pwReq.filter(r => r.id !== id); renderPending(); render(); } catch (err) { toast(err.message); } return; }
   const card = e.target.closest('[data-pid]'); if (!card) return;
   const id = card.dataset.pid, q = (c) => card.querySelector(c).value;
   const approve = e.target.closest('[data-papprove]'), reject = e.target.closest('[data-preject]');
@@ -1340,8 +1362,9 @@ $('#pendingList').addEventListener('click', async (e) => {
 function openAccount() {
   const f = $('#frmAccount'), E = (k) => f.elements.namedItem(k);
   f.reset(); E('newUsername').value = username; $('#accStatus').textContent = '';
+  $('#accPw').hidden = isGuest();
   $('#accHint').textContent = isGuest()
-    ? L(`Signed in as ${me.name}. You can change your username and password; ${'the list owner'} can see them.`, `מחובר/ת בתור ${me.name}. אפשר לשנות שם משתמש וסיסמה; בעל הרשימה יכול לראות אותם.`)
+    ? L(`Signed in as ${me.name}. You can change your username. Your password is set by the list owner — use "Forgot password?" on the sign-in screen if you need it again.`, `מחובר/ת בתור ${me.name}. אפשר לשנות את שם המשתמש. את הסיסמה קובע בעל הרשימה — אם שכחת, יש "שכחתי סיסמה" במסך הכניסה.`)
     : L('Your own sign-in. Guests never see it.', 'פרטי הכניסה שלך. אורחים לא רואים אותם.');
   $('#dlgAccount').showModal();
 }
@@ -1349,7 +1372,7 @@ $('#btnAccount').addEventListener('click', openAccount);
 $('#frmAccount').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target, E = (k) => f.elements.namedItem(k).value;
-  const nu = E('newUsername').trim().toLowerCase(), np = E('newPassword'), np2 = E('newPassword2');
+  const nu = E('newUsername').trim().toLowerCase(), np = isGuest() ? '' : E('newPassword'), np2 = isGuest() ? '' : E('newPassword2');
   if (np !== np2) { $('#accStatus').textContent = L('The two passwords are different.', 'שתי הסיסמאות שונות.'); return; }
   if (nu === username && !np) { $('#dlgAccount').close(); return; }
   try {
@@ -1370,6 +1393,28 @@ $('#frmGuest').elements.namedItem('name').addEventListener('input', (e) => {
   if (!$('#frmGuest').elements.namedItem('id').value && !u.dataset.touched) u.value = e.target.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
 });
 $('#frmGuest').elements.namedItem('guser').addEventListener('input', (e) => { e.target.dataset.touched = '1'; });
+
+
+/* ---------- WhatsApp: send a guest's login (you press Send yourself) ---------- */
+function waPhone(p) { let d = String(p || '').replace(/[^\d+]/g, ''); if (!d) return ''; if (d.startsWith('+')) return d.slice(1); if (d.startsWith('00')) return d.slice(2); if (d.startsWith('0')) return '972' + d.slice(1); return d; }
+function waLink(g) {
+  const text = isHe()
+    ? `היי ${g.name}, פרטי הכניסה שלך לרשימת המשימות:\nשם משתמש: ${g.user}\nסיסמה: ${g.pw}\n${inviteLink(g.user)}`
+    : `Hi ${g.name}, your login for my Action Items list:\nUsername: ${g.user}\nPassword: ${g.pw}\n${inviteLink(g.user)}`;
+  const ph = waPhone(g.phone);
+  return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
+}
+
+/* ---------- forgot password (sign-in screen) ---------- */
+$('#lockForgot').addEventListener('click', async () => {
+  const u = LK('username').value.trim().toLowerCase();
+  const url = !$('#lockUrlWrap').hidden ? cleanUrl(LK('url').value) : settings.url;
+  if (!u) { $('#lockErr').textContent = L('Type your username first, then tap "Forgot password?".', 'הקלד קודם את שם המשתמש ואז לחץ "שכחתי סיסמה".'); LK('username').focus(); return; }
+  if (!validUrl(url || '')) { $('#lockErr').textContent = L('The app is not connected to a sheet yet — use the invite link you received.', 'האפליקציה עוד לא מחוברת לגיליון — השתמש בקישור ההזמנה שקיבלת.'); return; }
+  try { await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'forgot', username: u }) }); } catch (e) { /* ignore — same message either way */ }
+  $('#lockErr').textContent = '';
+  $('#lockInfo').textContent = L('✓ Request sent. The list owner will send you your password.', '✓ הבקשה נשלחה. בעל הרשימה ישלח לך את הסיסמה.');
+});
 
 /* invite links: #join=<sheet url> pre-fills the connection */
 (function readJoin() {
@@ -1393,7 +1438,7 @@ function showLock(msg) {
   LK('url').value = settings.url || '';
   LK('password').value = '';
   LK('username').value = username || store.get('ai.lastUser', '') || '';
-  $('#lockErr').textContent = msg || '';
+  $('#lockErr').textContent = msg || ''; $('#lockInfo').textContent = '';
   lockEl.hidden = false;
   setTimeout(() => (!$('#lockUrlWrap').hidden ? LK('url') : LK('username').value ? LK('password') : LK('username')).focus(), 50);
 }

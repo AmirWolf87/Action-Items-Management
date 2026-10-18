@@ -35,7 +35,7 @@ It is stored only as a salted hash inside the script.
 - **PC (Chrome / Edge):** install icon in the address bar.
 
 ## Sharing with others (read-only guests)
-- ☰ › **Sharing & guests** › add a guest (e.g. *Neta*): her own **username** and password (you can always see both; she can change them in ☰ › *My account*), which areas she can see, and whether she can suggest items.
+- ☰ › **Sharing & guests** › add a guest (e.g. *Neta*): her own **username** and password — you set and see both; only you can change the password (she can change her username in ☰ › *My account*). If she taps **Forgot password?** on the sign-in screen you get an alert and a **💬 WhatsApp** button in 📥 with her login ready to send, which areas she can see, and whether she can suggest items.
 - Tap **🔗 Invite** to copy a message with the link; send the password separately. The link fills in the sheet address for her.
 - Guests see only their areas, never items marked **🔒 Private** (switch in the item editor), and cannot change anything.
 - Suggestions land in a new **Pending** tab in the sheet and in the app's **📥** (badge shows how many). Adjust, then **Approve & add** or **Reject** — the guest sees the result.
