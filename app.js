@@ -459,7 +459,7 @@ function openReport() {
   $('#repName').value = (saved && saved.name) || (data.report && data.report.manager) || 'Ezra';
   $('#repEmail').value = (saved && saved.email) || (data.report && data.report.email) || '';
   $('#repWeek').value = (saved && saved.week) || '1';
-  refreshReport(); dlgRep.showModal();
+  $('#repStatus').textContent = ''; refreshReport(); dlgRep.showModal();
 }
 ['repWeek', 'repName', 'repEmail'].forEach(id => $('#' + id).addEventListener('input', refreshReport));
 $('#repCopy').addEventListener('click', async () => {
@@ -480,8 +480,14 @@ $('#repCopy').addEventListener('click', async () => {
       ok = true;
     } catch (e) { ok = false; }
   }
-  if (ok) toast('Copied ✓ — in Outlook click in the message body and press Ctrl+V');
-  else {
+  const btn = $('#repCopy');
+  if (ok) {
+    btn.textContent = '✓ Copied! Now paste in Outlook (Ctrl+V)'; btn.classList.add('copied');
+    $('#repStatus').textContent = '✓ The formatted email is on your clipboard. Open Outlook › click in the message body › Ctrl+V.';
+    clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = '📋 Copy formatted email'; btn.classList.remove('copied'); }, 4000);
+    toast('Copied ✓');
+  } else {
+    $('#repStatus').textContent = 'Your browser blocked automatic copying. The email below is selected — press Ctrl+C (phone: tap Copy), then paste in Outlook.';
     const range = document.createRange(); range.selectNodeContents(el);
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
     toast('The email is selected — press Ctrl+C (or long-press › Copy), then paste in Outlook');
@@ -519,7 +525,14 @@ $('#btnNotify').addEventListener('click', openNotify);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && lockEl.hidden) load(true); });
 
 let toastTimer;
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2800); }
+function toast(msg) {
+  const t = $('#toast');
+  // dialogs sit in the browser's top layer — move the toast inside the open dialog so it is visible
+  const host = [...document.querySelectorAll('dialog[open]')].pop() || document.body;
+  if (t.parentNode !== host) host.appendChild(t);
+  t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
 
 /* ---------- demo backend (no sheet needed) ---------- */
 let demoItems = null, demoNotify = null;
