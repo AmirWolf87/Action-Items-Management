@@ -1287,7 +1287,7 @@ $('#frmGuest').addEventListener('submit', async (e) => {
   try {
     guests = (await api('POST', { action: 'saveGuest', guest: g })).guests || [];
     renderGuests(); resetGuestForm(null);
-    $('#shareStatus').textContent = L(`✓ Saved. Tap 🔗 Invite next to ${g.name} to copy their link, and send the password separately.`, `✓ נשמר. לחץ 🔗 הזמנה ליד ${g.name} כדי להעתיק את הקישור, ושלח את הסיסמה בהודעה נפרדת.`);
+    $('#shareStatus').textContent = L(`✓ Saved. Tap 💬 WhatsApp or 🔗 Invite next to ${g.name} to send the login details.`, `✓ נשמר. לחץ 💬 וואטסאפ או 🔗 הזמנה ליד ${g.name} כדי לשלוח את פרטי הכניסה.`);
   } catch (err) { $('#shareStatus').textContent = 'Not saved: ' + err.message; }
 });
 $('#guestList').addEventListener('click', async (e) => {
@@ -1302,11 +1302,10 @@ $('#guestList').addEventListener('click', async (e) => {
     catch (err) { $('#shareStatus').textContent = err.message; }
   }
   if (e.target.closest('[data-ginvite]')) {
-    if (!settings.url) { $('#shareStatus').textContent = 'Connect your sheet first.'; return; }
-    const msg = L(`Hi ${g.name}, here's my Action Items list (${(g.areas || []).join(', ')}):\n${inviteLink(g.user)}\nYour username: ${g.user}\nOpen the link, enter the password I'll send you separately, and you can add it to your home screen. You can change your username and password in ☰ › My account.`,
-      `היי ${g.name}, זו רשימת המשימות שלי (${(g.areas || []).map(tr).join(', ')}):\n${inviteLink(g.user)}\nשם המשתמש שלך: ${g.user}\nפתח/י את הקישור, הזינ/י את הסיסמה שאשלח בנפרד, ואפשר להוסיף למסך הבית. אפשר לשנות שם משתמש וסיסמה ב-☰ › החשבון שלי.`);
-    try { await navigator.clipboard.writeText(msg); $('#shareStatus').innerText = '✓ Invite copied — paste it into WhatsApp/SMS. Send the password in a separate message:\n\n' + msg; }
-    catch (err) { $('#shareStatus').innerText = 'Copy this invite:\n\n' + msg; }
+    if (!settings.url) { $('#shareStatus').textContent = L('Connect your sheet first.', 'חבר קודם את הגיליון.'); return; }
+    const msg = loginText(g);
+    try { await navigator.clipboard.writeText(msg); $('#shareStatus').innerText = L('✓ Invite copied — paste it into WhatsApp/SMS:', '✓ ההזמנה הועתקה — הדבק אותה בוואטסאפ/SMS:') + '\n\n' + msg; }
+    catch (err) { $('#shareStatus').innerText = L('Copy this invite:', 'העתק את ההזמנה:') + '\n\n' + msg; }
   }
 });
 
@@ -1405,11 +1404,14 @@ $('#frmGuest').elements.namedItem('guser').addEventListener('input', (e) => { e.
 
 /* ---------- WhatsApp: send a guest's login (you press Send yourself) ---------- */
 function waPhone(p) { let d = String(p || '').replace(/[^\d+]/g, ''); if (!d) return ''; if (d.startsWith('+')) return d.slice(1); if (d.startsWith('00')) return d.slice(2); if (d.startsWith('0')) return '972' + d.slice(1); return d; }
-function waLink(g) {
+function loginText(g) {
   const conn = settings.url || '';
-  const text = isHe()
+  return isHe()
     ? `היי ${g.name} 👋\nפרטי הכניסה שלך לרשימת המשימות:\n\n👤 שם משתמש: ${g.user}\n🔑 סיסמה: ${g.pw}\n\n📲 *כניסה ראשונה (פעם אחת בלבד):*\n1. פתח/י את האפליקציה:\n${appBase()}\n2. בחלון הכניסה יש שדה בשם *"כתובת ה-Web app (בפעם הראשונה במכשיר)"* — העתק/י לתוכו את הקישור הבא:\n${conn}\n3. הקלד/י שם משתמש וסיסמה ולחץ/י *כניסה*.\n\nמהפעם הבאה מספיקים שם משתמש וסיסמה.`
     : `Hi ${g.name} 👋\nYour login for my Action Items list:\n\n👤 Username: ${g.user}\n🔑 Password: ${g.pw}\n\n📲 *First sign-in (one time only):*\n1. Open the app:\n${appBase()}\n2. On the sign-in screen there is a field called *"Web-app URL (first time on this device)"* — paste this link into it:\n${conn}\n3. Enter your username and password and tap *Unlock*.\n\nAfter that, only the username and password are needed.`;
+}
+function waLink(g) {
+  const text = loginText(g);
   const ph = waPhone(g.phone);
   return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
 }
