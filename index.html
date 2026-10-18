@@ -23,6 +23,7 @@
     <div class="top-actions">
       <button class="icon-btn" id="btnRefresh" title="Refresh" aria-label="Refresh">⟳</button>
       <button class="icon-btn" id="btnReport" title="Weekly report" aria-label="Weekly report">✉</button>
+      <button class="icon-btn" id="btnNotify" title="Notifications" aria-label="Notifications">🔔</button>
       <button class="icon-btn" id="btnSettings" title="Settings" aria-label="Settings">⚙</button>
       <button class="icon-btn" id="btnLock" title="Lock" aria-label="Lock">🔒</button>
     </div>
@@ -32,6 +33,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="focus" class="on">Focus</button>
+  <button data-tab="week">Week</button>
   <button data-tab="all">All open</button>
   <button data-tab="waiting">Waiting</button>
   <button data-tab="done">Done</button>
@@ -60,10 +62,11 @@
       <label>Area<select name="area"></select></label>
       <label>Priority<select name="prio"></select></label>
       <label>Due date<input type="date" name="due"></label>
+      <label>Start time<input type="time" name="time" step="900"></label>
       <label>Topic<input name="topic" dir="auto"></label>
       <label>Focal / who<input name="focal" list="peopleList" dir="auto"></label>
       <label>Recurring<select name="rec"></select></label>
-      <label>Est. hours<input type="number" name="hrs" step="0.25" min="0" inputmode="decimal"></label>
+      <label>Est. hours (duration)<input type="number" name="hrs" step="0.25" min="0" inputmode="decimal"></label>
       <label>Done on<input type="date" name="done"></label>
       <label>Actual hours<input type="number" name="acthrs" step="0.25" min="0" inputmode="decimal"></label>
     </div>
@@ -109,6 +112,7 @@
     <label>To (name)<input id="repName"></label>
     <label>To (email)<input id="repEmail" type="email"></label>
   </div>
+  <div class="rep-areas"><span>Areas in the email:</span><div class="chips" id="repAreas"></div></div>
   <div class="rep-actions">
     <button class="btn primary" id="repCopy">📋 Copy formatted email</button>
     <a class="btn link" id="repOutlookWeb" target="_blank" rel="noopener">Outlook web</a>
@@ -140,6 +144,61 @@
     </div>
   </form>
 </div>
+
+<!-- Actual hours -->
+<dialog id="dlgHours" class="sheet small">
+  <form method="dialog" id="frmHours">
+    <div class="sheet-head"><h2>Nice work! ✓</h2><button type="button" class="icon-btn dark" value="cancel" id="hoursX" aria-label="Close">✕</button></div>
+    <p class="hint" id="hoursTitle" dir="auto"></p>
+    <label class="full">How many hours did it actually take?<input type="number" name="h" step="0.25" min="0" inputmode="decimal"></label>
+    <div class="quick" id="hoursQuick"></div>
+    <div class="sheet-actions"><button type="button" class="btn ghost" id="hoursSkip">Skip</button><span class="grow"></span><button type="submit" class="btn primary">Save</button></div>
+  </form>
+</dialog>
+
+<!-- Generic confirm -->
+<dialog id="dlgConfirm" class="sheet small">
+  <div class="sheet-head"><h2 id="cfTitle"></h2></div>
+  <p id="cfMsg" class="cf-msg" dir="auto"></p>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="cfNo"></button><span class="grow"></span><button type="button" class="btn primary" id="cfYes"></button></div>
+</dialog>
+
+<!-- Calendar export -->
+<dialog id="dlgIcs" class="sheet small">
+  <div class="sheet-head"><h2>Export week to Outlook</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint" id="icsRange"></p>
+  <div class="rep-areas"><span>Areas:</span><div class="chips" id="icsAreas"></div></div>
+  <label class="remember"><input type="checkbox" id="icsSlot" checked> Give items without a start time a slot from 09:00</label>
+  <label class="remember"><input type="checkbox" id="icsAlarm" checked> Reminder 15 minutes before</label>
+  <p class="hint" id="icsCount"></p>
+  <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary" id="icsGo">⬇ Download .ics</button></div>
+  <p class="hint">Outlook (PC): double-click the file › Save &amp; Close / Import. Outlook web: Calendar › Add calendar › Upload from file. iPhone: tap the file › Add All.</p>
+</dialog>
+
+<!-- Notifications -->
+<dialog id="dlgNotify" class="sheet wide">
+  <div class="sheet-head"><h2>Phone notifications</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div class="ntfy-box">
+    <b>One-time phone setup</b>
+    <ol>
+      <li>Install the free <b>ntfy</b> app (App Store / Google Play).</li>
+      <li>In ntfy tap <b>+</b>, subscribe to this topic (server <i>ntfy.sh</i>) and allow notifications:</li>
+    </ol>
+    <div class="topic-row"><code id="ntTopic"></code><button type="button" class="btn ghost" id="ntCopy">Copy</button></div>
+    <p class="hint">The topic name works like a password for your notifications — don't share it.</p>
+  </div>
+  <label class="full">Notification content
+    <select id="ntDetail"><option value="titles">Show item titles</option><option value="counts">Counts only (more private)</option></select>
+  </label>
+  <h3 class="nt-h">Schedules</h3>
+  <div id="ntRules"></div>
+  <div class="sheet-actions">
+    <button type="button" class="btn ghost" id="ntAdd">＋ Add schedule</button>
+    <span class="grow"></span>
+    <button type="button" class="btn primary" id="ntSave">Save</button>
+  </div>
+  <p class="hint" id="ntStatus"></p>
+</dialog>
 
 <script src="app.js"></script>
 </body>

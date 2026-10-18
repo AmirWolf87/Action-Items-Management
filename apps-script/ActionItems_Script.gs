@@ -11,6 +11,8 @@ function onOpen() {
     .addItem('Create formatted Gmail draft', 'createManagerDraft')
     .addSeparator()
     .addItem('App: set / change password', 'setAppPassword')
+    .addItem('App: turn on phone notifications', 'enableNotifications')
+    .addItem('App: turn off phone notifications', 'disableNotifications')
     .addToUi();
 }
 
@@ -152,7 +154,9 @@ function showOutlookDialog() {
 const API_SHEET = 'Action Items';
 const API_FIRST = 6, API_LAST = 505;
 const API_COLS = { item: 1, status: 2, area: 3, prio: 4, due: 5, topic: 8, focal: 9, created: 10,
-                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16 };
+                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23 };   // W = Start Time (added by the app)
+const API_NCOLS = 23;
+const APP_URL = 'https://amirwolf87.github.io/Action-Items-Management/';
 const API_DATES = ['due', 'created', 'done'];
 
 /* ---------- password (stored only as a salted SHA-256 hash) ---------- */
@@ -203,6 +207,9 @@ function doPost(e) {
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request' }); }
   const bad = checkPassword_(req.password);
   if (bad) return json_({ ok: false, auth: true, error: bad });
+  if (req.action === 'getNotify') return json_(Object.assign({ ok: true }, getNotify_()));
+  if (req.action === 'saveNotify') { try { return json_(Object.assign({ ok: true }, saveNotify_(req.config))); } catch (err) { return json_({ ok: false, error: String(err) }); } }
+  if (req.action === 'testNotify') { try { return json_(Object.assign({ ok: true }, sendRule_(req.rule, true))); } catch (err) { return json_({ ok: false, error: String(err) }); } }
   if (req.action === 'list') {
     try { return json_(Object.assign({ ok: true }, readAll_())); }
     catch (err) { return json_({ ok: false, error: String(err) }); }
@@ -222,14 +229,14 @@ function readAll_() {
   const ss = SpreadsheetApp.getActive();
   const tz = ss.getSpreadsheetTimeZone();
   const sh = ss.getSheetByName(API_SHEET);
-  const vals = sh.getRange(API_FIRST, 1, API_LAST - API_FIRST + 1, 16).getValues();
+  const vals = sh.getRange(API_FIRST, 1, API_LAST - API_FIRST + 1, API_NCOLS).getValues();
   const items = [];
   vals.forEach((r, i) => {
     if (String(r[0]).trim() === '') return;
     const o = { row: API_FIRST + i };
     Object.keys(API_COLS).forEach(k => {
       let v = r[API_COLS[k] - 1];
-      if (v instanceof Date) v = Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+      if (v instanceof Date) v = Utilities.formatDate(v, tz, k === 'time' ? 'HH:mm' : 'yyyy-MM-dd');
       o[k] = v === null || v === undefined ? '' : v;
     });
     items.push(o);
@@ -266,8 +273,12 @@ function saveItem_(it) {
     if (!it.created) it.created = Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
   }
   if (row < API_FIRST || row > API_LAST) throw new Error('Bad row');
+  if (sh.getRange(5, API_COLS.time).getValue() === '') sh.getRange(5, API_COLS.time).setValue('Start Time');
   Object.keys(API_COLS).forEach(k => {
-    if (k in it) sh.getRange(row, API_COLS[k]).setValue(toCell_(k, it[k]));
+    if (!(k in it)) return;
+    const cell = sh.getRange(row, API_COLS[k]);
+    if (k === 'time') cell.setNumberFormat('@');          // keep "08:30" as text
+    cell.setValue(toCell_(k, it[k]));
   });
   return row;
 }
@@ -277,4 +288,117 @@ function clearRow_(row) {
   if (!(row >= API_FIRST && row <= API_LAST)) throw new Error('Bad row');
   const sh = SpreadsheetApp.getActive().getSheetByName(API_SHEET);
   Object.keys(API_COLS).forEach(k => sh.getRange(row, API_COLS[k]).clearContent());
+}
+
+
+/* =====================================================================
+ *  Scheduled phone notifications ("what I have today")
+ *  Rules are edited in the app (🔔). A trigger runs notifyTick() every 5 minutes.
+ *  Channels: "push" = ntfy app (free, https://ntfy.sh) · "email" = your Gmail
+ * ===================================================================== */
+function notifyConfig_() {
+  const p = PropertiesService.getScriptProperties();
+  let cfg = {};
+  try { cfg = JSON.parse(p.getProperty('NOTIFY_CFG') || '{}'); } catch (e) { cfg = {}; }
+  if (!cfg.topic) cfg.topic = 'ai-' + Utilities.getUuid().replace(/-/g, '').slice(0, 20);
+  if (!cfg.rules) cfg.rules = [];
+  if (!cfg.tz) cfg.tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  if (!cfg.detail) cfg.detail = 'titles';
+  return cfg;
+}
+function triggerOn_() {
+  return ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'notifyTick');
+}
+function getNotify_() {
+  const cfg = notifyConfig_();
+  let on = false; try { on = triggerOn_(); } catch (e) { on = false; }
+  return { config: cfg, triggerOn: on, email: Session.getEffectiveUser().getEmail() };
+}
+function saveNotify_(cfg) {
+  if (!cfg || !Array.isArray(cfg.rules)) throw new Error('Bad settings');
+  const clean = {
+    topic: String(cfg.topic || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || notifyConfig_().topic,
+    tz: String(cfg.tz || 'Asia/Jerusalem'),
+    detail: cfg.detail === 'counts' ? 'counts' : 'titles',
+    rules: cfg.rules.slice(0, 30).map(r => ({
+      id: String(r.id || Utilities.getUuid().slice(0, 8)), on: r.on !== false,
+      area: String(r.area || 'All'), time: /^\d{2}:\d{2}$/.test(r.time) ? r.time : '08:00',
+      days: (r.days || []).map(Number).filter(d => d >= 0 && d <= 6),
+      channel: ['push', 'email', 'both'].indexOf(r.channel) >= 0 ? r.channel : 'push'
+    }))
+  };
+  PropertiesService.getScriptProperties().setProperty('NOTIFY_CFG', JSON.stringify(clean));
+  let on = false, note = '';
+  try { if (!triggerOn_()) ScriptApp.newTrigger('notifyTick').timeBased().everyMinutes(5).create(); on = true; }
+  catch (e) { note = 'Saved. To activate, open the sheet once and choose ✉ Manager Report › App: turn on phone notifications.'; }
+  return { config: clean, triggerOn: on, note: note };
+}
+function enableNotifications() {
+  if (!triggerOn_()) ScriptApp.newTrigger('notifyTick').timeBased().everyMinutes(5).create();
+  const cfg = notifyConfig_();
+  PropertiesService.getScriptProperties().setProperty('NOTIFY_CFG', JSON.stringify(cfg));
+  SpreadsheetApp.getUi().alert('Notifications are ON.\n\nSet your schedules in the app (🔔).\nPush topic for the ntfy app: ' + cfg.topic);
+}
+function disableNotifications() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'notifyTick').forEach(t => ScriptApp.deleteTrigger(t));
+  SpreadsheetApp.getUi().alert('Notifications are OFF.');
+}
+
+/* runs every 5 minutes */
+function notifyTick() {
+  const cfg = notifyConfig_();
+  if (!cfg.rules.length) return;
+  const now = new Date();
+  const dow = Number(Utilities.formatDate(now, cfg.tz, 'u')) % 7;          // 0 = Sunday
+  const hm = Utilities.formatDate(now, cfg.tz, 'HH:mm');
+  const nowMin = Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3));
+  const day = Utilities.formatDate(now, cfg.tz, 'yyyy-MM-dd');
+  const p = PropertiesService.getScriptProperties();
+  let sent = {}; try { sent = JSON.parse(p.getProperty('NOTIFY_SENT') || '{}'); } catch (e) { sent = {}; }
+  let changed = false;
+  cfg.rules.forEach(r => {
+    if (!r.on || r.days.indexOf(dow) < 0) return;
+    const m = Number(r.time.slice(0, 2)) * 60 + Number(r.time.slice(3));
+    if (nowMin < m || nowMin >= m + 30 || sent[r.id] === day) return;      // 30-min window, once a day
+    try { sendRule_(r, false, cfg); sent[r.id] = day; changed = true; } catch (e) { console.error(e); }
+  });
+  if (changed) p.setProperty('NOTIFY_SENT', JSON.stringify(sent));
+}
+
+function digest_(area, cfg) {
+  const tz = cfg.tz;
+  const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  const items = readAll_().items.filter(it =>
+    (area === 'All' || it.area === area) && it.status !== 'Done' && it.status !== 'Cancelled' && it.due);
+  const overdue = items.filter(it => it.due < todayStr).sort((a, b) => a.due < b.due ? -1 : 1);
+  const today = items.filter(it => it.due === todayStr).sort((a, b) => String(a.time || '99').localeCompare(String(b.time || '99')));
+  const daysLate = (d) => Math.round((new Date(todayStr) - new Date(d)) / 86400000);
+  const title = (area === 'All' ? 'Today' : area + ' · today') + ' — ' + today.length + ' due' + (overdue.length ? ', ' + overdue.length + ' overdue' : '');
+  let msg;
+  if (!today.length && !overdue.length) msg = 'Nothing due today 🎉';
+  else if (cfg.detail === 'counts') msg = 'Due today: ' + today.length + (overdue.length ? '\nOverdue: ' + overdue.length : '') + '\nOpen the app for details.';
+  else {
+    const lines = [];
+    today.forEach(it => lines.push('• ' + (it.time ? it.time + '  ' : '') + it.item));
+    overdue.forEach(it => lines.push('⚠ ' + it.item + ' (' + daysLate(it.due) + 'd late)'));
+    msg = lines.slice(0, 15).join('\n') + (lines.length > 15 ? '\n…and ' + (lines.length - 15) + ' more' : '');
+  }
+  return { title: title, message: msg };
+}
+
+function sendRule_(rule, isTest, cfg) {
+  cfg = cfg || notifyConfig_();
+  const d = digest_(rule.area || 'All', cfg);
+  const title = (isTest ? '[Test] ' : '') + d.title;
+  const ch = rule.channel || 'push';
+  if (ch === 'push' || ch === 'both') {
+    UrlFetchApp.fetch('https://ntfy.sh/', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: false,
+      payload: JSON.stringify({ topic: cfg.topic, title: title, message: d.message, tags: ['clipboard'], click: APP_URL, priority: 3 })
+    });
+  }
+  if (ch === 'email' || ch === 'both') {
+    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, d.message + '\n\n' + APP_URL);
+  }
+  return { sent: true, title: title, message: d.message };
 }

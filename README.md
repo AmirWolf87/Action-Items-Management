@@ -34,11 +34,21 @@ It is stored only as a salted hash inside the script.
 - **Android (Chrome):** ⋮ › **Install app**.
 - **PC (Chrome / Edge):** install icon in the address bar.
 
+## Phone notifications (optional)
+1. After pasting a new script version, reload the sheet › **✉ Manager Report › App: turn on phone notifications** (approve the permissions once).
+2. In the app tap **🔔**: install the free **ntfy** app on your phone and subscribe to the topic shown there (server *ntfy.sh*).
+3. Set your schedules (area, time, days, push / email) › **Save** › **Test**.
+The script checks every 5 minutes and sends each schedule once per day.
+Push messages travel through the public ntfy.sh service — choose **Counts only** if you prefer not to send item titles.
+
 ## Using it
-- **Focus** = overdue, today and this week. **All open**, **Waiting**, **Done** tabs; filter by Area; search.
+- **Focus** = overdue, today and this week. **Week** = Sun–Sat calendar (◀ ▶ other weeks, ‹ › moves an item a day).
+  **📅 Export to Outlook** downloads a .ics file of the week (start time + duration from each item).
+- **All open**, **Waiting**, **Done** tabs; filter by Area; search.
+- Ticking an item done asks how long it really took; when you plan a recurring or similar item 1h+ off from last time, the app asks you to confirm.
 - Tap **＋** to add; tap an item to edit; tap the circle to complete.
   Recurring items don't close — their due date moves to the next occurrence.
-- **✉** builds the weekly report for your manager (Work items only): copy it formatted and paste into Outlook or Gmail.
+- **✉** builds the weekly report for your manager — choose which areas to include — copy it formatted and paste into Outlook or Gmail.
 - Everything you change appears in the Google Sheet (and the sheet's Dashboard / Manager Report) right away.
 
 ## If you change the script later
