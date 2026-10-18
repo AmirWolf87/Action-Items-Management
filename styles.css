@@ -227,3 +227,10 @@ body.guest .snooze{display:none}
 .feed-url{display:flex;gap:8px;align-items:center;margin:8px 0}
 .feed-url code{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:12px;overflow-wrap:anywhere}
 .steps{font-size:13.5px;line-height:1.6;padding-inline-start:20px}
+
+.time24.bad{border-color:var(--red);background:var(--red-bg)}
+.rule .r-time{width:100%;padding:7px}
+
+.sugg-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg);border-radius:12px;padding:6px 10px}
+.sugg-row .remember{margin:0;flex:1}
+.sugg-row select{width:auto}

@@ -357,6 +357,7 @@ frm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const it = Object.assign({}, editing || {});
   ['item', 'status', 'area', 'prio', 'due', 'time', 'topic', 'focal', 'rec', 'hrs', 'done', 'acthrs', 'com'].forEach(k => { it[k] = String(F(k).value).trim(); });
+  if (it.time) { const nt = normTime(it.time); if (nt === null) { toast(L('Start time: use 24-hour HH:MM, e.g. 17:30', 'שעת התחלה: פורמט 24 שעות HH:MM, למשל 17:30')); F('time').focus(); return; } it.time = nt; }
   if (!it.item || isGuest()) return;
   it.private = F('private').checked;
   it.checklist = curCl.filter(x => x.t);
@@ -749,7 +750,7 @@ function ruleHtml(r) {
   return `<div class="rule" data-id="${esc(r.id)}">
     <input type="checkbox" class="r-on" ${r.on !== false ? 'checked' : ''} title="On / off">
     <select class="r-area">${areas.map(a => `<option value="${esc(a)}" ${a === r.area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>
-    <input type="time" class="r-time" value="${esc(r.time)}">
+    <input type="text" class="r-time time24" inputmode="numeric" placeholder="HH:MM" maxlength="5" value="${esc(r.time)}">
     <select class="r-kind"><option value="today" ${r.kind !== 'weekly' ? 'selected' : ''}>📋 Today's items</option><option value="weekly" ${r.kind === 'weekly' ? 'selected' : ''}>📊 Weekly summary</option></select>
     <select class="r-ch"><option value="push" ${r.channel === 'push' ? 'selected' : ''}>📱 Push</option><option value="email" ${r.channel === 'email' ? 'selected' : ''}>✉ Email</option><option value="both" ${r.channel === 'both' ? 'selected' : ''}>Both</option></select>
     <button type="button" class="btn ghost r-test">Test</button>
@@ -760,7 +761,7 @@ function ruleHtml(r) {
 function readRules() {
   return [...document.querySelectorAll('#ntRules .rule')].map(el => ({
     id: el.dataset.id, on: el.querySelector('.r-on').checked, area: el.querySelector('.r-area').value,
-    time: el.querySelector('.r-time').value || '08:00', channel: el.querySelector('.r-ch').value, kind: el.querySelector('.r-kind').value,
+    time: normTime(el.querySelector('.r-time').value) || '08:00', channel: el.querySelector('.r-ch').value, kind: el.querySelector('.r-kind').value,
     days: [...el.querySelectorAll('.days .on')].map(b => Number(b.dataset.d))
   }));
 }
@@ -773,6 +774,7 @@ async function openNotify() {
     const fresh = !rules.length;
     if (fresh) rules = [newRule('Work', '08:30', [0, 1, 2, 3, 4]), newRule('Home', '07:00', [0, 1, 2, 3, 4]), newRule('Home', '08:00', [5, 6]), newRule('Work', '15:00', [4], 'weekly')];
     $('#ntTopic').textContent = ntCfg.topic; $('#ntDetail').value = ntCfg.detail || 'titles';
+    $('#ntSugOn').checked = !ntCfg.onSuggest || ntCfg.onSuggest.on !== false; $('#ntSugCh').value = (ntCfg.onSuggest && ntCfg.onSuggest.channel) || 'push';
     $('#ntRules').innerHTML = rules.map(ruleHtml).join('');
     $('#ntStatus').textContent = fresh ? L('Suggested schedules — adjust and press Save.', 'תזמונים מוצעים — התאם ולחץ שמירה.')
       : (j.triggerOn ? L('✓ Notifications are active.', '✓ ההתראות פעילות.') : L('Saved schedules found, but notifications are not switched on yet — press Save.', 'נמצאו תזמונים שמורים, אבל ההתראות עוד לא הופעלו — לחץ שמירה.'));
@@ -795,7 +797,7 @@ $('#ntRules').addEventListener('click', async (e) => {
 });
 $('#ntAdd').addEventListener('click', () => { $('#ntRules').insertAdjacentHTML('beforeend', ruleHtml(newRule('Work', '08:00', [0, 1, 2, 3, 4]))); });
 $('#ntCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('#ntTopic').textContent); toast('Topic copied'); } catch (e) { toast('Select the topic and copy it'); } });
-const currentNotify = () => ({ topic: $('#ntTopic').textContent, detail: $('#ntDetail').value, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem', rules: readRules() });
+const currentNotify = () => ({ topic: $('#ntTopic').textContent, detail: $('#ntDetail').value, onSuggest: { on: $('#ntSugOn').checked, channel: $('#ntSugCh').value }, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem', rules: readRules() });
 $('#ntSave').addEventListener('click', async () => {
   const cfg = currentNotify();
   const bad = cfg.rules.find(r => r.on && !r.days.length);
@@ -892,53 +894,128 @@ document.addEventListener('drop', async (e) => {
 });
 document.addEventListener('dragend', () => { dragRow = null; document.querySelectorAll('.day.drop').forEach(x => x.classList.remove('drop')); });
 
+/* ---------- 24-hour time ---------- */
+/* "930" → 09:30 · "17" → 17:00 · "9:5" ✗ · "5pm" → 17:00 · "17.30" → 17:30 ; returns '' for empty, null if invalid */
+function normTime(v) {
+  v = String(v || '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!v) return '';
+  let m = v.match(/^(\d{1,2})(?:[:.](\d{2}))?(am|pm)?$/) || v.match(/^(\d{1,2})(\d{2})(am|pm)?$/);
+  if (!m) return null;
+  let h = +m[1]; const mi = m[2] ? +m[2] : 0;
+  if (m[3] === 'pm' && h < 12) h += 12; if (m[3] === 'am' && h === 12) h = 0;
+  if (h > 23 || mi > 59) return null;
+  return pad(h) + ':' + pad(mi);
+}
+document.addEventListener('focusout', (e) => {
+  if (!e.target.classList || !e.target.classList.contains('time24')) return;
+  const n = normTime(e.target.value);
+  if (n === null) { e.target.classList.add('bad'); toast(L('Use 24-hour time HH:MM, e.g. 08:30 or 17:00', 'הזן שעה בפורמט 24 שעות HH:MM, למשל 08:30 או 17:00')); }
+  else { e.target.classList.remove('bad'); e.target.value = n; }
+});
+
 /* ---------- quick add ---------- */
-const WD_EN = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], WD_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 function areaFromWord(w) {
   const x = w.toLowerCase();
   return data.areas.find(a => a.toLowerCase() === x || a.toLowerCase().startsWith(x) || (HE[a] && (HE[a] === w || HE[a].startsWith(w))));
 }
+/* built-in hints per area (English + Hebrew); your own past items teach it more */
+const AREA_HINTS = {
+  'Work': 'work report forecast budget capex opex p&l pnl cogs wip aop sap fp&a closing month-end quarter audit invoice po pr meeting presentation deck excel kpi bu fab tower ezra manager client vendor depreciation asset cost costs revenue variance plan madan grant עבודה דוח דו"ח תחזית תקציב ישיבה פגישה מצגת סגירה רבעון ספק לקוח הזמנה חשבונית פחת נכס עלויות הכנסות מנהל טאואר',
+  'Home': 'home house buy groceries shopping clean cleaning laundry fix repair boiler plumber electrician arnona bill bills water electricity gas garden furniture paint kitchen bathroom apartment rent neta בית קניות סופר לקנות לנקות ניקיון כביסה לתקן תיקון בוילר דוד אינסטלטור חשמלאי ארנונה חשבון חשבונות מים חשמל גז גינה רהיטים צבע מטבח מקלחת דירה שכירות נטע',
+  'Personal': 'car insurance license haircut passport renew hobby book read run personal רכב ביטוח רישיון תספורת דרכון לחדש תחביב ספר אישי טסט מוסך',
+  'M.Sc': 'thesis paper course exam lecture homework assignment seminar professor advisor university tau research model dataset msc תזה מאמר קורס מבחן הרצאה עבודה-אקדמית תרגיל סמינר מנחה אוניברסיטה מחקר מודל תואר',
+  'Reserve Duty': 'reserve miluim unit army base duty מילואים צו יחידה בסיס צבא שמ"פ',
+  'Family': 'kids children parents mom dad birthday family visit school kindergarten grandma grandpa ילדים הורים אמא אבא יום-הולדת יומולדת משפחה ביקור בית-ספר גן סבתא סבא',
+  'Finance': 'bank invest investment savings pension tax taxes mortgage loan stock stocks fund salary pay-slip בנק להשקיע השקעה חיסכון פנסיה מס מיסים משכנתא הלוואה מניות קרן משכורת תלוש כסף',
+  'Health': 'doctor dentist clinic appointment gym workout medicine pharmacy test checkup רופא רופאה שיניים קופת מרפאה תור חדר-כושר אימון תרופה בית-מרקחת בדיקה'
+};
+const words = (x) => String(x || '').toLowerCase().replace(/["'׳״.,!?()\[\]:;]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+/* score each area: built-in hints + words from your own items in that area (+ the person) */
+function guessArea(text, focal) {
+  const ws = words(text); if (!ws.length) return null;
+  const score = {};
+  data.areas.forEach(a => {
+    let sc = 0;
+    const hints = (AREA_HINTS[a] || '').toLowerCase().split(/\s+/);
+    ws.forEach(w => { if (hints.some(h => h && (h === w || (h.length > 3 && (w.startsWith(h) || h.startsWith(w)) && Math.min(h.length, w.length) >= 4)))) sc += 2; });
+    score[a] = sc;
+  });
+  // learn from existing items
+  const freq = {};
+  data.items.forEach(it => { if (!it.area) return; words(it.item + ' ' + (it.topic || '')).forEach(w => { (freq[w] = freq[w] || {})[it.area] = (freq[w][it.area] || 0) + 1; }); });
+  ws.forEach(w => { const f = freq[w]; if (!f) return; const tot = Object.values(f).reduce((x, y) => x + y, 0); Object.keys(f).forEach(a => { if (score[a] !== undefined) score[a] += 2 * f[a] / tot; }); });
+  if (focal && focal !== 'Me') {
+    const byP = data.items.filter(it => it.focal && it.focal.toLowerCase() === focal.toLowerCase());
+    byP.forEach(it => { if (score[it.area] !== undefined) score[it.area] += 1.5 / byP.length * 2; });
+  }
+  const ranked = Object.entries(score).sort((x, y) => y[1] - x[1]);
+  const [best, second] = ranked;
+  if (!best || best[1] < 1.5 || (second && best[1] - second[1] < 1)) return { area: null, ranked };
+  return { area: best[0], ranked };
+}
+const WD = { sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2, wed: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4, fri: 5, friday: 5, sat: 6, saturday: 6 };
+const WD_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 function parseQuick(text) {
   let s = ' ' + text + ' ';
-  const out = { item: '', due: '', time: '', prio: '', area: '', focal: '', hrs: '' };
+  const out = { item: '', due: '', time: '', prio: '', area: '', focal: '', hrs: '', auto: false };
   const take = (re, fn) => { s = s.replace(re, (...m) => { const r = fn(...m); return r === false ? m[0] : ' '; }); };
   take(/\s!([123])(?=\s)/, (m, p) => { out.prio = PRIO[+p - 1]; });
   take(/\s#(\S+)(?=\s)/, (m, w) => { const a = areaFromWord(w); if (!a) return false; out.area = a; });
   take(/\s@(\S+)(?=\s)/, (m, w) => { out.focal = w; });
-  take(/\s~(\d+(?:\.\d+)?)\s*(?:h|ש(?:עות|׳)?)?(?=\s)/i, (m, h) => { out.hrs = h; });
-  take(/\s(\d{1,2}):(\d{2})(?=\s)/, (m, h, mi) => { if (+h > 23 || +mi > 59) return false; out.time = pad(+h) + ':' + mi; });
+  take(/\s~(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|ש|שע|שעות|ש׳|שע׳)?(?=\s)/i, (m, h) => { out.hrs = h; });
+  // times (24h): 9:30 · 17:00 · ב-9:30 · בשעה 17 · at 9 · 5pm · 17.30 after at/בשעה
+  take(/\s(?:at\s+|ב-?|בשעה\s+|@)?(\d{1,2}):(\d{2})(?:\s?(am|pm))?(?=\s)/i, (m, h, mi, ap) => { const n = normTime(h + ':' + mi + (ap || '')); if (!n) return false; out.time = n; });
+  if (!out.time) take(/\s(?:at\s+|בשעה\s+|ב-)(\d{1,2})(?:[.](\d{2}))?(?:\s?(am|pm))?(?=\s)/i, (m, h, mi, ap) => { const n = normTime(h + (mi ? ':' + mi : '') + (ap || '')); if (!n) return false; out.time = n; });
+  if (!out.time) take(/\s(\d{1,2})\s?(am|pm)(?=\s)/i, (m, h, ap) => { const n = normTime(h + ap); if (!n) return false; out.time = n; });
   const t = today();
-  take(/\s(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s)/, (m, d, mo, y) => {
-    let yr = y ? (+y < 100 ? 2000 + +y : +y) : t.getFullYear(); let dt = new Date(yr, +mo - 1, +d);
+  take(/\s(?:on\s+|ב-?|עד\s+)?(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s)/i, (m, d, mo, y) => {
+    const yr = y ? (+y < 100 ? 2000 + +y : +y) : t.getFullYear(); let dt = new Date(yr, +mo - 1, +d);
     if (dt.getMonth() !== +mo - 1) return false; if (!y && dt < t) dt = new Date(yr + 1, +mo - 1, +d); out.due = iso(dt);
   });
   if (!out.due) take(/\s(today|היום)(?=\s)/i, () => { out.due = iso(t); });
   if (!out.due) take(/\s(tomorrow|tmrw|מחר)(?=\s)/i, () => { out.due = iso(addDays(t, 1)); });
-  if (!out.due) take(/\s(next week|שבוע הבא|בשבוע הבא)(?=\s)/i, () => { out.due = iso(addDays(weekStart(t), 7)); });
-  if (!out.due) take(/\s(?:on\s+|ביום\s+|יום\s+)?([A-Za-z]{3,9}|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)(?=\s)/, (m, w) => {
-    let i = WD_HE.indexOf(w); if (i < 0) i = WD_EN.indexOf(w.toLowerCase().slice(0, 3)); if (i < 0 || (/^[a-z]/i.test(w) && !/^(sun|mon|tue|wed|thu|fri|sat)/i.test(w))) return false;
-    out.due = iso(addDays(t, (i - t.getDay() + 7) % 7));
-  });
+  if (!out.due) take(/\s(next week|(?:ב)?שבוע הבא)(?=\s)/i, () => { out.due = iso(addDays(weekStart(t), 7)); });
+  if (!out.due) take(/\s(?:on\s+)?(sun|sunday|mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)(?=\s)/i,
+    (m, w) => { out.due = iso(addDays(t, (WD[w.toLowerCase()] - t.getDay() + 7) % 7)); });
+  // Hebrew weekday only with "יום"/"ביום"/"ב" in front (so "תואר שני" is not Monday)
+  if (!out.due) take(/\s(?:ביום\s+|יום\s+|ב)(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)(?=\s)/, (m, w) => { out.due = iso(addDays(t, (WD_HE.indexOf(w) - t.getDay() + 7) % 7)); });
   out.item = s.replace(/\s+/g, ' ').trim();
+  if (!out.area) { const g = guessArea(out.item, out.focal); if (g && g.area) { out.area = g.area; out.auto = true; } }
   return out;
 }
 function qaPreview() {
   const v = $('#qa').value.trim(); if (!v) { $('#qaPreview').innerHTML = ''; return; }
   const p = parseQuick(v);
   $('#qaPreview').innerHTML = [p.due && `<span>📅 ${fmt(p.due, true)}</span>`, p.time && `<span>🕘 ${p.time}</span>`,
-    pill(p.area || (ui.area !== 'All' ? ui.area : 'Work'), AREA_C[p.area || (ui.area !== 'All' ? ui.area : 'Work')]),
+    p.area ? pill(p.area, AREA_C[p.area]) + (p.auto ? `<span title="${L('detected automatically', 'זוהה אוטומטית')}">✨</span>` : '') : `<span>❓ ${L('area: will ask', 'תחום: אשאל אותך')}</span>`,
     p.prio && pill(p.prio.replace(/^\d - /, ''), PRIO_C[p.prio.charAt(0)]), p.focal && `<span>👤 ${esc(p.focal)}</span>`, p.hrs && `<span>⏱ ${p.hrs}h</span>`]
     .filter(Boolean).join('');
+}
+/* ask which area when it can't be detected */
+function askArea(item, ranked) {
+  return new Promise(resolve => {
+    const d = $('#dlgArea'), sel = $('#areaPick');
+    const order = (ranked || []).map(r => r[0]).filter(a => data.areas.includes(a));
+    const opts = order.concat(data.areas.filter(a => !order.includes(a)));
+    sel.innerHTML = opts.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+    sel.value = ui.area !== 'All' && data.areas.includes(ui.area) ? ui.area : opts[0];
+    $('#areaItem').textContent = item;
+    let done = false; const fin = (v) => { if (done) return; done = true; if (d.open) d.close(); resolve(v); };
+    $('#areaOk').onclick = () => fin(sel.value); $('#areaCancel').onclick = () => fin(null); d.oncancel = () => fin(null);
+    d.showModal(); setTimeout(() => sel.focus(), 50);
+  });
 }
 $('#qa').addEventListener('input', qaPreview);
 $('#quickAdd').addEventListener('submit', async (e) => {
   e.preventDefault();
   const v = $('#qa').value.trim(); if (!v) return;
   const p = parseQuick(v); if (!p.item) { toast(L('Write what needs doing', 'כתוב מה צריך לעשות')); return; }
-  const it = { item: p.item, status: 'Not started', area: p.area || (ui.area !== 'All' ? ui.area : 'Work'), prio: p.prio || '2 - Medium',
+  let area = p.area;
+  if (!area) { const g = guessArea(p.item, p.focal); area = await askArea(p.item, g && g.ranked); if (!area) return; }
+  const it = { item: p.item, status: 'Not started', area, prio: p.prio || '2 - Medium',
     due: p.due, time: p.time, focal: p.focal || 'Me', hrs: p.hrs, rec: 'None', created: iso(today()) };
   $('#qa').value = ''; qaPreview();
-  if (await save(it)) toast(L(`Added: ${it.item}`, `נוסף: ${it.item}`));
+  if (await save(it)) toast(L(`Added to ${it.area}: ${it.item}`, `נוסף ל${tr(it.area)}: ${it.item}`));
 });
 
 /* ---------- statistics ---------- */

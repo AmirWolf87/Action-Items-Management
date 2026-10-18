@@ -20,7 +20,7 @@ const HE = {
   'None': 'ללא', 'Daily': 'יומי', 'Weekly': 'שבועי', 'Monthly': 'חודשי', 'Quarterly': 'רבעוני', 'Yearly': 'שנתי',
   // edit dialog
   'New action item': 'משימה חדשה', 'Edit action item': 'עריכת משימה', 'Action item': 'משימה', 'Status': 'סטטוס', 'Area': 'תחום',
-  'Priority': 'עדיפות', 'Due date': 'תאריך יעד', 'Start time': 'שעת התחלה', 'Topic': 'נושא', 'Focal / who': 'אחראי',
+  'Priority': 'עדיפות', 'Due date': 'תאריך יעד', 'Start time': 'שעת התחלה', 'Start time (24h)': 'שעת התחלה (24 שעות)', 'HH:MM': 'HH:MM', 'Topic': 'נושא', 'Focal / who': 'אחראי',
   'Recurring': 'חוזרת', 'Est. hours (duration)': 'שעות מוערכות (משך)', 'Done on': 'בוצע בתאריך', 'Actual hours': 'שעות בפועל',
   'Comments / next step': 'הערות / צעד הבא', '🔒 Private — never shown to guests': '🔒 פרטי — לא יוצג לאורחים',
   'Delete': 'מחיקה', 'Cancel': 'ביטול', 'Save': 'שמירה',
@@ -78,11 +78,13 @@ const HE = {
   'Too many wrong attempts — try again in 15 minutes': 'יותר מדי ניסיונות שגויים — נסה שוב בעוד 15 דקות',
   // v11 additions
   'People': 'אנשים', 'Tomorrow': 'מחר', '+7': '+7', 'Checklist': "צ'קליסט", 'Add a step…': 'הוסף שלב…', '✉ Send a reminder': '✉ שלח תזכורת',
-  'Quick add: tomorrow 9:00 Send report !1 #Work @Ezra ~2h': 'הוספה מהירה: מחר 9:00 לשלוח דוח !1 #עבודה @עזרא ~2h',
+  'Quick add: tomorrow 9:30 Send forecast to Ezra !1 ~2h': 'הוספה מהירה: מחר 9:30 לשלוח תחזית לעזרא !1 ~2h',
+  'Which area?': 'לאיזה תחום?', "I couldn't tell where this belongs:": 'לא הצלחתי לזהות לאיזה תחום זה שייך:',
   'Statistics': 'סטטיסטיקה', 'Outlook calendar sync': 'סנכרון ללוח השנה של Outlook', 'Archive & backup': 'ארכוב וגיבוי',
   'Subscribe once and your action items appear in Outlook as a separate "Action Items" calendar that updates by itself (Outlook refreshes subscribed calendars every few hours).':
     'נרשמים פעם אחת והמשימות מופיעות ב-Outlook כלוח שנה נפרד "Action Items" שמתעדכן לבד (Outlook מרענן לוחות מנויים כל כמה שעות).',
   "📋 Today's items": '📋 משימות היום', '📊 Weekly summary': '📊 סיכום שבועי', 'Add': 'הוספה', 'Defer to tomorrow': 'דחה למחר',
+  'Suggestions from guests': 'הצעות מאורחים', 'Notify me when someone suggests a new item': 'שלח לי התראה כשמישהו מציע משימה חדשה',
   'Read-only access': 'גישת צפייה בלבד', 'Loading…': 'טוען…', 'Saving…': 'שומר…', 'Sending…': 'שולח…'
 };
 

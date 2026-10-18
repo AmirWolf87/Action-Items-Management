@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 <header class="top">
@@ -43,7 +43,7 @@
 
 <div class="filters">
   <form id="quickAdd" class="quick-add owner-only" autocomplete="off">
-    <input id="qa" placeholder="Quick add: tomorrow 9:00 Send report !1 #Work @Ezra ~2h" dir="auto">
+    <input id="qa" placeholder="Quick add: tomorrow 9:30 Send forecast to Ezra !1 ~2h" dir="auto">
     <button type="submit" class="btn primary" aria-label="Add">＋</button>
   </form>
   <div class="qa-preview" id="qaPreview"></div>
@@ -69,7 +69,7 @@
       <label>Area<select name="area"></select></label>
       <label>Priority<select name="prio"></select></label>
       <label>Due date<input type="date" name="due"><span class="date-chips"><button type="button" data-qd="0">Today</button><button type="button" data-qd="1">Tomorrow</button><button type="button" data-qd="sun">Next week</button><button type="button" data-qd="7">+7</button></span></label>
-      <label>Start time<input type="time" name="time" step="900"></label>
+      <label>Start time (24h)<input type="text" name="time" class="time24" inputmode="numeric" placeholder="HH:MM" maxlength="5" autocomplete="off"></label>
       <label>Topic<input name="topic" dir="auto"></label>
       <label>Focal / who<input name="focal" list="peopleList" dir="auto"></label>
       <label>Recurring<select name="rec"></select></label>
@@ -206,6 +206,11 @@
   <label class="full">Notification content
     <select id="ntDetail"><option value="titles">Show item titles</option><option value="counts">Counts only (more private)</option></select>
   </label>
+  <h3 class="nt-h">Suggestions from guests</h3>
+  <div class="sugg-row">
+    <label class="remember"><input type="checkbox" id="ntSugOn" checked> Notify me when someone suggests a new item</label>
+    <select id="ntSugCh"><option value="push">📱 Push</option><option value="email">✉ Email</option><option value="both">Both</option></select>
+  </div>
   <h3 class="nt-h">Schedules</h3>
   <div id="ntRules"></div>
   <div class="sheet-actions">
@@ -275,6 +280,15 @@
   </form>
 </dialog>
 
+<!-- Choose area (quick add) -->
+<dialog id="dlgArea" class="sheet small">
+  <div class="sheet-head"><h2>Which area?</h2></div>
+  <p class="hint">I couldn't tell where this belongs:</p>
+  <p class="cf-msg" id="areaItem" dir="auto"></p>
+  <label class="full">Area<select id="areaPick"></select></label>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="areaCancel">Cancel</button><span class="grow"></span><button type="button" class="btn primary" id="areaOk">Add</button></div>
+</dialog>
+
 <!-- Statistics -->
 <dialog id="dlgStats" class="sheet wide">
   <div class="sheet-head"><h2>Statistics</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
@@ -294,7 +308,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<script src="i18n.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

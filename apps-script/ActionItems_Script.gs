@@ -333,6 +333,7 @@ function addPending_(g, it) {
   const id = Utilities.getUuid().slice(0, 8);
   pendingSheet_().appendRow([id, new Date(), g.name, area, text, m ? new Date(+m[1], +m[2] - 1, +m[3]) : '',
     ['1 - High', '2 - Medium', '3 - Low'].indexOf(it.prio) >= 0 ? it.prio : '2 - Medium', String(it.com || '').slice(0, 500), 'Pending', '', '']);
+  try { notifySuggestion_(g.name, area, text); } catch (e) { console.error(e); }   // never block the suggestion
   return id;
 }
 function findPendingRow_(id) {
@@ -444,6 +445,7 @@ function notifyConfig_() {
   if (!cfg.rules) cfg.rules = [];
   if (!cfg.tz) cfg.tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
   if (!cfg.detail) cfg.detail = 'titles';
+  if (!cfg.onSuggest) cfg.onSuggest = { on: true, channel: 'push' };
   return cfg;
 }
 function triggerOn_() {
@@ -460,6 +462,7 @@ function saveNotify_(cfg) {
     topic: String(cfg.topic || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || notifyConfig_().topic,
     tz: String(cfg.tz || 'Asia/Jerusalem'),
     detail: cfg.detail === 'counts' ? 'counts' : 'titles',
+    onSuggest: { on: !cfg.onSuggest || cfg.onSuggest.on !== false, channel: cfg.onSuggest && ['push', 'email', 'both'].indexOf(cfg.onSuggest.channel) >= 0 ? cfg.onSuggest.channel : 'push' },
     rules: cfg.rules.slice(0, 30).map(r => ({
       id: String(r.id || Utilities.getUuid().slice(0, 8)), on: r.on !== false,
       area: String(r.area || 'All'), time: /^\d{2}:\d{2}$/.test(r.time) ? r.time : '08:00',
@@ -697,4 +700,19 @@ function readArchive_() {
     item: String(r[0]), status: String(r[1]), area: String(r[2]), prio: String(r[3]), due: d(r[4]), topic: String(r[5]),
     hrs: r[8], done: d(r[10]), acthrs: r[11]
   }));
+}
+
+
+/* ---------- tell the owner when a guest suggests an item ---------- */
+function notifySuggestion_(from, area, text) {
+  const cfg = notifyConfig_();
+  if (!cfg.onSuggest || cfg.onSuggest.on === false) return;
+  const title = '📥 New suggestion from ' + from;
+  const message = (cfg.detail === 'counts' ? 'A new item is waiting for your approval' : '[' + area + '] ' + text) + '\nOpen the app › 📥 to approve or reject.';
+  const ch = cfg.onSuggest.channel || 'push';
+  if (ch === 'push' || ch === 'both') {
+    UrlFetchApp.fetch('https://ntfy.sh/', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      payload: JSON.stringify({ topic: cfg.topic, title: title, message: message, tags: ['inbox_tray'], click: APP_URL, priority: 4 }) });
+  }
+  if (ch === 'email' || ch === 'both') MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, message + '\n\n' + APP_URL);
 }
