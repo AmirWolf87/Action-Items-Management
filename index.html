@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Action Items</title>
+<meta name="theme-color" content="#26355D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Action Items">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <div>
+      <h1>Action Items</h1>
+      <div class="sub"><span id="today"></span> <span id="sync" class="sync"></span></div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="btnRefresh" title="Refresh" aria-label="Refresh">⟳</button>
+      <button class="icon-btn" id="btnReport" title="Weekly report" aria-label="Weekly report">✉</button>
+      <button class="icon-btn" id="btnSettings" title="Settings" aria-label="Settings">⚙</button>
+    </div>
+  </div>
+  <div class="kpis" id="kpis"></div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="focus" class="on">Focus</button>
+  <button data-tab="all">All open</button>
+  <button data-tab="waiting">Waiting</button>
+  <button data-tab="done">Done</button>
+</nav>
+
+<div class="filters">
+  <div class="chips" id="areaChips"></div>
+  <input id="search" type="search" placeholder="Search…" autocomplete="off">
+</div>
+
+<main id="list" class="list"></main>
+
+<button class="fab" id="fab" aria-label="Add action item">+</button>
+<div class="toast" id="toast"></div>
+
+<!-- Edit / add -->
+<dialog id="dlgEdit" class="sheet">
+  <form id="frmEdit" method="dialog">
+    <div class="sheet-head">
+      <h2 id="editTitle">New action item</h2>
+      <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
+    </div>
+    <label class="full">Action item<textarea name="item" rows="2" required dir="auto"></textarea></label>
+    <div class="grid">
+      <label>Status<select name="status"></select></label>
+      <label>Area<select name="area"></select></label>
+      <label>Priority<select name="prio"></select></label>
+      <label>Due date<input type="date" name="due"></label>
+      <label>Topic<input name="topic" dir="auto"></label>
+      <label>Focal / who<input name="focal" list="peopleList" dir="auto"></label>
+      <label>Recurring<select name="rec"></select></label>
+      <label>Est. hours<input type="number" name="hrs" step="0.25" min="0" inputmode="decimal"></label>
+      <label>Done on<input type="date" name="done"></label>
+      <label>Actual hours<input type="number" name="acthrs" step="0.25" min="0" inputmode="decimal"></label>
+    </div>
+    <label class="full">Comments / next step<textarea name="com" rows="2" dir="auto"></textarea></label>
+    <p class="hint" id="nextHint"></p>
+    <div class="sheet-actions">
+      <button type="button" class="btn danger" id="btnDelete">Delete</button>
+      <span class="grow"></span>
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+  <datalist id="peopleList"></datalist>
+</dialog>
+
+<!-- Settings -->
+<dialog id="dlgSettings" class="sheet">
+  <form id="frmSettings" method="dialog">
+    <div class="sheet-head">
+      <h2>Settings</h2>
+      <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
+    </div>
+    <p class="hint">Connect the app to your Google Sheet. Both values come from the sheet's Apps Script (see the setup guide). They are saved only on this device.</p>
+    <label class="full">Web-app URL<input name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+    <label class="full">Private key<input name="key" type="password" autocomplete="off"></label>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="btnDemo">Try demo data</button>
+      <span class="grow"></span>
+      <button type="submit" class="btn primary">Connect</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Weekly report -->
+<dialog id="dlgReport" class="sheet wide">
+  <div class="sheet-head">
+    <h2>Weekly report</h2>
+    <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
+  </div>
+  <div class="grid three">
+    <label>Week<select id="repWeek"><option value="1">Coming week</option><option value="0">This week</option></select></label>
+    <label>To (name)<input id="repName"></label>
+    <label>To (email)<input id="repEmail" type="email"></label>
+  </div>
+  <div class="rep-actions">
+    <button class="btn primary" id="repCopy">📋 Copy formatted email</button>
+    <a class="btn link" id="repOutlookWeb" target="_blank" rel="noopener">Outlook web</a>
+    <a class="btn link" id="repOutlookApp">Outlook app</a>
+    <a class="btn link" id="repGmail" target="_blank" rel="noopener">Gmail</a>
+  </div>
+  <p class="hint">Copy, open Outlook or Gmail (recipient and subject are filled in), click in the message body and paste (Ctrl+V / long-press › Paste).</p>
+  <div class="subject" id="repSubject"></div>
+  <div class="preview" id="repPreview"></div>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
