@@ -143,3 +143,8 @@ dialog.sheet.small,#dlgConfirm{padding:16px}
 .rule .days button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .rule select,.rule input[type=time]{padding:7px}
 @media (max-width:700px){ .rule{grid-template-columns:auto 1fr 1fr} .rule .days{grid-column:1/-1} }
+
+.week-tools{align-items:center;flex-wrap:wrap}
+.chip.hist{font-weight:600}
+.chip.hist:disabled{opacity:.4;cursor:default}
+.saved-note{font-size:11.5px;color:var(--muted);margin:0 0 8px;text-align:end}

@@ -104,7 +104,39 @@ async function load(quiet) {
   render(); return true;
 }
 
-async function save(it) {
+/* ---------- undo / redo ---------- */
+const hist = { undo: [], redo: [] };
+const clone = (o) => o ? JSON.parse(JSON.stringify(o)) : null;
+function record(b, a) { hist.undo.push({ b: clone(b), a: clone(a) }); if (hist.undo.length > 50) hist.undo.shift(); hist.redo = []; }
+function remapRow(oldRow, newRow) {
+  [hist.undo, hist.redo].forEach(st => st.forEach(h => ['b', 'a'].forEach(k => { if (h[k] && h[k].row === oldRow) h[k].row = newRow; })));
+}
+async function applyState(fromState, toState) {
+  if (!toState) return remove(fromState.row, false);
+  if (!fromState) { const copy = clone(toState); const old = copy.row; copy.row = 0; const ok = await save(copy, false); if (ok) remapRow(old, copy.row); return ok; }
+  return save(clone(toState), false);
+}
+let histBusy = false;
+async function undo() {
+  if (histBusy || !hist.undo.length) return; histBusy = true;
+  const h = hist.undo.pop();
+  if (await applyState(h.a, h.b)) { hist.redo.push(h); toast('↶ Undone' + (h.b ? ': ' + h.b.item : '')); } else hist.undo.push(h);
+  histBusy = false; render();
+}
+async function redo() {
+  if (histBusy || !hist.redo.length) return; histBusy = true;
+  const h = hist.redo.pop();
+  if (await applyState(h.b, h.a)) { hist.undo.push(h); toast('↷ Redone' + (h.a ? ': ' + h.a.item : '')); } else hist.redo.push(h);
+  histBusy = false; render();
+}
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || document.querySelector('dialog[open]') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+});
+
+async function save(it, track = true) {
+  const prev = it.row ? clone(data.items.find(x => x.row === it.row)) : null;
   const before = JSON.stringify(data.items);
   const i = data.items.findIndex(x => x.row === it.row && it.row);
   if (i >= 0) data.items[i] = it; else data.items.push(Object.assign({ row: 0, _tmp: true }, it));
@@ -116,17 +148,22 @@ async function save(it) {
     const k = data.items.findIndex(x => x._tmp);
     if (k >= 0) { data.items[k] = Object.assign({}, it); }
     if (!settings.demo && remembered()) store.set('ai.cache', data);
+    if (track) record(prev, it);
     render();
     return true;
   } catch (e) {
     data.items = JSON.parse(before); render(); toast('Not saved: ' + e.message); return false;
   }
 }
-async function remove(row) {
+async function remove(row, track = true) {
   const before = JSON.stringify(data.items);
+  const prev = clone(data.items.find(x => x.row === row));
   data.items = data.items.filter(x => x.row !== row); render();
-  try { await api('POST', { action: 'delete', row }); if (!settings.demo && remembered()) store.set('ai.cache', data); toast('Deleted'); }
-  catch (e) { data.items = JSON.parse(before); render(); toast('Not deleted: ' + e.message); }
+  try {
+    await api('POST', { action: 'delete', row }); if (!settings.demo && remembered()) store.set('ai.cache', data);
+    if (track) { record(prev, null); toast('Deleted — tap ↶ Undo to bring it back'); }
+    render(); return true;
+  } catch (e) { data.items = JSON.parse(before); render(); toast('Not deleted: ' + e.message); return false; }
 }
 
 /* ---------- complete / reopen ---------- */
@@ -441,6 +478,8 @@ document.addEventListener('click', (e) => {
   const wk = t.closest('[data-wk]');
   if (wk) { weekOff = wk.dataset.wk === '0' ? 0 : weekOff + Number(wk.dataset.wk); render(); return; }
   if (t.closest('[data-ics]')) { openIcs(); return; }
+  if (t.closest('[data-undo]')) { undo(); return; }
+  if (t.closest('[data-redo]')) { redo(); return; }
   const wi = t.closest('.wi');
   if (wi) { const it = data.items.find(x => String(x.row) === wi.dataset.row); if (it) openEdit(it); return; }
   const chk = t.closest('[data-check]');
@@ -511,7 +550,12 @@ function renderWeek(items) {
   let html = `<div class="week-head"><button class="nav" data-wk="-1" aria-label="Previous week">◀</button>
     <div class="range">${weekOff === 0 ? 'This week' : weekOff === 1 ? 'Next week' : 'Week'} · ${weekRange(ws)}</div>
     <button class="nav" data-wk="1" aria-label="Next week">▶</button></div>
-    <div class="week-tools">${weekOff !== 0 ? '<button class="chip" data-wk="0">Back to this week</button>' : ''}<button class="btn link" data-ics>📅 Export to Outlook</button></div><div class="week-grid">`;
+    <div class="week-tools">
+      <button class="chip hist" data-undo ${hist.undo.length ? '' : 'disabled'} title="Undo (Ctrl+Z)">↶ Undo${hist.undo.length ? ' (' + hist.undo.length + ')' : ''}</button>
+      <button class="chip hist" data-redo ${hist.redo.length ? '' : 'disabled'} title="Redo (Ctrl+Y)">↷ Redo${hist.redo.length ? ' (' + hist.redo.length + ')' : ''}</button>
+      <span class="grow"></span>
+      ${weekOff !== 0 ? '<button class="chip" data-wk="0">This week</button>' : ''}<button class="btn link" data-ics>📅 Export to Outlook</button></div>
+    <p class="saved-note">Changes save to your sheet automatically · Undo reverses them</p><div class="week-grid">`;
   const t = today();
   const over = weekOff === 0 ? open.filter(it => parse(it.due) && parse(it.due) < t).sort(sortOpen) : [];
   if (over.length) html += `<div class="day over"><h4><b>Overdue</b><span>${over.length}</span></h4>${over.map(it => wiHtml(it, true)).join('')}</div>`;
