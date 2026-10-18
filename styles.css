@@ -329,3 +329,12 @@ body.guest .snooze{display:none}
 .ntfy-box .remember{margin:10px 0 0}
 
 .app-ver{text-align:center;color:var(--muted);font-size:11.5px;margin:4px 0 0}
+
+/* font size (☰ › Font size) — scales text, spacing and buttons together */
+:root[data-font=s]{--z:.9} :root[data-font=l]{--z:1.15}
+:root[data-font] body{zoom:var(--z)}
+:root[data-font] dialog.sheet{width:min(560px,calc(100vw / var(--z) - 24px));max-height:calc(100vh / var(--z) - 24px)}
+:root[data-font] dialog.sheet.wide{width:min(900px,calc(100vw / var(--z) - 24px))}
+:root[data-font] dialog.sheet.small{width:min(440px,calc(100vw / var(--z) - 24px))}
+.seg .fs-s{font-size:11.5px}.seg .fs-l{font-size:15px}
+.qa-title{min-width:0;max-width:100%}

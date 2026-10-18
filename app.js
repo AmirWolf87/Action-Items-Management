@@ -1419,6 +1419,15 @@ function applyTheme(t) {
   document.querySelectorAll('[data-theme-set]').forEach(b => b.classList.toggle('on', b.dataset.themeSet === t));
 }
 applyTheme(store.get('ai.theme', 'auto'));
+/* font size: small / medium / large (scales the whole app) */
+function applyFont(f) {
+  f = (f === 's' || f === 'l') ? f : 'm';
+  if (f === 'm') document.documentElement.removeAttribute('data-font'); else document.documentElement.setAttribute('data-font', f);
+  document.querySelectorAll('[data-font-set]').forEach(b => b.classList.toggle('on', b.dataset.fontSet === f));
+}
+[['s', 'Small', 'קטן'], ['m', 'Medium', 'בינוני'], ['l', 'Large', 'גדול']].forEach(([k, en, he]) => { const b = document.querySelector(`[data-font-set="${k}"]`); if (b) b.textContent = L(en, he); });
+applyFont(store.get('ai.font', 'm'));
+$('#fontSeg').addEventListener('click', e => { const b = e.target.closest('[data-font-set]'); if (!b) return; store.set('ai.font', b.dataset.fontSet); applyFont(b.dataset.fontSet); });
 $('#themeSeg').addEventListener('click', e => { const b = e.target.closest('[data-theme-set]'); if (!b) return; store.set('ai.theme', b.dataset.themeSet); applyTheme(b.dataset.themeSet); });
 $('#frmAccount').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1531,7 +1540,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 24;
+const APP_VERSION = 25;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
