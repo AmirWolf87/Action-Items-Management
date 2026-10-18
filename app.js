@@ -303,7 +303,10 @@ function render() {
   const items = filtered();
   let html = '';
   $('#list').classList.toggle('weekmode', ui.tab === 'week');
+  if (ui.tab !== 'notebook') document.body.classList.remove('nb-mode');
   if (ui.tab === 'week') { $('#list').innerHTML = renderWeek(items); return; }
+  document.body.classList.toggle('nb-mode', ui.tab === 'notebook');
+  if (ui.tab === 'notebook') { $('#list').innerHTML = renderNotebook(); return; }
   if (ui.tab === 'done') {
     const done = items.filter(isClosed).sort((a, b) => (parse(b.done) || 0) - (parse(a.done) || 0));
     html = group('Completed', done, '');
@@ -315,9 +318,11 @@ function render() {
   } else if (ui.tab === 'waiting') {
     html = group('Waiting on others', items.filter(it => it.status === 'Waiting').sort(sortOpen), '');
   } else {
-    const hs = ui.tab === 'focus' ? ['Overdue', 'Today', 'This week'] : HORIZONS;
+    const hs = ui.tab === 'focus' ? ['Overdue', 'Today', 'This week'] : HORIZONS.filter(h => h !== 'No date');
     const openF = items.filter(it => !isClosed(it)).sort(sortOpen);
     html = hs.map(h => group(h, openF.filter(it => horizon(it) === h), h.toLowerCase().replace(' ', ''))).join('');
+    const nd = openF.filter(it => !it.due).length;
+    if (ui.tab === 'all' && nd) html += `<button class="nb-link" data-goto="notebook">📒 ${L(`${nd} items without a date are in the Notebook`, `${nd} משימות ללא תאריך נמצאות בפנקס`)} <span>›</span></button>`;
   }
   if (isGuest() && ui.tab === 'focus' && mySugg.length) html = suggHtml() + html;
   if (!html) html = ui.tab === 'focus'
@@ -325,6 +330,58 @@ function render() {
     : `<div class="empty"><b>🗂</b>No items here.</div>`;
   $('#list').innerHTML = html;
 }
+/* ---------- 📒 Notebook: items without a date, as a checklist per area ---------- */
+function nbItems(area) {
+  const q = search.trim().toLowerCase();
+  const wk = new Date(today().getTime() - 7 * 86400000);
+  return data.items.filter(it => !it.due && it.area === area && it.status !== 'Cancelled' &&
+    (!isClosed(it) || (parse(it.done) && parse(it.done) >= wk)) &&             // crossed-out lines stay for a week
+    (!q || [it.item, it.topic, it.com, it.focal].join(' ').toLowerCase().includes(q)));
+}
+function renderNotebook() {
+  const areas = data.areas.length ? data.areas : ['Home'];
+  const counts = Object.fromEntries(areas.map(a => [a, nbItems(a).filter(it => !isClosed(it)).length]));
+  let page = ui.nbArea && areas.includes(ui.nbArea) ? ui.nbArea : (ui.area !== 'All' && areas.includes(ui.area) ? ui.area : (areas.find(a => counts[a]) || areas[0]));
+  ui.nbArea = page;
+  const tabs = areas.map(a => { const c = areaColor(a) || ['#E5E7EB', '#374151'];
+    return `<button class="nb-tab ${a === page ? 'on' : ''}" data-nb="${esc(a)}" style="--tab-bg:${c[0]};--tab-ink:${c[1]}">${esc(tr(a))}${counts[a] ? `<i>${counts[a]}</i>` : ''}</button>`; }).join('');
+  const list = nbItems(page).sort((a, b) => (isClosed(a) - isClosed(b)) || String(a.prio || '9').localeCompare(String(b.prio || '9')) || (a.row - b.row));
+  const line = (it) => {
+    const done = isClosed(it), hi = /^1/.test(it.prio || '');
+    const sub = [it.focal && it.focal !== 'Me' ? '@' + esc(it.focal) : '', parseFloat(it.hrs) ? '~' + esc(it.hrs) + L('h', 'ש׳') : '',
+      Array.isArray(it.checklist) && it.checklist.length ? '☑ ' + it.checklist.filter(x => x.d).length + '/' + it.checklist.length : ''].filter(Boolean).join(' · ');
+    return `<li class="nb-line ${done ? 'done' : ''}" data-row="${it.row}">
+      <button class="nb-check" data-nbcheck="${it.row}" aria-label="${done ? L('Mark as not done', 'סמן כלא בוצע') : L('Mark as done', 'סמן כבוצע')}">${done ? '✓' : ''}</button>
+      <span class="nb-text" dir="auto">${hi ? '<b class="nb-hi">!</b> ' : ''}${esc(it.item)}${sub ? `<small>${sub}</small>` : ''}</span>
+      ${it.private ? '<span class="private-ic">🔒</span>' : ''}</li>`;
+  };
+  const openN = list.filter(it => !isClosed(it)).length;
+  return `<div class="nb-wrap">
+    <div class="nb-tabs">${tabs}</div>
+    <div class="nb-paper" style="--area-ink:${(areaColor(page) || ['', '#374151'])[1]};--area-bg:${(areaColor(page) || ['#E5E7EB'])[0]}">
+      <div class="nb-rings" aria-hidden="true">${'<i></i>'.repeat(9)}</div>
+      <div class="nb-head"><h2>${esc(tr(page))}</h2><span>${openN ? L(`${openN} to do`, `${openN} לביצוע`) : L('All done ✓', 'הכל בוצע ✓')}</span></div>
+      <ul class="nb-lines">${list.map(line).join('')}
+        <li class="nb-line nb-new owner-only"><span class="nb-plus">＋</span><input id="nbNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Write a new line…', 'כתוב שורה חדשה…'))}"></li>
+        ${'<li class="nb-line nb-empty" aria-hidden="true"></li>'.repeat(Math.max(2, 8 - list.length))}
+      </ul>
+      <p class="nb-foot">${L('Tap a line to edit it or give it a date — dated items move to the schedule.', 'לחץ על שורה כדי לערוך או לתת לה תאריך — משימה עם תאריך עוברת ללוח הזמנים.')}</p>
+    </div></div>`;
+}
+async function nbToggle(it) {
+  const copy = Object.assign({}, it);
+  if (isClosed(it)) { copy.status = 'Not started'; copy.done = ''; } else { copy.status = 'Done'; copy.done = iso(today()); }
+  await save(copy);
+}
+async function nbAdd(text) {
+  text = text.trim(); if (!text) return;
+  const it = { item: text, area: ui.nbArea, status: 'Not started', prio: '', due: '', created: iso(today()), focal: 'Me' };
+  await save(it);
+  const inp = $('#nbNew'); if (inp) inp.focus();
+}
+$('#list').addEventListener('keydown', (e) => {
+  if (e.target.id === 'nbNew' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const v = e.target.value; e.target.value = ''; nbAdd(v); }
+});
 function group(title, arr, cls) {
   if (!arr.length) return '';
   return `<section class="group ${cls}"><h3>${esc(title)} <span class="n">${arr.length}</span></h3>${arr.map(card).join('')}</section>`;
@@ -560,6 +617,12 @@ document.addEventListener('click', (e) => {
   if (t.closest('[data-redo]')) { redo(); return; }
   const wi = t.closest('.wi');
   if (wi) { const it = data.items.find(x => String(x.row) === wi.dataset.row); if (it) openEdit(it); return; }
+  const nbt = t.closest('[data-nb]');
+  if (nbt) { ui.nbArea = nbt.dataset.nb; store.set('ai.ui', ui); render(); return; }
+  const nbc = t.closest('[data-nbcheck]');
+  if (nbc) { e.stopPropagation(); if (isGuest()) return; const it = data.items.find(x => String(x.row) === nbc.dataset.nbcheck); if (it) nbToggle(it); return; }
+  const nbl = t.closest('.nb-line[data-row]');
+  if (nbl) { const it = data.items.find(x => String(x.row) === nbl.dataset.row); if (it) openEdit(it); return; }
   const chk = t.closest('[data-check]');
   if (chk) { e.stopPropagation(); const it = data.items.find(x => String(x.row) === chk.dataset.check); if (it) toggleDone(it); return; }
   const c = t.closest('.card');
@@ -1540,7 +1603,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 25;
+const APP_VERSION = 26;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
