@@ -30,6 +30,8 @@ let ui = store.get('ai.ui', { tab: 'focus', area: 'All' });
 const EMPTY = () => ({ items: [], areas: Object.keys(AREA_C), people: ['Me'], report: null });
 let data = (store.get('ai.pw', null) && store.get('ai.cache', null)) || EMPTY();
 let search = '';
+let role = 'owner', me = { name: '', canSuggest: false }, pending = [], mySugg = [];
+const isGuest = () => role === 'guest';
 let weekOff = 0;
 
 /* ---------- dates ---------- */
@@ -92,8 +94,7 @@ async function load(quiet) {
   setSync('syncing…');
   try {
     const j = await api('GET');
-    data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report };
-    if (!settings.demo && remembered()) store.set('ai.cache', data);
+    applyList(j);
     setSync('synced ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {
     if (e.auth) { lockApp(e.message); return false; }
@@ -243,11 +244,12 @@ function card(it) {
   const pr = it.prio ? pill(it.prio.replace(/^\d - /, ''), PRIO_C[String(it.prio).charAt(0)]) : '';
   const who = it.focal && it.focal !== 'Me' ? `<span>👤 ${esc(it.focal)}</span>` : '';
   const rec = it.rec && it.rec !== 'None' ? `<span title="Recurring">↻ ${esc(it.rec)}</span>` : '';
+  const priv = it.private ? '<span class="private-ic" title="Private — hidden from guests">🔒</span>' : '';
   return `<div class="card ${cls}" data-row="${it.row}">
     <button class="check ${isClosed(it) ? 'on' : ''}" data-check="${it.row}" aria-label="Mark done">${isClosed(it) ? '✓' : ''}</button>
     <div class="body">
       <div class="title" dir="auto">${esc(it.item)}</div>
-      <div class="meta">${it.area ? pill(it.area, AREA_C[it.area]) : ''}${pr}${st}${dueLabel(it)}${who}${rec}</div>
+      <div class="meta">${it.area ? pill(it.area, AREA_C[it.area]) : ''}${pr}${st}${dueLabel(it)}${who}${rec}${priv}</div>
       ${it.com ? `<div class="note" dir="auto">${esc(it.com)}</div>` : ''}
     </div></div>`;
 }
@@ -260,6 +262,12 @@ function filtered() {
 }
 
 function render() {
+  document.body.classList.toggle('guest', isGuest());
+  $('#guestBar').hidden = !isGuest();
+  if (isGuest()) $('#guestBar').textContent = `👀 Viewing as ${me.name} · read-only` + (me.canSuggest ? ' · tap ＋ to suggest an item' : '');
+  $('#fab').classList.toggle('can-suggest', isGuest() && me.canSuggest);
+  $('#btnPending').hidden = isGuest() || !pending.length;
+  $('#pendingBadge').textContent = pending.length || '';
   $('#today').textContent = today().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const open = data.items.filter(it => !isClosed(it));
   const cnt = (h) => open.filter(it => horizon(it) === h).length;
@@ -288,6 +296,7 @@ function render() {
     const openF = items.filter(it => !isClosed(it)).sort(sortOpen);
     html = hs.map(h => group(h, openF.filter(it => horizon(it) === h), h.toLowerCase().replace(' ', ''))).join('');
   }
+  if (isGuest() && ui.tab === 'focus' && mySugg.length) html = suggHtml() + html;
   if (!html) html = ui.tab === 'focus'
     ? `<div class="empty"><b>🎉</b>Nothing overdue, due today or this week.<br>Check "All open" for later items.</div>`
     : `<div class="empty"><b>🗂</b>No items here.</div>`;
@@ -308,12 +317,20 @@ function openEdit(it) {
   fillSelect(F('status'), STATUS); fillSelect(F('area'), data.areas, true); fillSelect(F('prio'), PRIO, true); fillSelect(F('rec'), REC);
   $('#peopleList').innerHTML = data.people.map(p => `<option value="${esc(p)}">`).join('');
   const v = it || { status: 'Not started', area: ui.area !== 'All' ? ui.area : 'Work', prio: '2 - Medium', rec: 'None', focal: 'Me', due: iso(today()) };
-  ['item', 'status', 'area', 'prio', 'due', 'time', 'topic', 'focal', 'rec', 'hrs', 'done', 'acthrs', 'com'].forEach(k => { F(k).value = v[k] ?? ''; });
-  $('#editTitle').textContent = it ? 'Edit action item' : 'New action item';
-  $('#btnDelete').style.display = it ? '' : 'none';
+  ['item', 'status', 'area', 'prio', 'due', 'time', 'topic', 'focal', 'rec', 'hrs', 'done', 'acthrs', 'com'].forEach(k => {
+    const el = F(k);
+    if (el.tagName === 'SELECT' && v[k] && ![...el.options].some(o => o.value === v[k])) el.insertAdjacentHTML('beforeend', `<option>${esc(v[k])}</option>`);
+    el.value = v[k] ?? '';
+  });
+  F('private').checked = !!v.private;
+  const ro = isGuest();
+  [...frm.elements].forEach(el => { if (el.name) el.disabled = ro; });
+  frm.querySelector('button[type=submit]').style.display = ro ? 'none' : '';
+  $('#editTitle').textContent = ro ? 'Action item' : it ? 'Edit action item' : 'New action item';
+  $('#btnDelete').style.display = it && !ro ? '' : 'none';
   updateHint();
   dlgEdit.showModal();
-  if (!it) setTimeout(() => F('item').focus(), 50);
+  if (!it && !ro) setTimeout(() => F('item').focus(), 50);
 }
 function updateHint() {
   const nd = nextDue({ due: F('due').value, rec: F('rec').value });
@@ -324,7 +341,8 @@ frm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const it = Object.assign({}, editing || {});
   ['item', 'status', 'area', 'prio', 'due', 'time', 'topic', 'focal', 'rec', 'hrs', 'done', 'acthrs', 'com'].forEach(k => { it[k] = String(F(k).value).trim(); });
-  if (!it.item) return;
+  if (!it.item || isGuest()) return;
+  it.private = F('private').checked;
   if (it.status === 'Done' && !it.done) it.done = iso(today());
   if (!editing) it.created = iso(today());
   const plan = parseFloat(it.hrs);
@@ -517,11 +535,16 @@ document.addEventListener('click', (e) => {
   if (ch) { ui.area = ch.dataset.area; store.set('ai.ui', ui); render(); }
 });
 $('#search').addEventListener('input', (e) => { search = e.target.value; render(); });
-$('#fab').addEventListener('click', () => openEdit(null));
+$('#fab').addEventListener('click', () => isGuest() ? openSuggest() : openEdit(null));
 $('#btnSettings').addEventListener('click', openSettings);
 $('#btnRefresh').addEventListener('click', () => load());
 $('#btnReport').addEventListener('click', openReport);
 $('#btnNotify').addEventListener('click', openNotify);
+$('#btnMenu').addEventListener('click', () => $('#dlgMenu').showModal());
+$('#dlgMenu').addEventListener('click', (e) => { if (e.target.closest('.menu-item')) $('#dlgMenu').close(); });
+$('#btnShare').addEventListener('click', openShare);
+$('#btnPending').addEventListener('click', openPending);
+$('#btnPending2').addEventListener('click', openPending);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && lockEl.hidden) load(true); });
 
 let toastTimer;
@@ -535,7 +558,7 @@ function toast(msg) {
 }
 
 /* ---------- demo backend (no sheet needed) ---------- */
-let demoItems = null, demoNotify = null;
+let demoItems = null, demoNotify = null, demoGuests = [], demoPending = [];
 function demoApi(method, body) {
   if (!demoItems) {
     const t = today(), d = (n) => iso(addDays(t, n));
@@ -548,7 +571,13 @@ function demoApi(method, body) {
       { row: 11, item: 'Send WIP report', status: 'Done', area: 'Work', prio: '2 - Medium', due: d(-3), done: d(-3), topic: 'WIP', focal: 'Me', rec: 'None', com: '' }
     ];
   }
-  if (method === 'GET') return Promise.resolve({ ok: true, items: JSON.parse(JSON.stringify(demoItems)), areas: Object.keys(AREA_C), people: ['Me', 'Colleague'], report: { manager: 'Manager', email: '', from: 'Me', area: 'Work' } });
+  if (method === 'GET') return Promise.resolve({ ok: true, role: 'owner', pending: demoPending, items: JSON.parse(JSON.stringify(demoItems)), areas: Object.keys(AREA_C), people: ['Me', 'Colleague'], report: { manager: 'Manager', email: '', from: 'Me', area: 'Work' } });
+  if (body.action === 'getGuests' || body.action === 'saveGuest' || body.action === 'deleteGuest') {
+    if (body.action === 'saveGuest') { const g = Object.assign({}, body.guest); delete g.password; if (!g.id) { g.id = Math.random().toString(36).slice(2, 8); demoGuests.push(g); } else demoGuests = demoGuests.map(x => x.id === g.id ? g : x); }
+    if (body.action === 'deleteGuest') demoGuests = demoGuests.filter(x => x.id !== body.id);
+    return Promise.resolve({ ok: true, guests: demoGuests });
+  }
+  if (body.action === 'approve' || body.action === 'reject') { demoPending = demoPending.filter(x => x.id !== body.id); return Promise.resolve({ ok: true, row: 99 }); }
   if (body.action === 'save') {
     const it = Object.assign({}, body.item);
     if (!it.row) it.row = Math.max(5, ...demoItems.map(x => x.row)) + 1;
@@ -746,6 +775,151 @@ $('#ntSave').addEventListener('click', async () => {
   } catch (e) { $('#ntStatus').textContent = 'Not saved: ' + e.message; }
 });
 
+
+/* ---------- roles: owner / guest ---------- */
+function applyList(j) {
+  role = j.role === 'guest' ? 'guest' : 'owner';
+  me = { name: j.name || '', canSuggest: !!j.canSuggest };
+  pending = j.pending || [];
+  mySugg = j.mySuggestions || [];
+  data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report };
+  if (!data.areas.includes(ui.area) && ui.area !== 'All') ui.area = 'All';
+  if (isGuest() && (ui.tab === 'waiting')) ui.tab = 'focus';
+  if (!settings.demo && remembered()) store.set('ai.cache', data);
+}
+function suggHtml() {
+  const col = { Pending: '#B45309', Approved: '#15803D', Rejected: '#B91C1C' };
+  return `<section class="group"><h3>Your suggestions <span class="n">${mySugg.length}</span></h3>` +
+    mySugg.slice(0, 8).map(x => `<div class="card sugg"><div class="body"><div class="title" dir="auto">${esc(x.item)}</div>
+      <div class="meta">${pill(x.area, AREA_C[x.area])}<span class="st" style="color:${col[x.status] || '#6B7280'}">${x.status === 'Pending' ? '⏳ Waiting for approval' : x.status === 'Approved' ? '✓ Approved' : '✕ Not approved'}</span>${x.due ? `<span>${fmt(x.due, true)}</span>` : ''}</div></div></div>`).join('') + '</section>';
+}
+
+/* guest: suggest */
+function openSuggest() {
+  const f = $('#frmSuggest');
+  f.reset();
+  f.elements.namedItem('area').innerHTML = data.areas.map(a => `<option>${esc(a)}</option>`).join('');
+  $('#dlgSuggest').showModal(); setTimeout(() => f.elements.namedItem('item').focus(), 50);
+}
+$('#frmSuggest').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target, g = (k) => f.elements.namedItem(k).value.trim();
+  const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+  try {
+    await api('POST', { action: 'suggest', item: { item: g('item'), area: g('area'), prio: g('prio'), due: g('due'), com: g('com') } });
+    $('#dlgSuggest').close(); toast('Sent ✓ — it will appear once approved'); load(true);
+  } catch (err) { toast('Not sent: ' + err.message); }
+  finally { btn.disabled = false; }
+});
+
+/* owner: sharing & guests */
+let guests = [], gAreas = [];
+const appBase = () => location.origin + location.pathname;
+const inviteLink = () => appBase() + '#join=' + encodeURIComponent(settings.url || '');
+function renderGuests() {
+  $('#guestList').innerHTML = guests.length ? guests.map(g => `<div class="gcard ${g.on === false ? 'off' : ''}" data-gid="${esc(g.id)}">
+      <b dir="auto">${esc(g.name)}</b>${(g.areas || []).map(a => pill(a, AREA_C[a])).join('')}
+      <span class="hint" style="margin:0">${g.canSuggest ? '✎ can suggest' : 'view only'}${g.on === false ? ' · access off' : ''}</span>
+      <span class="grow"></span>
+      <button type="button" class="btn ghost" data-ginvite>🔗 Invite</button>
+      <button type="button" class="btn ghost" data-gedit>Edit</button>
+      <button type="button" class="btn danger" data-gdel>Remove</button></div>`).join('')
+    : '<p class="hint">No guests yet — add one below.</p>';
+}
+function renderGuestAreas() {
+  $('#guestAreas').innerHTML = (data.areas || []).map(a => `<button type="button" class="chip ${gAreas.includes(a) ? 'on' : ''}" data-garea="${esc(a)}">${esc(a)}</button>`).join('');
+}
+function resetGuestForm(g) {
+  const f = $('#frmGuest'), E = (k) => f.elements.namedItem(k);
+  E('id').value = g ? g.id : ''; E('name').value = g ? g.name : ''; E('gpw').value = '';
+  E('gpw').placeholder = g ? 'leave empty to keep the current password' : 'at least 6 characters';
+  E('canSuggest').checked = g ? !!g.canSuggest : true; E('on').checked = g ? g.on !== false : true;
+  gAreas = g ? (g.areas || []).slice() : ['Home'].filter(a => data.areas.includes(a));
+  $('#guestFormTitle').textContent = g ? `Edit ${g.name}` : 'Add a guest';
+  $('#guestSave').textContent = g ? 'Save changes' : 'Add guest';
+  $('#guestCancel').hidden = !g;
+  renderGuestAreas();
+}
+async function openShare() {
+  $('#dlgShare').showModal(); $('#shareStatus').textContent = ''; $('#guestList').innerHTML = '<p class="hint">Loading…</p>';
+  resetGuestForm(null);
+  try { guests = (await api('POST', { action: 'getGuests' })).guests || []; renderGuests(); }
+  catch (e) { $('#guestList').innerHTML = `<p class="hint">${esc(e.message)}</p>`; }
+}
+$('#guestAreas').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-garea]'); if (!b) return;
+  const a = b.dataset.garea, i = gAreas.indexOf(a); if (i >= 0) gAreas.splice(i, 1); else gAreas.push(a); renderGuestAreas();
+});
+$('#guestCancel').addEventListener('click', () => resetGuestForm(null));
+$('#frmGuest').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target, E = (k) => f.elements.namedItem(k);
+  if (!gAreas.length) { $('#shareStatus').textContent = 'Choose at least one area the guest can see.'; return; }
+  const g = { id: E('id').value || undefined, name: E('name').value.trim(), password: E('gpw').value, areas: gAreas, canSuggest: E('canSuggest').checked, on: E('on').checked };
+  if (!g.id && g.password.length < 6) { $('#shareStatus').textContent = 'Give the guest a password (at least 6 characters).'; return; }
+  try {
+    guests = (await api('POST', { action: 'saveGuest', guest: g })).guests || [];
+    renderGuests(); resetGuestForm(null);
+    $('#shareStatus').textContent = `✓ Saved. Tap 🔗 Invite next to ${g.name} to copy their link, and send the password separately.`;
+  } catch (err) { $('#shareStatus').textContent = 'Not saved: ' + err.message; }
+});
+$('#guestList').addEventListener('click', async (e) => {
+  const card = e.target.closest('[data-gid]'); if (!card) return;
+  const g = guests.find(x => x.id === card.dataset.gid); if (!g) return;
+  if (e.target.closest('[data-gedit]')) { resetGuestForm(g); $('#frmGuest').scrollIntoView({ behavior: 'smooth' }); }
+  if (e.target.closest('[data-gdel]')) {
+    if (!confirm(`Remove ${g.name}'s access?`)) return;
+    try { guests = (await api('POST', { action: 'deleteGuest', id: g.id })).guests || []; renderGuests(); $('#shareStatus').textContent = `✓ ${g.name} can no longer sign in.`; }
+    catch (err) { $('#shareStatus').textContent = err.message; }
+  }
+  if (e.target.closest('[data-ginvite]')) {
+    if (!settings.url) { $('#shareStatus').textContent = 'Connect your sheet first.'; return; }
+    const msg = `Hi ${g.name}, here's my Action Items list (${(g.areas || []).join(', ')}):\n${inviteLink()}\nOpen it, enter the password I'll send you, and you can add it to your home screen.`;
+    try { await navigator.clipboard.writeText(msg); $('#shareStatus').innerText = '✓ Invite copied — paste it into WhatsApp/SMS. Send the password in a separate message:\n\n' + msg; }
+    catch (err) { $('#shareStatus').innerText = 'Copy this invite:\n\n' + msg; }
+  }
+});
+
+/* owner: approvals */
+function renderPending() {
+  if (!pending.length) { $('#pendingList').innerHTML = '<div class="empty"><b>📭</b>No suggestions waiting.</div>'; return; }
+  $('#pendingList').innerHTML = pending.map(p => `<div class="pcard" data-pid="${esc(p.id)}">
+    <div class="who">From <b>${esc(p.from)}</b> · ${fmt(p.submitted, true)}</div>
+    <div class="grid">
+      <label>Action item<input class="p-item" value="${esc(p.item)}" dir="auto"></label>
+      <label>Area<select class="p-area">${data.areas.map(a => `<option ${a === p.area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
+      <label>Due<input type="date" class="p-due" value="${esc(p.due)}"></label>
+      <label>Priority<select class="p-prio">${PRIO.map(x => `<option ${x === p.prio ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+    </div>
+    ${p.com ? `<p class="hint" dir="auto">💬 ${esc(p.com)}</p>` : ''}
+    <div class="sheet-actions"><button type="button" class="btn danger" data-preject>Reject</button><span class="grow"></span><button type="button" class="btn primary" data-papprove>✓ Approve &amp; add</button></div>
+  </div>`).join('');
+}
+async function openPending() { $('#dlgPending').showModal(); renderPending(); await load(true); renderPending(); }
+$('#pendingList').addEventListener('click', async (e) => {
+  const card = e.target.closest('[data-pid]'); if (!card) return;
+  const id = card.dataset.pid, q = (c) => card.querySelector(c).value;
+  const approve = e.target.closest('[data-papprove]'), reject = e.target.closest('[data-preject]');
+  if (!approve && !reject) return;
+  e.target.disabled = true;
+  try {
+    if (approve) { await api('POST', { action: 'approve', id, item: { item: q('.p-item'), area: q('.p-area'), due: q('.p-due'), prio: q('.p-prio') } }); toast('Approved ✓ — added to your list'); }
+    else { await api('POST', { action: 'reject', id }); toast('Rejected'); }
+    pending = pending.filter(x => x.id !== id); renderPending(); load(true);
+  } catch (err) { toast(err.message); e.target.disabled = false; }
+});
+
+/* invite links: #join=<sheet url> pre-fills the connection */
+(function readJoin() {
+  const m = location.hash.match(/^#join=(.+)$/);
+  if (!m) return;
+  try {
+    const u = decodeURIComponent(m[1]);
+    if (/^https:\/\/script\.google\.com\/.*\/exec$/.test(u) && settings.url !== u) { settings = { url: u, demo: false }; store.set('ai.settings', settings); password = ''; }
+  } catch (e) { /* ignore bad links */ }
+  history.replaceState(null, '', location.pathname);
+})();
+
 /* ---------- lock screen ---------- */
 const cleanUrl = (u) => String(u || '').trim().replace(/\?.*$/, '');
 const validUrl = (u) => /^https:\/\/script\.google\.com\/.*\/exec$/.test(u);
@@ -763,7 +937,7 @@ function hideLock() { lockEl.hidden = true; }
 function lockApp(msg) {
   password = ''; sess.set('ai.pw', null); store.set('ai.pw', null);
   try { localStorage.removeItem('ai.pw'); localStorage.removeItem('ai.cache'); } catch (e) { /* ignore */ }
-  data = EMPTY(); render(); showLock(msg);
+  data = EMPTY(); role = 'owner'; pending = []; mySugg = []; hist.undo = []; hist.redo = []; render(); showLock(msg);
 }
 frmLock.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -778,8 +952,7 @@ frmLock.addEventListener('submit', async (e) => {
   try {
     const j = await api('GET');
     if (LK('remember').checked) store.set('ai.pw', password); else { sess.set('ai.pw', password); try { localStorage.removeItem('ai.pw'); } catch (err) { /* ignore */ } }
-    data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report };
-    if (remembered()) store.set('ai.cache', data);
+    applyList(j);
     hideLock(); setSync('synced ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })); render();
   } catch (err) {
     password = '';

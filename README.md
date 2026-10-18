@@ -34,9 +34,16 @@ It is stored only as a salted hash inside the script.
 - **Android (Chrome):** ⋮ › **Install app**.
 - **PC (Chrome / Edge):** install icon in the address bar.
 
+## Sharing with others (read-only guests)
+- ☰ › **Sharing & guests** › add a guest (e.g. *Neta*): her own password, which areas she can see, and whether she can suggest items.
+- Tap **🔗 Invite** to copy a message with the link; send the password separately. The link fills in the sheet address for her.
+- Guests see only their areas, never items marked **🔒 Private** (switch in the item editor), and cannot change anything.
+- Suggestions land in a new **Pending** tab in the sheet and in the app's **📥** (badge shows how many). Adjust, then **Approve & add** or **Reject** — the guest sees the result.
+- Remove a guest or switch off "Access active" to revoke access at once. All of this is enforced by your Google script, not by the web page.
+
 ## Phone notifications (optional)
 1. After pasting a new script version, reload the sheet › **✉ Manager Report › App: turn on phone notifications** (approve the permissions once).
-2. In the app tap **🔔**: install the free **ntfy** app on your phone and subscribe to the topic shown there (server *ntfy.sh*).
+2. In the app open ☰ › **🔔 Phone notifications**: install the free **ntfy** app on your phone and subscribe to the topic shown there (server *ntfy.sh*).
 3. Set your schedules (area, time, days, push / email) › **Save** › **Test**.
 The script checks every 5 minutes and sends each schedule once per day.
 Push messages travel through the public ntfy.sh service — choose **Counts only** if you prefer not to send item titles.

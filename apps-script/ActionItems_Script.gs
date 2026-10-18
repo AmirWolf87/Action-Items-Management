@@ -154,8 +154,8 @@ function showOutlookDialog() {
 const API_SHEET = 'Action Items';
 const API_FIRST = 6, API_LAST = 505;
 const API_COLS = { item: 1, status: 2, area: 3, prio: 4, due: 5, topic: 8, focal: 9, created: 10,
-                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23 };   // W = Start Time (added by the app)
-const API_NCOLS = 23;
+                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23, private: 24 };   // W = Start Time, X = Private (added by the app)
+const API_NCOLS = 24;
 const APP_URL = 'https://amirwolf87.github.io/Action-Items-Management/';
 const API_DATES = ['due', 'created', 'done'];
 
@@ -183,17 +183,25 @@ function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/* returns null if OK, otherwise an error message. 10 wrong tries → locked for 15 minutes */
-function checkPassword_(pw) {
+/* ---------- who is calling: the owner, a guest, or nobody ----------
+ * 10 wrong passwords (any account) → all logins blocked for 15 minutes */
+function guests_() {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('GUESTS') || '[]'); } catch (e) { return []; }
+}
+function authenticate_(pw) {
   const props = PropertiesService.getScriptProperties();
   const salt = props.getProperty('PW_SALT'), h = props.getProperty('PW_HASH');
-  if (!salt || !h) return 'No password set yet — in the sheet: ✉ Manager Report › App: set / change password';
+  if (!salt || !h) return { err: 'No password set yet — in the sheet: ✉ Manager Report › App: set / change password' };
   const cache = CacheService.getScriptCache();
   const fails = Number(cache.get('pw_fails') || 0);
-  if (fails >= 10) return 'Too many wrong attempts — try again in 15 minutes';
-  if (pw && hash_(String(pw), salt) === h) return null;
+  if (fails >= 10) return { err: 'Too many wrong attempts — try again in 15 minutes' };
+  if (pw) {
+    if (hash_(String(pw), salt) === h) return { role: 'owner' };
+    const g = guests_().find(x => x.on !== false && x.hash && hash_(String(pw), x.salt) === x.hash);
+    if (g) return { role: 'guest', guest: g };
+  }
   cache.put('pw_fails', String(fails + 1), 900);
-  return 'Wrong password';
+  return { err: 'Wrong password' };
 }
 
 /* Opening the URL in a browser only shows that the API is alive — never any data */
@@ -205,24 +213,137 @@ function doGet(e) {
 function doPost(e) {
   let req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request' }); }
-  const bad = checkPassword_(req.password);
-  if (bad) return json_({ ok: false, auth: true, error: bad });
-  if (req.action === 'getNotify') return json_(Object.assign({ ok: true }, getNotify_()));
-  if (req.action === 'saveNotify') { try { return json_(Object.assign({ ok: true }, saveNotify_(req.config))); } catch (err) { return json_({ ok: false, error: String(err) }); } }
-  if (req.action === 'testNotify') { try { return json_(Object.assign({ ok: true }, sendRule_(req.rule, true))); } catch (err) { return json_({ ok: false, error: String(err) }); } }
-  if (req.action === 'list') {
-    try { return json_(Object.assign({ ok: true }, readAll_())); }
-    catch (err) { return json_({ ok: false, error: String(err) }); }
-  }
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  const who = authenticate_(req.password);
+  if (who.err) return json_({ ok: false, auth: true, error: who.err });
   try {
-    if (req.action === 'save') return json_({ ok: true, row: saveItem_(req.item) });
-    if (req.action === 'delete') { clearRow_(req.row); return json_({ ok: true }); }
-    return json_({ ok: false, error: 'Unknown action' });
+    /* ---- guests: read-only + suggestions ---- */
+    if (who.role === 'guest') {
+      const g = who.guest;
+      if (req.action === 'list') return json_(Object.assign({ ok: true }, guestView_(g)));
+      if (req.action === 'suggest') {
+        if (!g.canSuggest) return json_({ ok: false, error: 'Suggestions are not enabled for you' });
+        return withLock_(() => json_({ ok: true, id: addPending_(g, req.item || {}) }));
+      }
+      return json_({ ok: false, error: 'Read-only access' });
+    }
+    /* ---- owner ---- */
+    switch (req.action) {
+      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner' }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending') }));
+      case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
+      case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
+      case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
+      case 'getGuests': return json_({ ok: true, guests: guests_().map(publicGuest_) });
+      case 'saveGuest': return json_({ ok: true, guests: saveGuest_(req.guest).map(publicGuest_) });
+      case 'deleteGuest': return json_({ ok: true, guests: deleteGuest_(req.id).map(publicGuest_) });
+      case 'save': return withLock_(() => json_({ ok: true, row: saveItem_(req.item) }));
+      case 'delete': return withLock_(() => { clearRow_(req.row); return json_({ ok: true }); });
+      case 'approve': return withLock_(() => json_({ ok: true, row: approvePending_(req.id, req.item || {}) }));
+      case 'reject': return withLock_(() => { decidePending_(req.id, 'Rejected'); return json_({ ok: true }); });
+      default: return json_({ ok: false, error: 'Unknown action' });
+    }
   } catch (err) {
-    return json_({ ok: false, error: String(err) });
-  } finally { lock.releaseLock(); }
+    return json_({ ok: false, error: String(err && err.message || err) });
+  }
+}
+function withLock_(fn) {
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
+/* ---------- guests ---------- */
+function publicGuest_(g) { return { id: g.id, name: g.name, areas: g.areas, canSuggest: !!g.canSuggest, on: g.on !== false, hasPassword: !!g.hash }; }
+function saveGuest_(in_) {
+  if (!in_ || !String(in_.name || '').trim()) throw new Error('Guest name is required');
+  const list = guests_();
+  let g = list.find(x => x.id === in_.id);
+  if (!g) { g = { id: Utilities.getUuid().slice(0, 8) }; list.push(g); }
+  g.name = String(in_.name).trim().slice(0, 40);
+  g.areas = (in_.areas || []).map(String).slice(0, 20);
+  g.canSuggest = !!in_.canSuggest;
+  g.on = in_.on !== false;
+  if (in_.password) {
+    if (String(in_.password).length < 6) throw new Error('Guest password: at least 6 characters');
+    const ownerSalt = PropertiesService.getScriptProperties().getProperty('PW_SALT');
+    if (ownerSalt && hash_(String(in_.password), ownerSalt) === PropertiesService.getScriptProperties().getProperty('PW_HASH'))
+      throw new Error('Use a different password from your own');
+    if (list.some(x => x !== g && x.hash && hash_(String(in_.password), x.salt) === x.hash)) throw new Error('Another guest already uses this password');
+    g.salt = Utilities.getUuid(); g.hash = hash_(String(in_.password), g.salt);
+  }
+  if (!g.hash) throw new Error('Set a password for ' + g.name);
+  PropertiesService.getScriptProperties().setProperty('GUESTS', JSON.stringify(list));
+  return list;
+}
+function deleteGuest_(id) {
+  const list = guests_().filter(x => x.id !== id);
+  PropertiesService.getScriptProperties().setProperty('GUESTS', JSON.stringify(list));
+  return list;
+}
+const GUEST_FIELDS = ['row', 'item', 'status', 'area', 'prio', 'due', 'time', 'topic', 'focal', 'rec', 'done', 'com'];
+function guestView_(g) {
+  const all = readAll_();
+  const items = all.items
+    .filter(it => g.areas.indexOf(it.area) >= 0 && !it.private)
+    .map(it => { const o = {}; GUEST_FIELDS.forEach(k => { o[k] = it[k]; }); return o; });
+  const mine = readPending_().filter(x => x.from === g.name).slice(-30).reverse();
+  return { role: 'guest', name: g.name, canSuggest: !!g.canSuggest, items: items, areas: g.areas, people: [], report: null, mySuggestions: mine };
+}
+
+/* ---------- pending suggestions (sheet "Pending") ---------- */
+const PENDING_HEAD = ['ID', 'Submitted', 'From', 'Area', 'Action Item', 'Due Date', 'Priority', 'Comments', 'Status', 'Decided', 'Added as row'];
+function pendingSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName('Pending');
+  if (!sh) {
+    sh = ss.insertSheet('Pending');
+    sh.getRange(1, 1, 1, PENDING_HEAD.length).setValues([PENDING_HEAD]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+function readPending_() {
+  const sh = pendingSheet_(), n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  const d = (v) => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v || '');
+  return sh.getRange(2, 1, n, PENDING_HEAD.length).getValues().filter(r => r[0]).map(r => ({
+    id: String(r[0]), submitted: d(r[1]), from: String(r[2]), area: String(r[3]), item: String(r[4]),
+    due: d(r[5]), prio: String(r[6]), com: String(r[7]), status: String(r[8] || 'Pending'), decided: d(r[9])
+  }));
+}
+function addPending_(g, it) {
+  const text = String(it.item || '').trim().slice(0, 300);
+  if (!text) throw new Error('Write the action item first');
+  const area = g.areas.indexOf(it.area) >= 0 ? it.area : g.areas[0];
+  const m = String(it.due || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const id = Utilities.getUuid().slice(0, 8);
+  pendingSheet_().appendRow([id, new Date(), g.name, area, text, m ? new Date(+m[1], +m[2] - 1, +m[3]) : '',
+    ['1 - High', '2 - Medium', '3 - Low'].indexOf(it.prio) >= 0 ? it.prio : '2 - Medium', String(it.com || '').slice(0, 500), 'Pending', '', '']);
+  return id;
+}
+function findPendingRow_(id) {
+  const sh = pendingSheet_(), n = sh.getLastRow() - 1;
+  if (n < 1) throw new Error('Suggestion not found');
+  const ids = sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0]));
+  const i = ids.indexOf(String(id));
+  if (i < 0) throw new Error('Suggestion not found');
+  return { sh: sh, row: i + 2 };
+}
+function decidePending_(id, status, addedRow) {
+  const f = findPendingRow_(id);
+  f.sh.getRange(f.row, 9, 1, 3).setValues([[status, new Date(), addedRow || '']]);
+}
+function approvePending_(id, edits) {
+  const p = readPending_().find(x => x.id === String(id));
+  if (!p) throw new Error('Suggestion not found');
+  if (p.status !== 'Pending') throw new Error('Already ' + p.status.toLowerCase());
+  const it = {
+    item: edits.item || p.item, area: edits.area || p.area, due: edits.due !== undefined ? edits.due : p.due,
+    prio: edits.prio || p.prio, status: 'Not started', focal: 'Me', rec: 'None',
+    com: [edits.com !== undefined ? edits.com : p.com, '(suggested by ' + p.from + ')'].filter(String).join(' ')
+  };
+  const row = saveItem_(it);
+  decidePending_(id, 'Approved', row);
+  return row;
 }
 
 function readAll_() {
@@ -238,6 +359,7 @@ function readAll_() {
       let v = r[API_COLS[k] - 1];
       if (v instanceof Date) v = Utilities.formatDate(v, tz, k === 'time' ? 'HH:mm' : 'yyyy-MM-dd');
       o[k] = v === null || v === undefined ? '' : v;
+      if (k === 'private') o[k] = v === true || String(v).toUpperCase() === 'TRUE';
     });
     items.push(o);
   });
@@ -258,6 +380,7 @@ function toCell_(k, v) {
     return m ? new Date(+m[1], +m[2] - 1, +m[3]) : '';
   }
   if (k === 'hrs' || k === 'acthrs') return v === '' ? '' : Number(v);
+  if (k === 'private') return v === true || v === 'TRUE' || v === 'true' ? true : '';
   return v;
 }
 
@@ -274,6 +397,7 @@ function saveItem_(it) {
   }
   if (row < API_FIRST || row > API_LAST) throw new Error('Bad row');
   if (sh.getRange(5, API_COLS.time).getValue() === '') sh.getRange(5, API_COLS.time).setValue('Start Time');
+  if (sh.getRange(5, API_COLS.private).getValue() === '') sh.getRange(5, API_COLS.private).setValue('Private');
   Object.keys(API_COLS).forEach(k => {
     if (!(k in it)) return;
     const cell = sh.getRange(row, API_COLS[k]);

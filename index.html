@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
 <header class="top">
@@ -22,12 +22,12 @@
     </div>
     <div class="top-actions">
       <button class="icon-btn" id="btnRefresh" title="Refresh" aria-label="Refresh">⟳</button>
-      <button class="icon-btn" id="btnReport" title="Weekly report" aria-label="Weekly report">✉</button>
-      <button class="icon-btn" id="btnNotify" title="Notifications" aria-label="Notifications">🔔</button>
-      <button class="icon-btn" id="btnSettings" title="Settings" aria-label="Settings">⚙</button>
-      <button class="icon-btn" id="btnLock" title="Lock" aria-label="Lock">🔒</button>
+      <button class="icon-btn owner-only" id="btnPending" title="Suggestions waiting for approval" aria-label="Pending approvals" hidden>📥<span class="badge" id="pendingBadge"></span></button>
+      <button class="icon-btn owner-only" id="btnReport" title="Weekly report" aria-label="Weekly report">✉</button>
+      <button class="icon-btn" id="btnMenu" title="Menu" aria-label="Menu">☰</button>
     </div>
   </div>
+  <div class="guest-bar" id="guestBar" hidden></div>
   <div class="kpis" id="kpis"></div>
 </header>
 
@@ -71,6 +71,7 @@
       <label>Actual hours<input type="number" name="acthrs" step="0.25" min="0" inputmode="decimal"></label>
     </div>
     <label class="full">Comments / next step<textarea name="com" rows="2" dir="auto"></textarea></label>
+    <label class="remember owner-only"><input type="checkbox" name="private"> 🔒 Private — never shown to guests</label>
     <p class="hint" id="nextHint"></p>
     <div class="sheet-actions">
       <button type="button" class="btn danger" id="btnDelete">Delete</button>
@@ -201,6 +202,62 @@
   <p class="hint" id="ntStatus"></p>
 </dialog>
 
-<script src="app.js?v=8"></script>
+<!-- Menu -->
+<dialog id="dlgMenu" class="sheet small menu">
+  <div class="sheet-head"><h2>Menu</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <button class="menu-item owner-only" id="btnNotify">🔔 <span>Phone notifications</span></button>
+  <button class="menu-item owner-only" id="btnShare">👥 <span>Sharing &amp; guests</span></button>
+  <button class="menu-item owner-only" id="btnPending2">📥 <span>Suggestions to approve</span></button>
+  <button class="menu-item" id="btnSettings">⚙ <span>Sheet connection</span></button>
+  <button class="menu-item" id="btnLock">🔒 <span>Lock the app</span></button>
+</dialog>
+
+<!-- Sharing & guests -->
+<dialog id="dlgShare" class="sheet wide">
+  <div class="sheet-head"><h2>Sharing &amp; guests</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Guests open the same app with their own password. They only see the areas you choose, never items marked 🔒 Private, and can't change anything. If allowed, they can suggest items — you approve them in 📥.</p>
+  <div id="guestList"></div>
+  <form id="frmGuest" class="guest-form">
+    <h3 class="nt-h" id="guestFormTitle">Add a guest</h3>
+    <input type="hidden" name="id">
+    <div class="grid">
+      <label>Name<input name="name" required placeholder="e.g. Neta" dir="auto"></label>
+      <label>Password<input name="gpw" type="text" autocomplete="off" placeholder="at least 6 characters"></label>
+    </div>
+    <div class="rep-areas"><span>Can see:</span><div class="chips" id="guestAreas"></div></div>
+    <label class="remember"><input type="checkbox" name="canSuggest" checked> Can suggest new items (you approve them)</label>
+    <label class="remember"><input type="checkbox" name="on" checked> Access active</label>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="guestCancel" hidden>Cancel edit</button>
+      <span class="grow"></span>
+      <button type="submit" class="btn primary" id="guestSave">Add guest</button>
+    </div>
+  </form>
+  <p class="rep-status" id="shareStatus" role="status"></p>
+</dialog>
+
+<!-- Pending approvals -->
+<dialog id="dlgPending" class="sheet wide">
+  <div class="sheet-head"><h2>Suggestions to approve</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="pendingList"></div>
+</dialog>
+
+<!-- Guest: suggest an item -->
+<dialog id="dlgSuggest" class="sheet small">
+  <form id="frmSuggest">
+    <div class="sheet-head"><h2>Suggest an action item</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+    <label class="full">What needs doing?<textarea name="item" rows="2" required dir="auto"></textarea></label>
+    <div class="grid">
+      <label>Area<select name="area"></select></label>
+      <label>Priority<select name="prio"><option>1 - High</option><option selected>2 - Medium</option><option>3 - Low</option></select></label>
+      <label>Due date<input type="date" name="due"></label>
+    </div>
+    <label class="full">Comments<textarea name="com" rows="2" dir="auto"></textarea></label>
+    <p class="hint">It will be added after approval.</p>
+    <div class="sheet-actions"><span class="grow"></span><button type="submit" class="btn primary">Send suggestion</button></div>
+  </form>
+</dialog>
+
+<script src="app.js?v=9"></script>
 </body>
 </html>
