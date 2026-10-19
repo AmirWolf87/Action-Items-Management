@@ -234,6 +234,7 @@ function doGet(e) {
 function doPost(e) {
   let req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'Bad request' }); }
+  if (req.action === 'calImport') { try { return json_(calImport_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message }); } }
   if (req.action === 'calFeed' || req.action === 'calAck') { try { return json_(req.action === 'calFeed' ? calFeed_(req) : calAck_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message, events: [] }); } }
   if (req.action === 'siriAdd') { try { return json_(siriAdd_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message, error: err.message }); } }   // own key, no password
   if (req.action === 'forgot') { try { forgotPassword_(req.username); } catch (e) { console.error(e); } return json_({ ok: true }); }   // no sign-in needed; never reveals if the user exists
@@ -261,6 +262,8 @@ function doPost(e) {
       case 'collSave': return withLock_(() => json_({ ok: true, entry: collSave_(req.entry) }));
       case 'collDelete': return withLock_(() => { collDelete_(req.id); return json_({ ok: true }); });
       case 'collCats': return json_({ ok: true, collCats: collSaveCats_(req.cats) });
+      case 'calInbox': return json_(Object.assign({ ok: true }, calInbox_(!!req.all)));
+      case 'calDecide': return withLock_(() => json_(Object.assign({ ok: true }, calDecide_(req))));
       case 'getCal': return json_(Object.assign({ ok: true, key: siriKey_(false) }, calStatus_()));
       case 'saveCal': return json_(Object.assign({ ok: true }, saveCalCfg_(req.config), calStatus_()));
       case 'calResend': { PropertiesService.getScriptProperties().deleteProperty('CAL_SYNCED'); return json_(Object.assign({ ok: true }, calStatus_())); }
@@ -1061,6 +1064,115 @@ function calStatus_() {
   const P = PropertiesService.getScriptProperties(), want = calWanted_(), synced = calSynced_();
   let pending = 0; Object.keys(want).forEach(t => { if (synced[t] !== want[t].sig) pending++; }); Object.keys(synced).forEach(t => { if (!want[t]) pending++; });
   return { calCfg: calCfg_(), linked: Object.keys(want).length, pending: pending, lastFeed: P.getProperty('CAL_LASTFEED') || '', lastAck: P.getProperty('CAL_LASTACK') || '' };
+}
+
+/* =====================================================================
+ *  📆 Import from the iPhone calendars (yours + shared ones).
+ *  An iPhone Shortcut sends the upcoming events (calImport); the app shows only the NEW ones,
+ *  you choose Add / No / Never — decisions are kept in the "Calendar Inbox" tab.
+ * ===================================================================== */
+const CI_SHEET = 'Calendar Inbox';
+const CI_HEAD = ['ID', 'Calendar', 'Title', 'Start', 'End', 'All day', 'Location', 'Notes', 'First seen', 'Decision', 'Decided', 'Row'];
+function ciSheet_() {
+  const ss = SpreadsheetApp.getActive(); let sh = ss.getSheetByName(CI_SHEET);
+  if (!sh) { sh = ss.insertSheet(CI_SHEET); sh.getRange(1, 1, 1, CI_HEAD.length).setValues([CI_HEAD]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF'); sh.setFrozenRows(1); }
+  return sh;
+}
+function ciRead_() {
+  const sh = ciSheet_(), n = sh.getLastRow() - 1; if (n < 1) return [];
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  const T = (v) => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm') : String(v || '');
+  return sh.getRange(2, 1, n, CI_HEAD.length).getValues().map((r, i) => ({ _r: i + 2, id: String(r[0]), cal: String(r[1]), title: String(r[2]), start: T(r[3]), end: T(r[4]),
+    allday: String(r[5]) === 'yes', location: String(r[6]), notes: String(r[7]), seen: T(r[8]), decision: String(r[9]), decided: T(r[10]), row: r[11] })).filter(x => x.id);
+}
+function ciNorm_(t) { return String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
+function ciIgnore_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('CAL_IGNORE') || '[]'); } catch (e) { return []; } }
+/* "2026-10-20T10:30:00+03:00", "2026-10-20 10:30", or anything Date can read → local 'yyyy-MM-dd HH:mm' */
+function ciDate_(v, tz) {
+  if (v === null || v === undefined || v === '') return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(v).trim())) return String(v).trim() + ' 00:00';       // date only = that local day
+  let d = v instanceof Date ? v : new Date(String(v).trim().replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/, '$1T$2'));
+  if (isNaN(d.getTime())) return '';
+  return Utilities.formatDate(d, tz, 'yyyy-MM-dd HH:mm');
+}
+function calImport_(req) {
+  if (!calCheckKey_(req)) return { ok: false, message: 'המפתח לא נכון — העתק אותו שוב מהאפליקציה (☰ › ייבוא מהיומן).' };
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), now = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
+  let evs = req.events;
+  if (typeof evs === 'string') {               // text format: one event per line, fields separated by |||
+    evs = evs.split(/\n(?=[^\n]*\|\|\|)/).map(l => { const f = l.split('|||'); return { title: f[0], start: f[1], end: f[2], calendar: f[3], location: f[4], allday: f[5], notes: f[6] }; });
+  }
+  if (!Array.isArray(evs)) return { ok: false, message: 'לא התקבלו אירועים מהקיצור.' };
+  const pick = (o, ks) => { for (const k of ks) { if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k]; } return ''; };
+  const items = readAll_().items, have = {};
+  items.forEach(it => { have[ciNorm_(it.item) + '|' + it.due] = it.row; });
+  const ign = ciIgnore_();
+  const sh = ciSheet_(), old = ciRead_(), byId = {}; old.forEach(x => { byId[x.id] = x; });
+  const stamp = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
+  let fresh = 0, total = 0; const add = [];
+  evs.slice(0, 400).forEach(e => {
+    if (!e || typeof e !== 'object') return;
+    const title = String(pick(e, ['title', 'Title', 'כותרת'])).trim().slice(0, 200); if (!title) return;
+    const notes = String(pick(e, ['notes', 'Notes'])).slice(0, 500);
+    if (/#AI-\d+-/.test(notes)) return;                                        // our own events (from "📅 iPhone calendar") — never offer them back
+    const start = ciDate_(pick(e, ['start', 'Start Date', 'startDate']), tz); if (!start) return;
+    const cal = String(pick(e, ['calendar', 'Calendar'])).slice(0, 60);
+    const ad = String(pick(e, ['allday', 'All Day', 'isAllDay'])).toLowerCase(); const allday = /^(1|true|yes|כן)$/.test(ad);
+    let end = ciDate_(pick(e, ['end', 'End Date', 'endDate']), tz) || start;
+    if (allday) end = (end > start ? end : start).slice(0, 10) + ' 23:59';
+    if (end < now) return;                                                     // already over
+    const id = hash_([ciNorm_(cal), ciNorm_(title), start.slice(0, allday ? 10 : 16)].join('|'), 'ci').slice(0, 16);
+    total++;
+    if (byId[id]) return;                                                      // seen before (decided or still waiting)
+    let decision = '';
+    if (have[ciNorm_(title) + '|' + start.slice(0, 10)]) decision = 'exists';  // already in my items
+    else if (ign.some(r => r.t === ciNorm_(title) && (!r.c || r.c === cal))) decision = 'ignored';
+    if (!decision) fresh++;
+    byId[id] = true;
+    add.push([id, cal, title, start, end, allday ? 'yes' : '', String(pick(e, ['location', 'Location'])).slice(0, 200), notes, stamp, decision, decision ? stamp : '', '']);
+  });
+  if (add.length) { const rg = sh.getRange(sh.getLastRow() + 1, 1, add.length, CI_HEAD.length); rg.setNumberFormat('@'); rg.setValues(add); }   // plain text, so times are kept
+  const P = PropertiesService.getScriptProperties(); P.setProperty('CAL_LASTIMPORT', new Date().toISOString());
+  const waiting = ciRead_().filter(x => !x.decision && x.end >= now).length;
+  return { ok: true, fresh: fresh, waiting: waiting, total: total,
+    message: fresh ? 'נמצאו ' + fresh + ' אירועים חדשים — אפשר לבחור באפליקציה מה להוסיף.' : (waiting ? 'אין חדשים. ' + waiting + ' עדיין ממתינים להחלטה באפליקציה.' : 'אין אירועים חדשים ✓') };
+}
+function calInbox_(all) {
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), now = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
+  const list = ciRead_().filter(x => x.end >= now && (x.decision === '' || (all && (x.decision === 'skipped' || x.decision === 'ignored'))))
+    .sort((a, b) => a.start.localeCompare(b.start)).slice(0, 300).map(x => { const o = Object.assign({}, x); delete o._r; return o; });
+  return { events: list, lastImport: PropertiesService.getScriptProperties().getProperty('CAL_LASTIMPORT') || '', ignore: ciIgnore_() };
+}
+function calDecide_(req) {
+  const sh = ciSheet_(), all = ciRead_(), tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), stamp = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
+  const set = (x, d, row) => { sh.getRange(x._r, 10, 1, 3).setNumberFormat('@').setValues([[d, stamp, String(row || '')]]); };
+  const ids = Array.isArray(req.ids) ? req.ids.map(String) : [String(req.id)];
+  let added = 0, skipped = 0;
+  ids.forEach(id => {
+    const x = all.find(e => e.id === id); if (!x) return;
+    if (req.decision === 'add') {
+      const it = Object.assign({ item: x.title, status: 'Not started', due: x.start.slice(0, 10), created: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'), focal: 'Me' }, (req.items || {})[id] || req.item || {});
+      if (!x.allday && !it.time) it.time = x.start.slice(11, 16);
+      if (!x.allday && !it.hrs) { const h = (new Date(x.end.replace(' ', 'T')) - new Date(x.start.replace(' ', 'T'))) / 3600000; if (h > 0 && h <= 24) it.hrs = String(Math.round(h * 4) / 4); }
+      if (!it.com) it.com = ['📆 ' + x.cal, x.location ? '📍 ' + x.location : ''].filter(Boolean).join(' · ');
+      delete it.cal;                                                           // never send it back to the calendar
+      const row = saveItem_(it); set(x, 'added', row); added++;
+    } else { set(x, 'skipped'); skipped++; }
+  });
+  if (req.never && req.decision !== 'add') {                                   // "never offer events with this name"
+    const x = all.find(e => e.id === ids[0]);
+    if (x) {
+      const ign = ciIgnore_(); const rule = { t: ciNorm_(x.title), c: req.never === 'calendar-only' ? x.cal : '', label: x.title };
+      if (!ign.some(r => r.t === rule.t && r.c === rule.c)) { ign.push(rule); PropertiesService.getScriptProperties().setProperty('CAL_IGNORE', JSON.stringify(ign.slice(-200))); }
+      all.filter(e => e.decision === '' && ciNorm_(e.title) === rule.t && e.id !== x.id).forEach(e => { set(e, 'ignored'); skipped++; });
+    }
+  }
+  if (req.unignore !== undefined) {
+    const ign = ciIgnore_().filter((r, i) => i !== Number(req.unignore)); PropertiesService.getScriptProperties().setProperty('CAL_IGNORE', JSON.stringify(ign));
+  }
+  const out = calInbox_(!!req.all); out.added = added; out.skipped = skipped;
+  if (added) out.items = readAll_().items;
+  return out;
 }
 
 /* =====================================================================

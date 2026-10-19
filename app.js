@@ -101,6 +101,7 @@ async function api(method, body) {
 }
 
 function setSync(text) { $('#sync').textContent = text ? '· ' + text : ''; }
+let ciOpenAfterLoad = /^#calreview/.test(location.hash);
 async function load(quiet) {
   if (!settings.demo && (!settings.url || !password || !username)) { showLock(); return false; }
   setSync(L('syncing…', 'מסנכרן…'));
@@ -874,6 +875,7 @@ document.addEventListener('click', (e) => {
   const wk = t.closest('[data-wk]');
   if (wk) { weekOff = wk.dataset.wk === '0' ? 0 : weekOff + Number(wk.dataset.wk); render(); return; }
   if (t.closest('[data-ics]')) { openIcs(); return; }
+  if (t.closest('[data-ciopen]')) { openImport(); return; }
   if (t.closest('[data-undo]')) { undo(); return; }
   if (t.closest('[data-redo]')) { redo(); return; }
   const wi = t.closest('.wi');
@@ -1005,7 +1007,7 @@ function renderWeek(items) {
       <button class="chip hist" data-undo ${hist.undo.length ? '' : 'disabled'} title="Undo (Ctrl+Z)">${L('↶ Undo', '↶ ביטול')}${hist.undo.length ? ' (' + hist.undo.length + ')' : ''}</button>
       <button class="chip hist" data-redo ${hist.redo.length ? '' : 'disabled'} title="Redo (Ctrl+Y)">${L('↷ Redo', '↷ חזרה')}${hist.redo.length ? ' (' + hist.redo.length + ')' : ''}</button>
       <span class="grow"></span>
-      ${weekOff !== 0 ? '<button class="chip" data-wk="0">This week</button>' : ''}<button class="btn link" data-ics>📅 Export to Outlook</button></div>
+      ${weekOff !== 0 ? '<button class="chip" data-wk="0">This week</button>' : ''}${isGuest() ? '' : `<button class="btn ghost" data-ciopen>📆 ${L('From calendar', 'מהיומן')}</button>`}<button class="btn link" data-ics>📅 Export to Outlook</button></div>
     <p class="saved-note">Changes save to your sheet automatically · Undo reverses them</p><div class="week-grid">`;
   const t = today();
   const over = weekOff === 0 ? open.filter(it => parse(it.due) && parse(it.due) < t).sort(sortOpen) : [];
@@ -1639,6 +1641,101 @@ $('#calBody').addEventListener('click', async (e) => {
 $('#calBody').addEventListener('input', (e) => { if (e.target.id === 'calNames') $('#calStatusMsg').textContent = L('Press Save to keep the changes.', 'לחץ שמירה כדי לשמור את השינויים.'); });
 $('#btnCal').addEventListener('click', openCal);
 
+/* ---------- 📆 Import from the iPhone calendars (review new events, choose what becomes a task) ---------- */
+let ciEvents = [], ciAll = false, ciLast = '', ciIgnore = [], ciBusy = false;
+const ciName = () => store.get('ai.ciName', L('Import calendar', 'ייבוא יומן'));
+function ciAreaFor(ev) {
+  const m = calCfg.map || {}; const byCal = Object.keys(m).find(a => m[a] === ev.cal && data.areas.includes(a));
+  if (byCal) return byCal;
+  const g = guessArea(ev.title); return g && g.area ? g.area : '';
+}
+async function openImport() {
+  $('#dlgImport').showModal();
+  if (settings.demo) { $('#ciList').innerHTML = `<p class="hint">${L('Connect your sheet first.', 'חבר קודם את הגיליון.')}</p>`; return; }
+  await ciLoad();
+}
+async function ciLoad() {
+  $('#ciList').innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
+  try { const j = await api('POST', { action: 'calInbox', all: ciAll }); ciEvents = j.events || []; ciLast = j.lastImport || ''; ciIgnore = j.ignore || []; ciRender(); }
+  catch (e) { $('#ciList').innerHTML = `<p class="hint">${esc(/Unknown action/i.test(e.message) ? L('Paste the new ActionItems_Script.gs into Apps Script and deploy a new version first.', 'קודם הדבק את ActionItems_Script.gs החדש ב-Apps Script ופרסם גרסה חדשה (New version).') : e.message)}</p>`; }
+}
+function ciRender() {
+  $('#ciLast').textContent = L('Last sync from the iPhone: ', 'סנכרון אחרון מהאייפון: ') + calWhen(ciLast);
+  $('#ciAllToggle').classList.toggle('on', ciAll);
+  $('#ciAllToggle').textContent = ciAll ? L('🔍 Full check — showing skipped too', '🔍 בדיקה מלאה — מוצגים גם מה שדילגת') : L('🔍 Full check', '🔍 בדיקה מלאה');
+  if (!ciEvents.length) {
+    $('#ciList').innerHTML = `<div class="empty"><b>✅</b>${ciAll ? L('Nothing upcoming that you skipped.', 'אין אירועים קרובים שדילגת עליהם.') : L('No new events. Tap “Sync now” to check the calendars again.', 'אין אירועים חדשים. לחץ "סנכרן עכשיו" כדי לבדוק שוב את לוחות השנה.')}</div>`;
+  } else {
+    const byDay = {}; ciEvents.forEach(ev => { (byDay[ev.start.slice(0, 10)] = byDay[ev.start.slice(0, 10)] || []).push(ev); });
+    const areaOpts = (sel) => `<option value="">${L('— area —', '— תחום —')}</option>` + data.areas.map(a => `<option value="${esc(a)}" ${a === sel ? 'selected' : ''}>${esc(tr(a))}</option>`).join('');
+    $('#ciList').innerHTML = Object.keys(byDay).sort().map(d => `<div class="ci-day"><h4>${esc(fmt(d, true))}</h4>${byDay[d].map(ev => `
+      <div class="ci-ev ${ev.decision ? 'was-' + ev.decision : ''}" data-ci="${esc(ev.id)}">
+        <div class="ci-when">${ev.allday ? L('All day', 'כל היום') : esc(ev.start.slice(11, 16))}</div>
+        <div class="ci-main"><b dir="auto">${esc(ev.title)}</b>
+          <div class="ci-sub"><span class="ci-cal">📆 ${esc(ev.cal || '—')}</span>${ev.location ? `<span dir="auto">📍 ${esc(ev.location)}</span>` : ''}${ev.decision ? `<span class="ci-was">${ev.decision === 'ignored' ? L('🚫 never offered', '🚫 לא מוצע') : L('✕ skipped', '✕ דילגת')}</span>` : ''}</div>
+          <div class="ci-act"><select class="ci-area" aria-label="${esc(tr('Area'))}">${areaOpts(ciAreaFor(ev))}</select>
+            <button type="button" class="btn primary" data-ciadd>${L('＋ Add', '＋ הוסף')}</button>
+            ${ev.decision ? '' : `<button type="button" class="btn ghost" data-ciskip>${L('✕ No', '✕ לא')}</button><button type="button" class="btn ghost ci-never" data-cinever title="${esc(L('Never offer events with this name', 'לא להציע שוב אירועים בשם הזה'))}">🚫</button>`}</div></div></div>`).join('')}</div>`).join('') +
+      (ciAll ? '' : `<div class="sheet-actions"><span class="grow"></span><button type="button" class="btn ghost" data-ciskipall>${L(`✕ Skip all ${ciEvents.length} shown`, `✕ דלג על כל ה-${ciEvents.length} המוצגים`)}</button></div>`);
+  }
+  $('#ciIgnore').innerHTML = ciIgnore.length ? `<h3 class="nt-h">${L('Never offered', 'לא מוצעים לעולם')}</h3>` + ciIgnore.map((r, i) => `<span class="c-chip">🚫 ${esc(r.label || r.t)} <button type="button" class="linkish" data-ciun="${i}">${L('undo', 'בטל')}</button></span>`).join(' ') : '';
+}
+async function ciDecide(body, el) {
+  if (ciBusy) return; ciBusy = true; if (el) el.classList.add('busy');
+  try {
+    const j = await api('POST', Object.assign({ action: 'calDecide', all: ciAll }, body));
+    ciEvents = j.events || []; ciIgnore = j.ignore || ciIgnore;
+    if (j.items) { data.items = j.items; render(); }
+    ciRender();
+    if (j.added) toast(L(`Added ${j.added} to your items ✓`, `נוספו ${j.added} למשימות ✓`)); else if (j.skipped > 1) toast(L(`${j.skipped} skipped`, `דילגת על ${j.skipped}`));
+  } catch (e) { toast(e.message); if (el) el.classList.remove('busy'); }
+  finally { ciBusy = false; }
+}
+$('#ciList').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-ci]');
+  if (e.target.closest('[data-ciskipall]')) { ciDecide({ decision: 'skip', ids: ciEvents.map(x => x.id) }); return; }
+  if (!row) return; const id = row.dataset.ci;
+  if (e.target.closest('[data-ciadd]')) {
+    const area = row.querySelector('.ci-area').value;
+    if (!area) { row.querySelector('.ci-area').focus(); toast(L('Choose an area first', 'בחר קודם תחום')); return; }
+    ciDecide({ decision: 'add', id, item: { area } }, row);
+  }
+  if (e.target.closest('[data-ciskip]')) ciDecide({ decision: 'skip', id }, row);
+  if (e.target.closest('[data-cinever]')) ciDecide({ decision: 'skip', id, never: 'title' }, row);
+});
+$('#ciIgnore').addEventListener('click', (e) => { const b = e.target.closest('[data-ciun]'); if (b) ciDecide({ ids: [], unignore: Number(b.dataset.ciun) }); });
+$('#ciAllToggle').addEventListener('click', () => { ciAll = !ciAll; ciLoad(); });
+$('#ciRun').addEventListener('click', () => { location.href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(ciName()); });
+$('#ciRefresh').addEventListener('click', ciLoad);
+$('#ciGuideBox').addEventListener('toggle', () => {
+  if (!$('#ciGuideBox').open) return;
+  const field = (k, v) => `<code>${k}</code> = ${v}`;
+  $('#ciGuide').innerHTML = `
+    <div class="siri-keys">
+      <label>${L('Web-app URL', 'כתובת ה-Web app')}<div class="pw-row"><input readonly dir="ltr" value="${esc(settings.url)}"><button type="button" class="btn ghost" data-cicopy="url">${L('Copy', 'העתקה')}</button></div></label>
+      <label>${L('Key (same as the Siri key)', 'מפתח (אותו מפתח של סירי)')}<div class="pw-row"><input readonly dir="ltr" id="ciKey" value="…"><button type="button" class="btn ghost" data-cicopy="key">${L('Copy', 'העתקה')}</button></div></label>
+      <label>${L('Shortcut name (the “Sync now” button runs it)', 'שם הקיצור (כפתור "סנכרן עכשיו" מפעיל אותו)')}<input id="ciNameIn" dir="auto" value="${esc(ciName())}"></label>
+    </div>
+    <p class="hint">${L('In the Shortcuts app › ＋ › name it exactly as above, and add:', 'באפליקציית קיצורים › ＋ › תן לו בדיוק את השם שלמעלה, והוסף:')}</p>
+    <ol class="siri-steps">
+      <li>${L('<b>Find Calendar Events</b> › Add Filter: <b>Start Date</b> <i>is in the next</i> <b>30 days</b> (all calendars — yours and the shared ones; to limit, add a filter on Calendar). Sort by Start Date, no limit.', '<b>מצא אירועי לוח שנה</b> › הוסף מסנן: <b>תאריך התחלה</b> <i>בטווח של</i> <b>30 הימים הבאים</b> (כל לוחות השנה — שלך והמשותפים; כדי להגביל, הוסף מסנן לפי לוח שנה). מיון לפי תאריך התחלה, בלי הגבלה.')}</li>
+      <li>${L('<b>Repeat with Each</b> (the events). Inside it, one <b>Dictionary</b> action with Text items:', '<b>חזור עם כל פריט</b> (האירועים). בתוכו פעולת <b>מילון</b> אחת עם פריטי טקסט:')}
+        <div class="siri-fields">${field('title', L('Repeat Item › <b>Title</b>', 'פריט חוזר › <b>כותרת</b>'))}<br>${field('start', L('Repeat Item › <b>Start Date</b> — tap it › Date Format <b>ISO 8601</b>, include time', 'פריט חוזר › <b>תאריך התחלה</b> — לחץ עליו › פורמט <b>ISO 8601</b>, כולל שעה'))}<br>${field('end', L('Repeat Item › <b>End Date</b> (ISO 8601 too)', 'פריט חוזר › <b>תאריך סיום</b> (גם ISO 8601)'))}<br>${field('calendar', L('Repeat Item › <b>Calendar</b>', 'פריט חוזר › <b>לוח שנה</b>'))}<br>${field('allday', L('Repeat Item › <b>Is All Day</b>', 'פריט חוזר › <b>כל היום</b>'))}<br>${field('location', L('Repeat Item › <b>Location</b>', 'פריט חוזר › <b>מיקום</b>'))}<br>${field('notes', L('Repeat Item › <b>Notes</b>', 'פריט חוזר › <b>הערות</b>'))}</div></li>
+      <li>${L('After the repeat: <b>Get Contents of URL</b> — the URL · Method <b>POST</b> · Request Body <b>JSON</b> · fields:', 'אחרי החזרה: <b>קבל תוכן של URL</b> — הכתובת · שיטה <b>POST</b> · גוף <b>JSON</b> · שדות:')}
+        <div class="siri-fields">${field('action', '<code>calImport</code>')}<br>${field('key', L('the key', 'המפתח'))}<br>${field('events', L('type <b>Array</b> → the variable <b>Repeat Results</b>', 'סוג <b>מערך</b> (Array) ← המשתנה <b>תוצאות חזרה</b> (Repeat Results)'))}</div></li>
+      <li>${L('<b>Get Dictionary Value</b> › <code>message</code> › <b>Show Notification</b> (or Show Result). Optional: <b>Open URLs</b> › this app\'s address to come back.', '<b>קבל ערך ממילון</b> › <code>message</code> › <b>הצג הודעה</b> (או הצג תוצאה). רשות: <b>פתח כתובות URL</b> › כתובת האפליקציה כדי לחזור אליה.')}</li>
+    </ol>
+    <p class="hint">${L('Events you created from the app (📅 iPhone calendar) and items you already have on that date are never offered.', 'אירועים שנוצרו מהאפליקציה (📅 יומן אייפון) ומשימות שכבר קיימות באותו תאריך לא יוצעו לעולם.')}</p>`;
+  api('POST', { action: 'getSiri' }).then(j => { siriKey = j.key; const k = $('#ciKey'); if (k) k.value = j.key; }).catch(() => {});
+});
+$('#ciGuide').addEventListener('click', async (e) => {
+  const c = e.target.closest('[data-cicopy]'); if (!c) return;
+  const v = c.dataset.cicopy === 'url' ? settings.url : siriKey; try { await navigator.clipboard.writeText(v); toast(L('Copied', 'הועתק')); } catch (err) { toast(v); }
+});
+$('#ciGuide').addEventListener('change', (e) => { if (e.target.id === 'ciNameIn' && e.target.value.trim()) { store.set('ai.ciName', e.target.value.trim()); toast(L('Saved', 'נשמר')); } });
+$('#btnImport').addEventListener('click', openImport);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && $('#dlgImport').open && !settings.demo) ciLoad(); });
+
 /* ---------- statistics ---------- */
 async function openStats() {
   $('#dlgStats').showModal(); $('#statsBody').innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
@@ -1750,6 +1847,7 @@ function applyList(j) {
   pending = j.pending || [];
   pwReq = j.pwRequests || [];
   if (j.calCfg) calCfg = j.calCfg;
+  if (ciOpenAfterLoad && j.role !== 'guest') { ciOpenAfterLoad = false; history.replaceState(null, '', location.pathname); setTimeout(openImport, 50); }
   if (Array.isArray(j.coll)) coll = j.coll;
   if (Array.isArray(j.collCats) && (j.collCats.length || j.role === 'guest')) collCats = j.collCats;
   if (j.role === 'guest' && !Array.isArray(j.collCats)) { collCats = []; coll = []; }
@@ -2056,7 +2154,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 32;
+const APP_VERSION = 33;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
