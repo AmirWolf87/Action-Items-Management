@@ -296,7 +296,7 @@ function withLock_(fn) {
 
 /* ---------- guests ---------- */
 /* the owner sees guests' usernames AND passwords (by design) */
-function publicGuest_(g) { return { id: g.id, name: g.name, user: g.user || '', pw: g.pw || '', phone: g.phone || '', areas: g.areas, canSuggest: !!g.canSuggest, on: g.on !== false, hasPassword: !!g.hash }; }
+function publicGuest_(g) { return { id: g.id, name: g.name, user: g.user || '', pw: g.pw || '', phone: g.phone || '', areas: g.areas, coll: g.coll || [], canSuggest: !!g.canSuggest, on: g.on !== false, hasPassword: !!g.hash }; }
 function checkNewUser_(user, selfId) {
   if (!/^[a-z0-9._-]{3,30}$/.test(user)) throw new Error('Username: 3-30 characters — English letters, numbers, . _ -');
   if (user === ownerUser_()) throw new Error('That username is taken');
@@ -337,6 +337,7 @@ function saveGuest_(in_) {
   g.canSuggest = !!in_.canSuggest;
   g.on = in_.on !== false;
   g.phone = String(in_.phone || '').replace(/[^\d+]/g, '').slice(0, 16);
+  g.coll = (in_.coll || []).map(String).slice(0, 20);
   const u = cleanUser_(in_.user || g.user);
   if (!u) throw new Error('Choose a username for ' + g.name);
   if (u !== cleanUser_(g.user)) { checkNewUser_(u, g.id); g.user = u; }
@@ -357,7 +358,9 @@ function guestView_(g) {
     .filter(it => g.areas.indexOf(it.area) >= 0 && !it.private)
     .map(it => { const o = {}; GUEST_FIELDS.forEach(k => { o[k] = it[k]; }); return o; });
   const mine = readPending_().filter(x => x.from === g.name).slice(-30).reverse();
-  return { role: 'guest', name: g.name, canSuggest: !!g.canSuggest, items: items, areas: g.areas, people: [], report: null, mySuggestions: mine };
+  const gc = g.coll || [], cats = collCats_().filter(c => gc.indexOf(c.id) >= 0);
+  return { role: 'guest', name: g.name, canSuggest: !!g.canSuggest, items: items, areas: g.areas, people: [], report: null, mySuggestions: mine,
+    collCats: cats, coll: cats.length ? collRead_().filter(e => gc.indexOf(e.cat) >= 0) : [] };
 }
 
 /* ---------- pending suggestions (sheet "Pending") ---------- */
@@ -882,18 +885,25 @@ function saveAreas_(req) {
  *  Stored in its own "Collection" tab, separate from the action items.
  * ===================================================================== */
 const COLL_SHEET = 'Collection';
-const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated'];
+const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng'];
 const COLL_DEFAULT_CATS_ = [
-  { id: 'food', name: '🍽 מסעדות', kind: 'try' }, { id: 'recipe', name: '🍳 מתכונים', kind: 'try' },
-  { id: 'trip', name: '🧭 טיולים', kind: 'try' }, { id: 'drink', name: '🍸 קוקטיילים ומשקאות', kind: 'try' },
-  { id: 'story', name: '💬 אנקדוטות', kind: 'note' }];
+  { id: 'food', name: '🍽 מסעדות', kind: 'try', map: true }, { id: 'trip', name: '🧭 טיולים', kind: 'try', map: true },
+  { id: 'activity', name: '🎯 פעילויות', kind: 'try', map: true }, { id: 'recipe', name: '🍳 מתכונים', kind: 'try', map: false },
+  { id: 'drink', name: '🍸 קוקטיילים ומשקאות', kind: 'try', map: false }, { id: 'wish', name: '🎁 משאלות', kind: 'wish', map: false },
+  { id: 'story', name: '💬 אנקדוטות', kind: 'note', map: false }];
 function collCats_() {
-  try { const c = JSON.parse(PropertiesService.getScriptProperties().getProperty('COLL_CATS') || 'null'); if (Array.isArray(c) && c.length) return c; } catch (e) { /* default */ }
-  return COLL_DEFAULT_CATS_;
+  let c = null; try { c = JSON.parse(PropertiesService.getScriptProperties().getProperty('COLL_CATS') || 'null'); } catch (e) { c = null; }
+  if (!Array.isArray(c) || !c.length) return COLL_DEFAULT_CATS_.map(x => Object.assign({}, x));
+  // older saved lists: add the new defaults (wishes, activities) and the map switch
+  const MAPDEF = { food: true, trip: true, activity: true };
+  c.forEach(x => { if (x.map === undefined) x.map = !!MAPDEF[x.id]; });
+  if (!c.some(x => x.kind === 'wish')) c.push(Object.assign({}, COLL_DEFAULT_CATS_[5]));
+  if (!c.some(x => x.id === 'activity')) c.splice(Math.min(2, c.length), 0, Object.assign({}, COLL_DEFAULT_CATS_[2]));
+  return c;
 }
 function collSaveCats_(cats) {
   const clean = (cats || []).map(c => ({ id: String(c.id || Utilities.getUuid().slice(0, 6)).replace(/[^\w-]/g, '').slice(0, 20) || Utilities.getUuid().slice(0, 6),
-    name: String(c.name || '').trim().slice(0, 40), kind: c.kind === 'note' ? 'note' : 'try' })).filter(c => c.name).slice(0, 15);
+    name: String(c.name || '').trim().slice(0, 40), kind: ['note', 'wish'].indexOf(c.kind) >= 0 ? c.kind : 'try', map: !!c.map && c.kind !== 'note' })).filter(c => c.name).slice(0, 20);
   if (!clean.length) throw new Error('Keep at least one category');
   PropertiesService.getScriptProperties().setProperty('COLL_CATS', JSON.stringify(clean));
   return clean;
@@ -906,6 +916,7 @@ function collSheet_() {
     sh.getRange(1, 1, 1, COLL_HEAD.length).setValues([COLL_HEAD]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
     sh.setFrozenRows(1);
   }
+  if (sh.getRange(1, 12).getValue() === '') sh.getRange(1, 12, 1, 3).setValues([COLL_HEAD.slice(11)]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
   return sh;
 }
 function collRead_() {
@@ -915,7 +926,8 @@ function collRead_() {
   const d = (v) => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v || '');
   return sh.getRange(2, 1, n, COLL_HEAD.length).getValues().filter(r => r[0] && r[2]).map(r => ({
     id: String(r[0]), cat: String(r[1]), title: String(r[2]), notes: String(r[3]), link: String(r[4]), place: String(r[5]),
-    by: String(r[6]), status: String(r[7]) === 'tried' ? 'tried' : 'want', rating: Number(r[8]) || 0, added: d(r[9]), updated: d(r[10]) }));
+    by: String(r[6]), status: String(r[7]) === 'tried' ? 'tried' : 'want', rating: Number(r[8]) || 0, added: d(r[9]), updated: d(r[10]),
+    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]) }));
 }
 function collSave_(e) {
   if (!e || !String(e.title || '').trim()) throw new Error('A title is required');
@@ -923,13 +935,52 @@ function collSave_(e) {
   const link = String(e.link || '').trim();
   const out = { id: e.id ? String(e.id) : Utilities.getUuid().slice(0, 12), cat: String(e.cat || '').slice(0, 20), title: String(e.title).trim().slice(0, 200),
     notes: String(e.notes || '').slice(0, 3000), link: /^https?:\/\//i.test(link) ? link.slice(0, 500) : '', place: String(e.place || '').slice(0, 120),
-    by: String(e.by || '').slice(0, 60), status: e.status === 'tried' ? 'tried' : 'want', rating: Math.max(0, Math.min(5, Number(e.rating) || 0)), added: e.added || today, updated: today };
-  const row = [out.id, out.cat, out.title, out.notes, out.link, out.place, out.by, out.status, out.rating || '', out.added, out.updated];
+    by: String(e.by || '').slice(0, 60), status: e.status === 'tried' ? 'tried' : 'want', rating: Math.max(0, Math.min(5, Number(e.rating) || 0)), added: e.added || today, updated: today,
+    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '' };
   const n = sh.getLastRow() - 1;
   const ids = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0])) : [];
   const i = ids.indexOf(out.id);
+  // location: pin chosen in the app › coordinates in a maps link › look up the place name
+  const cat = collCats_().find(c => c.id === out.cat) || {};
+  const prev = i >= 0 ? sh.getRange(i + 2, 1, 1, COLL_HEAD.length).getValues()[0] : null;
+  const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? null : Number(v);
+  if (num(e.lat) !== null && num(e.lng) !== null) { out.lat = num(e.lat); out.lng = num(e.lng); out.geo = 'pin'; }
+  else if (cat.map) {
+    const same = prev && String(prev[5]) === out.place && String(prev[4]) === out.link && num(prev[12]) !== null;
+    if (same) { out.lat = num(prev[12]); out.lng = num(prev[13]); out.geo = 'kept'; }
+    else { const g = collLocate_(out.link, out.place); if (g) { out.lat = g.lat; out.lng = g.lng; out.geo = g.how; } else out.geo = (out.place || out.link) ? 'none' : ''; }
+  }
+  const row = [out.id, out.cat, out.title, out.notes, out.link, out.place, out.by, out.status, out.rating || '', out.added, out.updated, out.for,
+    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng];
   if (i >= 0) sh.getRange(i + 2, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
   return out;
+}
+/* find coordinates: from a Google Maps link (also short maps.app.goo.gl links), else by geocoding the place name */
+function collLocate_(link, place) {
+  const fromUrl = (u) => {
+    u = decodeURIComponent(String(u || ''));
+    let m = u.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || u.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || u.match(/[?&](?:q|ll|query|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    return m ? { lat: Number(m[1]), lng: Number(m[2]), how: 'link' } : null;
+  };
+  try {
+    if (link) {
+      let g = fromUrl(link); if (g) return g;
+      if (/goo\.gl|maps\.app|g\.co\//i.test(link)) {
+        let u = link;
+        for (let k = 0; k < 3; k++) {
+          const r = UrlFetchApp.fetch(u, { followRedirects: false, muteHttpExceptions: true });
+          const loc = r.getHeaders()['Location'] || r.getHeaders()['location']; if (!loc) break;
+          g = fromUrl(loc); if (g) return g; u = loc;
+        }
+        const q = decodeURIComponent(u).match(/\/place\/([^/@?]+)/); if (q && !place) place = q[1].replace(/\+/g, ' ');
+      }
+    }
+    if (place) {
+      const res = Maps.newGeocoder().setLanguage('he').setRegion('il').geocode(place);
+      if (res && res.status === 'OK' && res.results && res.results.length) { const l = res.results[0].geometry.location; return { lat: l.lat, lng: l.lng, how: 'place' }; }
+    }
+  } catch (err) { console.error('locate: ' + err); }
+  return null;
 }
 function collDelete_(id) {
   const sh = collSheet_(), n = sh.getLastRow() - 1; if (n < 1) return;
