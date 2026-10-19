@@ -1072,7 +1072,7 @@ function calStatus_() {
  *  you choose Add / No / Never — decisions are kept in the "Calendar Inbox" tab.
  * ===================================================================== */
 const CI_SHEET = 'Calendar Inbox';
-const CI_VER = 4;                                   // shown in the shortcut's message, so you can see the new script is live
+const CI_VER = 5;                                   // shown in the shortcut's message, so you can see the new script is live
 const CI_HEAD = ['ID', 'Calendar', 'Title', 'Start', 'End', 'All day', 'Location', 'Notes', 'First seen', 'Decision', 'Decided', 'Row'];
 function ciSheet_() {
   const ss = SpreadsheetApp.getActive(); let sh = ss.getSheetByName(CI_SHEET);
@@ -1131,7 +1131,13 @@ function calImport_(req) {
     return Object.keys(o).length ? o : e;
   });
   if (!Array.isArray(evs)) return { ok: false, message: 'לא התקבלו אירועים מהקיצור.' };
-  const pick = (o, ks) => { for (const k of ks) { if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k]; } return ''; };
+  // keys may carry spaces or invisible RTL marks (typed on a Hebrew keyboard) — compare letters only
+  const nk = (k) => String(k).replace(/[^A-Za-z\u0590-\u05FF]/g, '').toLowerCase();
+  const pick = (o, ks) => {
+    const want = ks.map(nk);
+    for (const k of Object.keys(o)) { const v = o[k]; if (want.indexOf(nk(k)) >= 0 && v !== undefined && v !== null && v !== '') return typeof v === 'string' ? v.replace(/^[\s\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]+|[\s\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]+$/g, '') : v; }
+    return '';
+  };
   const items = readAll_().items, have = {};
   items.forEach(it => { have[ciNorm_(it.item) + '|' + it.due] = it.row; });
   const ign = ciIgnore_();
@@ -1141,7 +1147,7 @@ function calImport_(req) {
   evs.slice(0, 400).forEach(e => {
     got++;
     if (!e || typeof e !== 'object') { noTitle++; if (!sample) sample = '[' + typeof e + ' U+' + String(e).charCodeAt(0).toString(16) + '] ' + String(e).slice(0, 70); return; }
-    const title = String(pick(e, ['title', 'Title', 'כותרת'])).trim().slice(0, 200); if (!title) { noTitle++; if (!sample) sample = JSON.stringify(e).slice(0, 80); return; }
+    const title = String(pick(e, ['title', 'Title', 'כותרת'])).trim().slice(0, 200); if (!title) { noTitle++; if (!sample) sample = 'keys: ' + Object.keys(e).map(k => JSON.stringify(k)).join(',').slice(0, 90); return; }
     const notes = String(pick(e, ['notes', 'Notes'])).slice(0, 500);
     if (/#AI-\d+-/.test(notes)) { own++; return; }                            // our own events (from "📅 iPhone calendar") — never offer them back
     const start = ciDate_(pick(e, ['start', 'Start Date', 'startDate']), tz); if (!start) { badDate++; if (!sample) sample = String(pick(e, ['start', 'Start Date', 'startDate'])).slice(0, 60); return; }
