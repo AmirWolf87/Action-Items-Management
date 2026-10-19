@@ -259,6 +259,7 @@ function doPost(e) {
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
+      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url)));
       case 'collSave': return withLock_(() => json_({ ok: true, entry: collSave_(req.entry) }));
       case 'collDelete': return withLock_(() => { collDelete_(req.id); return json_({ ok: true }); });
       case 'collCats': return json_({ ok: true, collCats: collSaveCats_(req.cats) });
@@ -888,7 +889,7 @@ function saveAreas_(req) {
  *  Stored in its own "Collection" tab, separate from the action items.
  * ===================================================================== */
 const COLL_SHEET = 'Collection';
-const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng'];
+const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng', 'Image'];
 const COLL_DEFAULT_CATS_ = [
   { id: 'food', name: '🍽 מסעדות', kind: 'try', map: true }, { id: 'trip', name: '🧭 טיולים', kind: 'try', map: true },
   { id: 'activity', name: '🎯 פעילויות', kind: 'try', map: true }, { id: 'recipe', name: '🍳 מתכונים', kind: 'try', map: false },
@@ -919,7 +920,7 @@ function collSheet_() {
     sh.getRange(1, 1, 1, COLL_HEAD.length).setValues([COLL_HEAD]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
     sh.setFrozenRows(1);
   }
-  if (sh.getRange(1, 12).getValue() === '') sh.getRange(1, 12, 1, 3).setValues([COLL_HEAD.slice(11)]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
+  if (sh.getRange(1, 15).getValue() === '') sh.getRange(1, 12, 1, 4).setValues([COLL_HEAD.slice(11)]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
   return sh;
 }
 function collRead_() {
@@ -930,7 +931,7 @@ function collRead_() {
   return sh.getRange(2, 1, n, COLL_HEAD.length).getValues().filter(r => r[0] && r[2]).map(r => ({
     id: String(r[0]), cat: String(r[1]), title: String(r[2]), notes: String(r[3]), link: String(r[4]), place: String(r[5]),
     by: String(r[6]), status: String(r[7]) === 'tried' ? 'tried' : 'want', rating: Number(r[8]) || 0, added: d(r[9]), updated: d(r[10]),
-    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]) }));
+    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]), img: String(r[14] || '') }));
 }
 function collSave_(e) {
   if (!e || !String(e.title || '').trim()) throw new Error('A title is required');
@@ -939,7 +940,7 @@ function collSave_(e) {
   const out = { id: e.id ? String(e.id) : Utilities.getUuid().slice(0, 12), cat: String(e.cat || '').slice(0, 20), title: String(e.title).trim().slice(0, 200),
     notes: String(e.notes || '').slice(0, 3000), link: /^https?:\/\//i.test(link) ? link.slice(0, 500) : '', place: String(e.place || '').slice(0, 120),
     by: String(e.by || '').slice(0, 60), status: e.status === 'tried' ? 'tried' : 'want', rating: Math.max(0, Math.min(5, Number(e.rating) || 0)), added: e.added || today, updated: today,
-    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '' };
+    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '', img: /^https:\/\//i.test(String(e.img || '')) ? String(e.img).slice(0, 1000) : '' };
   const n = sh.getLastRow() - 1;
   const ids = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0])) : [];
   const i = ids.indexOf(out.id);
@@ -954,7 +955,7 @@ function collSave_(e) {
     else { const g = collLocate_(out.link, out.place); if (g) { out.lat = g.lat; out.lng = g.lng; out.geo = g.how; } else out.geo = (out.place || out.link) ? 'none' : ''; }
   }
   const row = [out.id, out.cat, out.title, out.notes, out.link, out.place, out.by, out.status, out.rating || '', out.added, out.updated, out.for,
-    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng];
+    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng, out.img];
   if (i >= 0) sh.getRange(i + 2, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
   return out;
 }
@@ -989,6 +990,133 @@ function collDelete_(id) {
   const sh = collSheet_(), n = sh.getLastRow() - 1; if (n < 1) return;
   const i = sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0])).indexOf(String(id));
   if (i >= 0) sh.deleteRow(i + 2);
+}
+
+/* =====================================================================
+ *  ✨ Read details from a link (Instagram / TikTok / YouTube / Facebook / Google Maps / restaurant sites).
+ *  Uses only the post's TEXT (title, caption, tagged location) — not the video itself.
+ * ===================================================================== */
+function lf_(url, opt) {
+  try {
+    const r = UrlFetchApp.fetch(url, Object.assign({ muteHttpExceptions: true, followRedirects: true,
+      headers: { 'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)', 'Accept-Language': 'he,en;q=0.8' } }, opt || {}));
+    return r.getResponseCode() < 400 ? String(r.getContentText()) : '';
+  } catch (e) { return ''; }
+}
+function lfJson_(url) { const t = lf_(url); try { return t ? JSON.parse(t) : null; } catch (e) { return null; } }
+function htmlDecode_(s) {
+  return String(s || '').replace(/&#(\d+);/g, (m, n) => String.fromCharCode(Number(n))).replace(/&#x([0-9a-f]+);/gi, (m, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+}
+function metaTags_(html) {
+  const m = {}; const re = /<meta\s+[^>]*?(?:property|name)\s*=\s*["']([^"']+)["'][^>]*?content\s*=\s*["']([^"']*)["'][^>]*>|<meta\s+[^>]*?content\s*=\s*["']([^"']*)["'][^>]*?(?:property|name)\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let x; while ((x = re.exec(html))) { const k = (x[1] || x[4] || '').toLowerCase(), v = htmlDecode_(x[2] !== undefined ? x[2] : x[3]); if (k && v && !m[k]) m[k] = v; }
+  const t = html.match(/<title[^>]*>([^<]*)<\/title>/i); if (t && !m.title) m.title = htmlDecode_(t[1]).trim();
+  return m;
+}
+function ldPlace_(html) {
+  const out = {}; const re = /<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi; let x;
+  const PLACE = /Restaurant|FoodEstablishment|LocalBusiness|TouristAttraction|Place|LodgingBusiness|Hotel|Winery|CafeOrCoffeeShop|BarOrPub|Park|Museum|Event/i;
+  const visit = (o) => {
+    if (!o || typeof o !== 'object' || out.name) return;
+    if (Array.isArray(o)) { o.forEach(visit); return; }
+    if (o['@graph']) visit(o['@graph']);
+    const ty = [].concat(o['@type'] || []).join(' ');
+    if (PLACE.test(ty) && o.name) {
+      out.name = String(o.name);
+      const a = o.address || (o.location && o.location.address);
+      out.address = typeof a === 'string' ? a : a ? [a.streetAddress, a.addressLocality].filter(Boolean).join(', ') : '';
+      const g = o.geo || (o.location && o.location.geo); if (g && g.latitude) { out.lat = Number(g.latitude); out.lng = Number(g.longitude); }
+    }
+  };
+  while ((x = re.exec(html))) { try { visit(JSON.parse(x[1].trim())); } catch (e) { /* skip */ } }
+  return out;
+}
+/* from a caption: a line with 📍 / "כתובת" / "Location" → place; first sentence → title */
+function captionBits_(cap) {
+  cap = String(cap || '').replace(/\r/g, '');
+  const lines = cap.split('\n').map(l => l.trim()).filter(Boolean);
+  let place = '';
+  for (const l of lines) {
+    const m = l.match(/(?:📍|📌|🗺️?|כתובת\s*[:：-]|מיקום\s*[:：-]|איפה\s*[:：?-]|address\s*[:：-]|location\s*[:：-])\s*(.+)/i);
+    if (m) { place = m[1].replace(/[#@][^\s#@]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 120); if (place) break; }
+  }
+  const clean = cap.replace(/(^|\s)#[^\s#]+/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  let title = (clean.split('\n').find(l => l.trim().length > 2) || '').replace(/\s*[|•·]\s*.*$/, '').trim();
+  if (title.length > 70) title = title.slice(0, 70).replace(/\s+\S*$/, '') + '…';
+  return { place: place, title: title, notes: clean.slice(0, 900) };
+}
+function linkInfo_(url) {
+  url = String(url || '').trim(); if (!/^https?:\/\//i.test(url)) throw new Error('Not a link');
+  let final = url;
+  try {   // short links (vm.tiktok.com, maps.app.goo.gl, instagram share…) → real address
+    for (let i = 0; i < 4; i++) {
+      const r = UrlFetchApp.fetch(final, { followRedirects: false, muteHttpExceptions: true, headers: { 'User-Agent': 'facebookexternalhit/1.1' } });
+      const h = r.getHeaders(); const loc = h.Location || h.location; if (!loc || r.getResponseCode() < 300 || r.getResponseCode() >= 400) break;
+      final = /^https?:/i.test(loc) ? loc : final.replace(/^(https?:\/\/[^/]+).*/, '$1') + loc;
+    }
+  } catch (e) { /* keep the original */ }
+  const host = (final.match(/^https?:\/\/([^/?#]+)/i) || [])[1] || '';
+  const out = { url: final, source: host.replace(/^www\./, ''), title: '', notes: '', place: '', by: '', img: '', lat: null, lng: null };
+  const fill = (o) => { Object.keys(o || {}).forEach(k => { if (o[k] !== undefined && o[k] !== null && o[k] !== '' && (out[k] === '' || out[k] === null)) out[k] = o[k]; }); };
+  if (/google\.[a-z.]+\/maps|maps\.google|goo\.gl\/maps|maps\.app/i.test(final)) {
+    const u = decodeURIComponent(final);
+    const pl = u.match(/\/place\/([^/@?]+)/); if (pl) fill({ title: pl[1].replace(/\+/g, ' '), place: pl[1].replace(/\+/g, ' ') });
+    const c = u.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || u.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/); if (c) fill({ lat: Number(c[1]), lng: Number(c[2]) });
+    out.source = 'Google Maps'; out.found = !!out.title; return out;
+  }
+  if (/youtube\.com|youtu\.be/i.test(host)) {
+    const j = lfJson_('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(final));
+    if (j) fill({ title: j.title, by: j.author_name, img: j.thumbnail_url });
+    out.source = 'YouTube';
+  }
+  if (/tiktok\.com/i.test(host)) {
+    const j = lfJson_('https://www.tiktok.com/oembed?url=' + encodeURIComponent(final));
+    if (j) { const b = captionBits_(j.title); fill({ title: b.title, notes: b.notes, place: b.place, by: j.author_name ? '@' + String(j.author_unique_id || j.author_name).replace(/^@/, '') : '', img: j.thumbnail_url }); }
+    out.source = 'TikTok';
+  }
+  if (/instagram\.com/i.test(host)) {
+    out.source = 'Instagram';
+    const sc = (final.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/) || [])[1];
+    if (sc) {   // the public embed page carries the caption and the account name
+      const eh = lf_('https://www.instagram.com/p/' + sc + '/embed/captioned/');
+      if (eh) {
+        const cm = eh.match(/class="Caption"[^>]*>([\s\S]*?)<\/div>/i);
+        if (cm) {
+          let cap = htmlDecode_(cm[1].replace(/<br\s*\/?>/gi, '\n').replace(/<a[^>]*class="CaptionUsername"[^>]*>[\s\S]*?<\/a>/i, '').replace(/<[^>]+>/g, '')).trim();
+          const b = captionBits_(cap); fill({ title: b.title, notes: b.notes, place: b.place });
+        }
+        const um = eh.match(/class="UsernameText"[^>]*>([^<]+)</i) || eh.match(/class="CaptionUsername"[^>]*>([^<]+)</i); if (um) fill({ by: '@' + htmlDecode_(um[1]).trim() });
+        const im = eh.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/i); if (im) fill({ img: htmlDecode_(im[1]) });
+      }
+    }
+  }
+  if (!out.title || !out.notes || !out.place) {   // any site: Open Graph tags + schema.org place data
+    const html = lf_(final);
+    if (html) {
+      const m = metaTags_(html), ld = ldPlace_(html);
+      if (ld.name) fill({ title: ld.name, place: ld.address || ld.name, lat: ld.lat, lng: ld.lng });
+      let desc = m['og:description'] || m['description'] || m['twitter:description'] || '';
+      // Instagram/Facebook descriptions look like: '123 likes, 4 comments - user on Date: "caption"'
+      const q = desc.match(/^[\s\S]*?\b(?:on|ב-?)\s[^:]{3,40}:\s*["“]([\s\S]+)["”]\.?\s*$/); if (q) desc = q[1];
+      const um = (m['og:description'] || '').match(/-\s*([A-Za-z0-9._]{2,30})\s+on\s/); if (um) fill({ by: '@' + um[1] });
+      const b = captionBits_(desc);
+      let t = (m['og:title'] || m['twitter:title'] || m.title || '').replace(/\s*[|\-–]\s*(Instagram|Facebook|TikTok|YouTube)\b.*$/i, '').replace(/ on Instagram:?.*$/i, '').trim();
+      if (/^(Instagram|Facebook|Login|Log in|TikTok)$/i.test(t)) t = '';
+      fill({ title: b.title || t, notes: b.notes, place: b.place, img: m['og:image'] || m['twitter:image'] || '' });
+      const loc = m['og:locality'] || m['place:location:locality'] || ''; if (loc && !out.place) out.place = loc;
+      if (!out.title && t) out.title = t;
+    }
+  }
+  // a tagged place like "פיצה ברדק, דיזנגוף 120" names the spot better than the caption's first line
+  if (out.place && out.source !== 'Google Maps') {
+    const head = String(out.place).split(/[,،\-–|]/)[0].trim();
+    if (head && head.length >= 2 && head.length <= 40 && !/\d/.test(head) && !/^(רחוב|רח'|שדרות|שד'|דרך)\s/.test(head)) { out.caption = out.title; out.title = head; }
+  }
+  if (out.title) out.title = String(out.title).replace(/\s+/g, ' ').trim().slice(0, 120);
+  if (out.img && !/^https:\/\//i.test(out.img)) out.img = '';
+  out.found = !!(out.title || out.notes || out.place);
+  return out;
 }
 
 /* =====================================================================

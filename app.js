@@ -439,6 +439,7 @@ function collCard(en) {
   const meta = [c.map && en.place ? '📍 ' + esc(en.place) : '', c.kind === 'wish' && en.for ? '🎁 ' + L('for ', 'בשביל ') + esc(en.for) : '', en.by ? '👤 ' + esc(en.by) : ''].filter(Boolean).join(' · ');
   const stamp = c.kind !== 'note' && done ? `<span class="c-stamp">${w.tried}</span>` : '';
   return `<article class="c-card ${done ? 'done' : ''} kind-${c.kind}" data-cid="${esc(en.id)}" style="--c-bg:${C_PAL[i % C_PAL.length]};--c-ink:${C_INK[i % C_INK.length]}">
+    ${en.img ? `<img class="c-img" src="${esc(en.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
     <div class="c-band"><span class="c-emoji">${catEmoji(c)}</span><span>${esc(catLabel(c))}</span>${stamp}</div>
     <h4 dir="auto">${esc(en.title)}</h4>
     ${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}
@@ -507,20 +508,52 @@ async function collQuickAdd(text) {
   text = text.trim(); if (!text) return;
   const m = text.match(/https?:\/\/\S+/i); const link = m ? m[0] : '';
   let title = link ? text.replace(link, '').trim() : text;
+  if (link && !settings.demo) {                                    // ✨ read the post / page and open a pre-filled entry to approve
+    toast(L('✨ Reading the link…', '✨ קורא את הקישור…'));
+    const info = await linkInfo(link);
+    openColl(Object.assign({ cat: ui.collCat, status: 'want' }, collFromInfo(info, { title, link })));
+    if (info && info.found) toast(L('Filled from the link — check and Save', 'מולא מהקישור — בדוק ולחץ שמירה'));
+    else toast(L('Couldn\'t read details from this link — fill in what you want', 'לא הצלחתי לקרוא פרטים מהקישור — מלא את מה שתרצה'));
+    return;
+  }
   if (!title && link) { try { title = new URL(link).hostname.replace(/^www\./, ''); } catch (e) { title = link; } }
   await collStore({ cat: ui.collCat, title, link, status: 'want', rating: 0 });
   const inp = $('#collNew'); if (inp) inp.focus();
+}
+async function linkInfo(url) {
+  try { return await api('POST', { action: 'linkInfo', url }); } catch (e) { return null; }
+}
+function collFromInfo(info, base) {
+  info = info || {};
+  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '' };
+  if (!o.title) { try { o.title = new URL(base.link).hostname.replace(/^www\./, ''); } catch (e) { o.title = base.link; } }
+  if (info.lat !== null && info.lat !== undefined && info.lat !== '') { o.lat = info.lat; o.lng = info.lng; o._pin = 'link'; }
+  return o;
+}
+async function collFillFromLink() {
+  const f = $('#frmColl'), link = f.elements.link.value.trim(); if (!/^https?:\/\//i.test(link)) return;
+  const b = $('#collFill'); b.disabled = true; b.textContent = L('✨ Reading…', '✨ קורא…');
+  const info = await linkInfo(link);
+  b.disabled = false; b.textContent = L('✨ Fill from link', '✨ מלא מהקישור');
+  if (!info || !info.found) { toast(L('Couldn\'t read details from this link', 'לא הצלחתי לקרוא פרטים מהקישור')); return; }
+  const set = (k, v) => { if (v && !f.elements[k].value.trim()) f.elements[k].value = v; };
+  set('title', info.title); set('place', info.place); set('by', info.by);
+  if (info.notes && !f.elements.notes.value.includes(info.notes.slice(0, 30))) f.elements.notes.value = (f.elements.notes.value.trim() ? f.elements.notes.value.trim() + '\n\n' : '') + info.notes;
+  if (info.img && !f.dataset.img) f.dataset.img = info.img;
+  if (info.lat !== null && info.lat !== undefined && f.dataset.lat === '') { f.dataset.lat = info.lat; f.dataset.lng = info.lng; f.dataset.manual = 'link'; }
+  collFormUi(); toast(L('Filled from the link ✓', 'מולא מהקישור ✓'));
 }
 /* ---- entry dialog ---- */
 let collEditing = null;
 function openColl(en) {
   collEditing = en.id ? en : null; const f = $('#frmColl'), ro = collRO();
+  $('#collFill').textContent = L('✨ Fill from link', '✨ מלא מהקישור');
   $('#collHead').textContent = ro ? (en.title || '') : en.id ? L('Edit', 'עריכה') : L('New entry', 'רשומה חדשה');
   $('#collCat').innerHTML = collCats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
   f.elements.title.value = en.title || ''; $('#collCat').value = en.cat && en.cat !== '*' ? en.cat : (collCats[0] || {}).id; f.elements.place.value = en.place || ''; f.elements.by.value = en.by || '';
   f.elements.link.value = en.link || ''; f.elements.notes.value = en.notes || ''; f.elements.for.value = en.for || '';
   f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0;
-  f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = '';
+  f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = en._pin || ''; f.dataset.img = en.img || '';
   [...f.elements].forEach(el => { if (el.name || el.id === 'collCat') el.disabled = ro; });
   $('#collSaveBtn').hidden = ro; $('#collDelete').hidden = ro || !en.id; $('#collHere').hidden = ro;
   collFormUi(); $('#dlgColl').showModal();
@@ -537,8 +570,10 @@ function collFormUi() {
   $('#collStars').hidden = !(c.kind === 'try' && f.dataset.status === 'tried');
   if (ro) $('#collStatus').querySelectorAll('button').forEach(b => { b.disabled = true; });
   const l = f.elements.link.value.trim(); $('#collOpen').hidden = !/^https?:\/\//i.test(l);
+  $('#collFill').hidden = ro || !/^https?:\/\//i.test(l) || settings.demo;
+  $('#collImg').hidden = !f.dataset.img; if (f.dataset.img && $('#collImg').getAttribute('src') !== f.dataset.img) $('#collImg').setAttribute('src', f.dataset.img);
   const has = f.dataset.lat !== '' && f.dataset.lat !== 'null';
-  $('#collGeo').textContent = !c.map ? '' : has ? (f.dataset.manual ? L('📍 Your current location will be pinned', '📍 המיקום הנוכחי שלך יסומן במפה') : L('✓ On the map', '✓ מסומן במפה')) :
+  $('#collGeo').textContent = !c.map ? '' : has ? (f.dataset.manual === 'link' ? L('📍 The location from the link will be pinned', '📍 המיקום מהקישור יסומן במפה') : f.dataset.manual ? L('📍 Your current location will be pinned', '📍 המיקום הנוכחי שלך יסומן במפה') : L('✓ On the map', '✓ מסומן במפה')) :
     L('The place (or a Google Maps link) puts a pin on the map.', 'המקום (או קישור של Google Maps) ישים נעץ במפה.');
   const fw = $('#collForChips'); fw.innerHTML = [L('Me', 'אני'), L('Neta', 'נטע'), L('The kids', 'הילדים'), L('All of us', 'כולנו')].map(x => `<button type="button" class="chip ${f.elements.for.value === x ? 'on' : ''}" data-for="${esc(x)}" ${ro ? 'disabled' : ''}>${esc(x)}</button>`).join('');
 }
@@ -548,6 +583,7 @@ $('#frmColl').addEventListener('click', (e) => {
   const sr = e.target.closest('[data-star]'); if (sr) { f.dataset.rating = Number(sr.dataset.star) === Number(f.dataset.rating) ? 0 : sr.dataset.star; collFormUi(); return; }
   const fo = e.target.closest('[data-for]'); if (fo) { f.elements.for.value = fo.dataset.for; collFormUi(); return; }
   if (e.target.id === 'collOpen') window.open(f.elements.link.value.trim(), '_blank', 'noopener');
+  if (e.target.id === 'collFill') { collFillFromLink(); return; }
   if (e.target.id === 'collHere') {
     if (!navigator.geolocation) { toast(L('Location is not available on this device', 'מיקום לא זמין במכשיר הזה')); return; }
     $('#collGeo').textContent = L('Finding you…', 'מאתר מיקום…');
@@ -561,13 +597,17 @@ $('#frmColl').addEventListener('input', (e) => {
   collFormUi();
 });
 $('#collCat').addEventListener('change', collFormUi);
+$('#frmColl').addEventListener('paste', (e) => {
+  if (e.target.name !== 'link' || collRO()) return;
+  setTimeout(() => { const f = $('#frmColl'); if (!f.elements.title.value.trim() || !f.elements.notes.value.trim()) collFillFromLink(); }, 50);
+});
 $('#frmColl').addEventListener('submit', async (e) => {
   e.preventDefault(); if (collRO()) return; const f = $('#frmColl');
   const title = f.elements.title.value.trim(); if (!title) { f.elements.title.focus(); return; }
   let link = f.elements.link.value.trim(); if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
   const c = catOf($('#collCat').value);
   const en = Object.assign({}, collEditing || {}, { title, cat: c.id, place: c.map ? f.elements.place.value.trim() : '', by: c.kind === 'wish' ? '' : f.elements.by.value.trim(), link, notes: f.elements.notes.value,
-    for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
+    img: f.dataset.img || '', for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
     lat: f.dataset.manual ? Number(f.dataset.lat) : (collEditing && f.dataset.lat !== '' ? collEditing.lat : null), lng: f.dataset.manual ? Number(f.dataset.lng) : (collEditing && f.dataset.lat !== '' ? collEditing.lng : null) });
   if (!f.dataset.manual) { delete en.lat; delete en.lng; }
   $('#dlgColl').close(); if (ui.collCat !== '*') ui.collCat = en.cat; await collStore(en);
@@ -2154,7 +2194,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 34;
+const APP_VERSION = 35;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

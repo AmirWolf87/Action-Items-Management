@@ -14,7 +14,7 @@
 <script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('ai.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
-<link rel="stylesheet" href="styles.css?v=34">
+<link rel="stylesheet" href="styles.css?v=35">
 </head>
 <body>
 <header class="top">
@@ -306,7 +306,8 @@
     </div>
     <div id="collForRow" class="c-for"><label class="full">For whom<input name="for" dir="auto"></label><div class="chips no-i18n" id="collForChips"></div></div>
     <label class="full">Recommended by<input name="by" dir="auto"></label>
-    <label class="full">Link<div class="pw-row"><input name="link" type="url" dir="ltr" inputmode="url" placeholder="https://…"><button type="button" class="btn ghost" id="collOpen" hidden>🔗</button></div></label>
+    <label class="full">Link (Instagram, TikTok, YouTube, Maps, website…)<div class="pw-row"><input name="link" type="url" dir="ltr" inputmode="url" placeholder="https://…"><button type="button" class="btn ghost" id="collOpen" hidden>🔗</button></div></label>
+    <div class="c-fill"><button type="button" class="btn ghost no-i18n" id="collFill" hidden>✨ Fill from link</button><img id="collImg" class="c-prev" alt="" hidden referrerpolicy="no-referrer" onerror="this.hidden=true"></div>
     <div id="collTry" class="c-try">
       <div class="seg no-i18n" id="collStatus"></div>
       <div class="c-starpick" id="collStars"></div>
@@ -449,7 +450,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=34"></script>
-<script src="app.js?v=34"></script>
+<script src="i18n.js?v=35"></script>
+<script src="app.js?v=35"></script>
 </body>
 </html>

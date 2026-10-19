@@ -513,3 +513,9 @@ body.coll-mode #quickAdd,body.coll-mode #qaPreview{display:none!important}
 .ci-ignore h3{flex-basis:100%}
 .ci-ignore .c-chip{--c-ink:#64748B;font-weight:600}
 .ci-act .btn.ghost{background:var(--card);border:1px solid var(--line)}
+
+/* ✨ link details */
+.c-img{display:block;width:100%;max-height:220px;object-fit:cover;background:var(--bg)}
+.c-fill{display:flex;align-items:center;gap:10px;margin:-2px 0 8px}
+.c-fill .btn{background:linear-gradient(135deg,#EEF2FF,#FAE8FF);color:#6D28D9;border:1px solid #DDD6FE}
+.c-prev{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
