@@ -1072,7 +1072,7 @@ function calStatus_() {
  *  you choose Add / No / Never — decisions are kept in the "Calendar Inbox" tab.
  * ===================================================================== */
 const CI_SHEET = 'Calendar Inbox';
-const CI_VER = 3;                                   // shown in the shortcut's message, so you can see the new script is live
+const CI_VER = 4;                                   // shown in the shortcut's message, so you can see the new script is live
 const CI_HEAD = ['ID', 'Calendar', 'Title', 'Start', 'End', 'All day', 'Location', 'Notes', 'First seen', 'Decision', 'Decided', 'Row'];
 function ciSheet_() {
   const ss = SpreadsheetApp.getActive(); let sh = ss.getSheetByName(CI_SHEET);
@@ -1101,7 +1101,7 @@ function calImport_(req) {
   const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), now = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
   let evs = req.events;
   if (typeof evs === 'string') {
-    const t = evs.trim();
+    const t = evs.replace(/^[^\[{]+/, '').trim();
     if (!t) evs = [];
     else if (t.charAt(0) === '[') { try { evs = JSON.parse(t); } catch (e) { evs = []; } }
     else if (t.indexOf('{') >= 0) {             // a Text field holding the dictionaries one after another
@@ -1121,7 +1121,9 @@ function calImport_(req) {
   if (evs && !Array.isArray(evs) && typeof evs === 'object') evs = [evs];      // a single event
   if (Array.isArray(evs)) evs = evs.map(e => {                                 // iOS may send each dictionary as text
     if (typeof e !== 'string') return e;
-    const t = e.trim(); if (t.charAt(0) !== '{') return e;
+    const a = e.indexOf('{'), b = e.lastIndexOf('}');                         // ignore invisible marks (e.g. RTL) around the text
+    if (a < 0) return e;
+    const t = b > a ? e.slice(a, b + 1) : e.slice(a);
     try { return JSON.parse(t); } catch (err) { /* try again below */ }
     try { return JSON.parse(t.replace(/[\u0000-\u001F]+/g, ' ')); } catch (err) { /* last resort below */ }
     const o = {}, re = /"(title|start|end|calendar|allday|location|notes)"\s*:\s*"((?:[^"\\]|\\.)*)"/g; let m;
@@ -1138,7 +1140,7 @@ function calImport_(req) {
   let fresh = 0, total = 0, got = 0, noTitle = 0, own = 0, badDate = 0, past = 0, exists = 0, sample = ''; const add = [];
   evs.slice(0, 400).forEach(e => {
     got++;
-    if (!e || typeof e !== 'object') { noTitle++; if (!sample) sample = String(e).slice(0, 80); return; }
+    if (!e || typeof e !== 'object') { noTitle++; if (!sample) sample = '[' + typeof e + ' U+' + String(e).charCodeAt(0).toString(16) + '] ' + String(e).slice(0, 70); return; }
     const title = String(pick(e, ['title', 'Title', 'כותרת'])).trim().slice(0, 200); if (!title) { noTitle++; if (!sample) sample = JSON.stringify(e).slice(0, 80); return; }
     const notes = String(pick(e, ['notes', 'Notes'])).slice(0, 500);
     if (/#AI-\d+-/.test(notes)) { own++; return; }                            // our own events (from "📅 iPhone calendar") — never offer them back
