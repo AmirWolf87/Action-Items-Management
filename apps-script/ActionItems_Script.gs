@@ -1101,7 +1101,8 @@ function calImport_(req) {
   let evs = req.events;
   if (typeof evs === 'string') {
     const t = evs.trim();
-    if (t.charAt(0) === '[') { try { evs = JSON.parse(t); } catch (e) { evs = []; } }
+    if (!t) evs = [];
+    else if (t.charAt(0) === '[') { try { evs = JSON.parse(t); } catch (e) { evs = []; } }
     else if (t.indexOf('{') >= 0) {             // a Text field holding the dictionaries one after another
       const out = []; let depth = 0, start = -1, inStr = false, esc = false;
       for (let i = 0; i < t.length; i++) {
@@ -1124,21 +1125,22 @@ function calImport_(req) {
   const ign = ciIgnore_();
   const sh = ciSheet_(), old = ciRead_(), byId = {}; old.forEach(x => { byId[x.id] = x; });
   const stamp = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
-  let fresh = 0, total = 0; const add = [];
+  let fresh = 0, total = 0, got = 0, noTitle = 0, own = 0, badDate = 0, past = 0, exists = 0, sample = ''; const add = [];
   evs.slice(0, 400).forEach(e => {
-    if (!e || typeof e !== 'object') return;
-    const title = String(pick(e, ['title', 'Title', 'כותרת'])).trim().slice(0, 200); if (!title) return;
+    got++;
+    if (!e || typeof e !== 'object') { noTitle++; if (!sample) sample = String(e).slice(0, 80); return; }
+    const title = String(pick(e, ['title', 'Title', 'כותרת'])).trim().slice(0, 200); if (!title) { noTitle++; if (!sample) sample = JSON.stringify(e).slice(0, 80); return; }
     const notes = String(pick(e, ['notes', 'Notes'])).slice(0, 500);
-    if (/#AI-\d+-/.test(notes)) return;                                        // our own events (from "📅 iPhone calendar") — never offer them back
-    const start = ciDate_(pick(e, ['start', 'Start Date', 'startDate']), tz); if (!start) return;
+    if (/#AI-\d+-/.test(notes)) { own++; return; }                            // our own events (from "📅 iPhone calendar") — never offer them back
+    const start = ciDate_(pick(e, ['start', 'Start Date', 'startDate']), tz); if (!start) { badDate++; if (!sample) sample = String(pick(e, ['start', 'Start Date', 'startDate'])).slice(0, 60); return; }
     const cal = String(pick(e, ['calendar', 'Calendar'])).slice(0, 60);
     const ad = String(pick(e, ['allday', 'All Day', 'isAllDay'])).toLowerCase(); const allday = /^(1|true|yes|כן)$/.test(ad);
     let end = ciDate_(pick(e, ['end', 'End Date', 'endDate']), tz) || start;
     if (allday) end = (end > start ? end : start).slice(0, 10) + ' 23:59';
-    if (end < now) return;                                                     // already over
+    if (end < now) { past++; return; }                                         // already over
     const id = hash_([ciNorm_(cal), ciNorm_(title), start.slice(0, allday ? 10 : 16)].join('|'), 'ci').slice(0, 16);
     total++;
-    if (byId[id]) return;                                                      // seen before (decided or still waiting)
+    if (byId[id]) { exists++; return; }                                        // seen before (decided or still waiting)
     let decision = '';
     if (have[ciNorm_(title) + '|' + start.slice(0, 10)]) decision = 'exists';  // already in my items
     else if (ign.some(r => r.t === ciNorm_(title) && (!r.c || r.c === cal))) decision = 'ignored';
@@ -1149,8 +1151,14 @@ function calImport_(req) {
   if (add.length) { const rg = sh.getRange(sh.getLastRow() + 1, 1, add.length, CI_HEAD.length); rg.setNumberFormat('@'); rg.setValues(add); }   // plain text, so times are kept
   const P = PropertiesService.getScriptProperties(); P.setProperty('CAL_LASTIMPORT', new Date().toISOString());
   const waiting = ciRead_().filter(x => !x.decision && x.end >= now).length;
-  return { ok: true, fresh: fresh, waiting: waiting, total: total,
-    message: fresh ? 'נמצאו ' + fresh + ' אירועים חדשים — אפשר לבחור באפליקציה מה להוסיף.' : (waiting ? 'אין חדשים. ' + waiting + ' עדיין ממתינים להחלטה באפליקציה.' : 'אין אירועים חדשים ✓') };
+  P.setProperty('CAL_LASTRAW', JSON.stringify({ at: stamp, got: got, sample: sample, first: evs.length ? JSON.stringify(evs[0]).slice(0, 400) : String(req.events || '').slice(0, 400) }));
+  let msg;
+  if (!got) msg = 'לא התקבלו אירועים מהאייפון. בדוק שבפעולת חיפוש האירועים מופיע רק המסנן של 30 הימים, ושבשדה events נבחר "חזרה על תוצאות".';
+  else if (badDate && badDate + noTitle + own === got) msg = 'התקבלו ' + got + ' אירועים, אבל התאריך לא בפורמט ISO 8601 (התקבל: "' + sample + '"). לחץ על הבועות "תאריך התחלה" ו"תאריך סיום" במילון › פורמט ISO 8601 › הפעל שעה.';
+  else if (noTitle === got) msg = 'התקבלו ' + got + ' פריטים אבל בלי כותרת (דוגמה: ' + sample + '). בדוק במילון את השורה title.';
+  else msg = (fresh ? 'נמצאו ' + fresh + ' אירועים חדשים — אפשר לבחור באפליקציה מה להוסיף.' : (waiting ? 'אין חדשים. ' + waiting + ' עדיין ממתינים להחלטה באפליקציה.' : 'אין אירועים חדשים ✓')) +
+    ' (נבדקו ' + got + (exists ? ', כבר מוכרים ' + exists : '') + (past ? ', עברו ' + past : '') + (own ? ', של האפליקציה ' + own : '') + (badDate ? ', תאריך לא תקין ' + badDate : '') + ')';
+  return { ok: true, fresh: fresh, waiting: waiting, total: total, got: got, message: msg };
 }
 function calInbox_(all) {
   const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), now = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
