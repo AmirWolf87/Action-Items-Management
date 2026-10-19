@@ -1072,6 +1072,7 @@ function calStatus_() {
  *  you choose Add / No / Never — decisions are kept in the "Calendar Inbox" tab.
  * ===================================================================== */
 const CI_SHEET = 'Calendar Inbox';
+const CI_VER = 3;                                   // shown in the shortcut's message, so you can see the new script is live
 const CI_HEAD = ['ID', 'Calendar', 'Title', 'Start', 'End', 'All day', 'Location', 'Notes', 'First seen', 'Decision', 'Decided', 'Row'];
 function ciSheet_() {
   const ss = SpreadsheetApp.getActive(); let sh = ss.getSheetByName(CI_SHEET);
@@ -1121,7 +1122,11 @@ function calImport_(req) {
   if (Array.isArray(evs)) evs = evs.map(e => {                                 // iOS may send each dictionary as text
     if (typeof e !== 'string') return e;
     const t = e.trim(); if (t.charAt(0) !== '{') return e;
-    try { return JSON.parse(t); } catch (err) { return e; }
+    try { return JSON.parse(t); } catch (err) { /* try again below */ }
+    try { return JSON.parse(t.replace(/[\u0000-\u001F]+/g, ' ')); } catch (err) { /* last resort below */ }
+    const o = {}, re = /"(title|start|end|calendar|allday|location|notes)"\s*:\s*"((?:[^"\\]|\\.)*)"/g; let m;
+    while ((m = re.exec(t))) o[m[1]] = m[2].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    return Object.keys(o).length ? o : e;
   });
   if (!Array.isArray(evs)) return { ok: false, message: 'לא התקבלו אירועים מהקיצור.' };
   const pick = (o, ks) => { for (const k of ks) { if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k]; } return ''; };
@@ -1163,7 +1168,7 @@ function calImport_(req) {
   else if (noTitle === got) msg = 'התקבלו ' + got + ' פריטים אבל בלי כותרת (דוגמה: ' + sample + '). בדוק במילון את השורה title.';
   else msg = (fresh ? 'נמצאו ' + fresh + ' אירועים חדשים — אפשר לבחור באפליקציה מה להוסיף.' : (waiting ? 'אין חדשים. ' + waiting + ' עדיין ממתינים להחלטה באפליקציה.' : 'אין אירועים חדשים ✓')) +
     ' (נבדקו ' + got + (exists ? ', כבר מוכרים ' + exists : '') + (past ? ', עברו ' + past : '') + (own ? ', של האפליקציה ' + own : '') + (badDate ? ', תאריך לא תקין ' + badDate : '') + ')';
-  return { ok: true, fresh: fresh, waiting: waiting, total: total, got: got, message: msg };
+  return { ok: true, fresh: fresh, waiting: waiting, total: total, got: got, ver: CI_VER, message: msg + ' · v' + CI_VER };
 }
 function calInbox_(all) {
   const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), now = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
