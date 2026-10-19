@@ -303,9 +303,10 @@ function render() {
   const items = filtered();
   let html = '';
   $('#list').classList.toggle('weekmode', ui.tab === 'week');
-  if (ui.tab !== 'notebook') document.body.classList.remove('nb-mode');
+  if (ui.tab !== 'notebook') document.body.classList.remove('nb-mode', 'coll-mode');
   if (ui.tab === 'week') { $('#list').innerHTML = renderWeek(items); return; }
   document.body.classList.toggle('nb-mode', ui.tab === 'notebook');
+  document.body.classList.toggle('coll-mode', ui.tab === 'notebook' && ui.nbBook === 'coll' && !isGuest());
   if (ui.tab === 'notebook') { $('#list').innerHTML = renderNotebook(); return; }
   if (ui.tab === 'done') {
     const done = items.filter(isClosed).sort((a, b) => (parse(b.done) || 0) - (parse(a.done) || 0));
@@ -339,6 +340,11 @@ function nbItems(area) {
     (!q || [it.item, it.topic, it.com, it.focal].join(' ').toLowerCase().includes(q)));
 }
 function renderNotebook() {
+  const books = isGuest() ? '' : `<div class="nb-books"><button class="${ui.nbBook !== 'coll' ? 'on' : ''}" data-book="tasks">📒 ${L('Tasks', 'משימות')}</button><button class="${ui.nbBook === 'coll' ? 'on' : ''}" data-book="coll">💡 ${L('Collection', 'אוסף')}</button></div>`;
+  if (ui.nbBook === 'coll' && !isGuest()) return books + renderCollection();
+  return books + renderTaskNotebook();
+}
+function renderTaskNotebook() {
   const areas = data.areas.length ? data.areas : ['Home'];
   const counts = Object.fromEntries(areas.map(a => [a, nbItems(a).filter(it => !isClosed(it)).length]));
   let page = ui.nbArea && areas.includes(ui.nbArea) ? ui.nbArea : (ui.area !== 'All' && areas.includes(ui.area) ? ui.area : (areas.find(a => counts[a]) || areas[0]));
@@ -368,6 +374,135 @@ function renderNotebook() {
       <p class="nb-foot">${L('Tap a line to edit it or give it a date — dated items move to the schedule.', 'לחץ על שורה כדי לערוך או לתת לה תאריך — משימה עם תאריך עוברת ללוח הזמנים.')}</p>
     </div></div>`;
 }
+/* ---------- 💡 Collection notebook (recommendations & notes — not tasks) ---------- */
+const catOf = (id) => collCats.find(c => c.id === id) || collCats[0];
+const stars = (n) => n ? '★'.repeat(n) + '☆'.repeat(5 - n) : '';
+function collMatches(en) {
+  const q = search.trim().toLowerCase();
+  return !q || [en.title, en.notes, en.place, en.by].join(' ').toLowerCase().includes(q);
+}
+function renderCollection() {
+  if (!collCats.find(c => c.id === ui.collCat)) ui.collCat = collCats[0].id;
+  const cat = catOf(ui.collCat), isTry = cat.kind !== 'note';
+  const counts = Object.fromEntries(collCats.map(c => [c.id, coll.filter(x => x.cat === c.id).length]));
+  const PAL = ['#FFE4E6', '#FEF3C7', '#DCFCE7', '#E0E7FF', '#FAE8FF', '#CFFAFE', '#FFEDD5', '#ECFCCB'], INK = ['#9F1239', '#92400E', '#166534', '#3730A3', '#86198F', '#155E75', '#9A3412', '#3F6212'];
+  const tabs = collCats.map((c, i) => `<button class="nb-tab ${c.id === cat.id ? 'on' : ''}" data-ccat="${esc(c.id)}" style="--tab-bg:${PAL[i % PAL.length]};--tab-ink:${INK[i % INK.length]}">${esc(c.name)}${counts[c.id] ? `<i>${counts[c.id]}</i>` : ''}</button>`).join('');
+  const ci = collCats.indexOf(cat);
+  const f = isTry ? (ui.collFilter || 'all') : 'all';
+  let list = coll.filter(x => x.cat === cat.id && collMatches(x));
+  const nWant = list.filter(x => x.status !== 'tried').length, nTried = list.length - nWant;
+  if (f === 'want') list = list.filter(x => x.status !== 'tried'); if (f === 'tried') list = list.filter(x => x.status === 'tried');
+  list.sort((a, b) => (a.status === 'tried') - (b.status === 'tried') || (b.rating - a.rating) || String(b.added).localeCompare(String(a.added)));
+  const line = (en) => {
+    const sub = [en.place ? '📍 ' + esc(en.place) : '', en.by ? '👤 ' + esc(en.by) : '', en.rating ? `<span class="c-stars">${stars(en.rating)}</span>` : '',
+      !isTry && en.notes ? esc(en.notes.split('\n')[0].slice(0, 90)) : ''].filter(Boolean).join(' · ');
+    const mark = isTry ? (en.status === 'tried' ? '<span class="c-mark tried">✓</span>' : '<span class="c-mark">☆</span>') : '<span class="c-mark dot">•</span>';
+    return `<li class="nb-line ${en.status === 'tried' && isTry ? 'c-tried' : ''}" data-cid="${esc(en.id)}">${mark}
+      <span class="nb-text" dir="auto">${esc(en.title)}${sub ? `<small>${sub}</small>` : ''}</span>
+      ${en.link ? `<button class="c-link" data-clink="${esc(en.link)}" aria-label="${esc(L('Open link', 'פתח קישור'))}">🔗</button>` : ''}</li>`;
+  };
+  const filt = isTry ? `<div class="c-filter">${[['all', L('All', 'הכל'), nWant + nTried], ['want', L('Want to try', 'רוצה לנסות'), nWant], ['tried', L('Tried', 'ניסינו'), nTried]].map(([k, l, n]) => `<button class="${f === k ? 'on' : ''}" data-cfilter="${k}">${l} <i>${n}</i></button>`).join('')}</div>` : '';
+  return `<div class="nb-wrap coll">
+    <div class="nb-tabs"><button class="nb-tab nb-ord ord-btn" data-ccats title="${esc(L('Edit categories', 'עריכת קטגוריות'))}">✏️</button>${tabs}</div>
+    <div class="nb-paper" style="--area-ink:${INK[ci % INK.length]};--area-bg:${PAL[ci % PAL.length]}">
+      <div class="nb-rings" aria-hidden="true">${'<i></i>'.repeat(9)}</div>
+      <div class="nb-head"><h2>${esc(cat.name)}</h2><span>${list.length}</span></div>
+      ${filt}
+      <ul class="nb-lines">${list.map(line).join('')}
+        <li class="nb-line nb-new"><span class="nb-plus">＋</span><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(isTry ? L('Add a recommendation… (you can paste a link)', 'הוסף המלצה… (אפשר להדביק קישור)') : L('Write it down…', 'כתוב כאן…'))}"></li>
+        ${'<li class="nb-line nb-empty" aria-hidden="true"></li>'.repeat(Math.max(2, 7 - list.length))}
+      </ul>
+      <p class="nb-foot">${isTry ? L('Tap a line for details — place, who recommended it, link, “tried it” and stars.', 'לחיצה על שורה — פרטים: מקום, מי המליץ, קישור, "ניסינו" ודירוג כוכבים.') : L('Tap a line to read or edit the full text.', 'לחיצה על שורה — לקריאה או עריכה של כל הטקסט.')}</p>
+    </div></div>`;
+}
+async function collApi(body) {
+  if (settings.demo) {
+    if (body.action === 'collSave') { const en = Object.assign({ id: body.entry.id || Math.random().toString(36).slice(2, 10), added: iso(today()) }, body.entry); return { ok: true, entry: en }; }
+    if (body.action === 'collCats') return { ok: true, collCats: body.cats };
+    return { ok: true };
+  }
+  return api('POST', body);
+}
+async function collStore(en) {
+  const before = JSON.stringify(coll);
+  const tmp = Object.assign({}, en, { id: en.id || '_tmp' + Date.now() });
+  const i = coll.findIndex(x => x.id === tmp.id); if (i >= 0) coll[i] = tmp; else coll.push(tmp);
+  render();
+  try { const j = await collApi({ action: 'collSave', entry: Object.assign({}, en) }); const k = coll.findIndex(x => x.id === tmp.id); if (k >= 0) coll[k] = j.entry; render(); return true; }
+  catch (e) { coll = JSON.parse(before); render(); toast(L('Not saved: ', 'לא נשמר: ') + e.message); return false; }
+}
+async function collQuickAdd(text) {
+  text = text.trim(); if (!text) return;
+  const m = text.match(/https?:\/\/\S+/i); const link = m ? m[0] : '';
+  let title = link ? text.replace(link, '').trim() : text;
+  if (!title && link) { try { title = new URL(link).hostname.replace(/^www\./, ''); } catch (e) { title = link; } }
+  await collStore({ cat: ui.collCat, title, link, status: 'want', rating: 0 });
+  const inp = $('#collNew'); if (inp) inp.focus();
+}
+let collEditing = null;
+function openColl(en) {
+  collEditing = en.id ? en : null; const f = $('#frmColl');
+  $('#collHead').textContent = en.id ? L('Edit', 'עריכה') : L('New entry', 'רשומה חדשה');
+  $('#collCat').innerHTML = collCats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  f.elements.title.value = en.title || ''; $('#collCat').value = en.cat || ui.collCat; f.elements.place.value = en.place || ''; f.elements.by.value = en.by || '';
+  f.elements.link.value = en.link || ''; f.elements.notes.value = en.notes || '';
+  f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0;
+  collFormUi(); $('#dlgColl').showModal();
+}
+function collFormUi() {
+  const f = $('#frmColl'), isTry = catOf($('#collCat').value).kind !== 'note';
+  $('#collTry').hidden = !isTry; f.elements.place.closest('label').hidden = !isTry;
+  document.querySelectorAll('#collStatus [data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === f.dataset.status));
+  const r = Number(f.dataset.rating) || 0;
+  $('#collStars').innerHTML = [1, 2, 3, 4, 5].map(n => `<button type="button" data-star="${n}" class="${n <= r ? 'on' : ''}" aria-label="${n}">★</button>`).join('');
+  $('#collStars').hidden = f.dataset.status !== 'tried';
+  const l = f.elements.link.value.trim(); $('#collOpen').hidden = !/^https?:\/\//i.test(l);
+}
+$('#frmColl').addEventListener('click', (e) => {
+  const f = $('#frmColl');
+  const st = e.target.closest('[data-st]'); if (st) { f.dataset.status = st.dataset.st; if (st.dataset.st === 'want') f.dataset.rating = 0; collFormUi(); return; }
+  const sr = e.target.closest('[data-star]'); if (sr) { f.dataset.rating = Number(sr.dataset.star) === Number(f.dataset.rating) ? 0 : sr.dataset.star; collFormUi(); return; }
+  if (e.target.id === 'collOpen') window.open(f.elements.link.value.trim(), '_blank', 'noopener');
+});
+$('#frmColl').addEventListener('input', collFormUi);
+$('#frmColl').addEventListener('submit', async (e) => {
+  e.preventDefault(); const f = $('#frmColl');
+  const title = f.elements.title.value.trim(); if (!title) { f.elements.title.focus(); return; }
+  let link = f.elements.link.value.trim(); if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
+  const en = Object.assign({}, collEditing || {}, { title, cat: $('#collCat').value, place: f.elements.place.value.trim(), by: f.elements.by.value.trim(), link, notes: f.elements.notes.value,
+    status: f.dataset.status, rating: f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0 });
+  $('#dlgColl').close(); ui.collCat = en.cat; await collStore(en);
+});
+$('#collDelete').addEventListener('click', async () => {
+  if (!collEditing || !collEditing.id) { $('#dlgColl').close(); return; }
+  if (!await confirmBox(L('Delete?', 'למחוק?'), `"${collEditing.title}"`, L('Delete', 'מחיקה'), L('Cancel', 'ביטול'))) return;
+  const before = JSON.stringify(coll), id = collEditing.id; coll = coll.filter(x => x.id !== id); $('#dlgColl').close(); render();
+  try { await collApi({ action: 'collDelete', id }); toast(L('Deleted', 'נמחק')); } catch (err) { coll = JSON.parse(before); render(); toast(err.message); }
+});
+function openCollCats() {
+  const row = (c) => `<li class="ord-row" data-id="${esc(c.id)}"><input class="cc-name" value="${esc(c.name)}" dir="auto" maxlength="40">
+    <select class="cc-kind"><option value="try" ${c.kind !== 'note' ? 'selected' : ''}>${L('Recommendations', 'המלצות')}</option><option value="note" ${c.kind === 'note' ? 'selected' : ''}>${L('Notes', 'רשימות')}</option></select>
+    <button type="button" class="icon-btn dark" data-ou>↑</button><button type="button" class="icon-btn dark" data-od>↓</button><button type="button" class="icon-btn dark" data-cdel>✕</button></li>`;
+  $('#ccList').innerHTML = collCats.map(row).join(''); $('#ccStatus').textContent = '';
+  $('#ccAdd').onclick = () => { $('#ccList').insertAdjacentHTML('beforeend', row({ id: 'c' + Math.random().toString(36).slice(2, 7), name: '', kind: 'try' })); $('#ccList').lastElementChild.querySelector('input').focus(); };
+  $('#dlgCollCats').showModal();
+}
+$('#ccList').addEventListener('click', (e) => {
+  const r = e.target.closest('.ord-row'); if (!r) return;
+  if (e.target.closest('[data-ou]') && r.previousElementSibling) r.parentNode.insertBefore(r, r.previousElementSibling);
+  if (e.target.closest('[data-od]') && r.nextElementSibling) r.parentNode.insertBefore(r.nextElementSibling, r);
+  if (e.target.closest('[data-cdel]')) {
+    const n = coll.filter(x => x.cat === r.dataset.id).length;
+    if (n) { $('#ccStatus').textContent = L(`This category has ${n} entries — move or delete them first.`, `בקטגוריה הזו יש ${n} רשומות — העבר או מחק אותן קודם.`); return; }
+    r.remove();
+  }
+});
+$('#ccSave').addEventListener('click', async () => {
+  const cats = [...$('#ccList').children].map(r => ({ id: r.dataset.id, name: r.querySelector('.cc-name').value.trim(), kind: r.querySelector('.cc-kind').value })).filter(c => c.name);
+  if (!cats.length) return;
+  try { const j = await collApi({ action: 'collCats', cats }); collCats = j.collCats; $('#dlgCollCats').close(); render(); toast(L('Saved', 'נשמר')); }
+  catch (err) { $('#ccStatus').textContent = err.message; }
+});
 async function nbToggle(it) {
   const copy = Object.assign({}, it);
   if (isClosed(it)) { copy.status = 'Not started'; copy.done = ''; } else { copy.status = 'Done'; copy.done = iso(today()); }
@@ -381,6 +516,7 @@ async function nbAdd(text) {
 }
 $('#list').addEventListener('keydown', (e) => {
   if (e.target.id === 'nbNew' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const v = e.target.value; e.target.value = ''; nbAdd(v); }
+  if (e.target.id === 'collNew' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const v = e.target.value; e.target.value = ''; collQuickAdd(v); }
 });
 function group(title, arr, cls) {
   if (!arr.length) return '';
@@ -630,6 +766,17 @@ document.addEventListener('click', (e) => {
   const wi = t.closest('.wi');
   if (wi) { const it = data.items.find(x => String(x.row) === wi.dataset.row); if (it) openEdit(it); return; }
   if (t.closest('[data-order]')) { openOrder(); return; }
+  const bk = t.closest('[data-book]');
+  if (bk) { ui.nbBook = bk.dataset.book; store.set('ai.ui', ui); render(); return; }
+  const cc = t.closest('[data-ccat]');
+  if (cc) { ui.collCat = cc.dataset.ccat; store.set('ai.ui', ui); render(); return; }
+  const cf = t.closest('[data-cfilter]');
+  if (cf) { ui.collFilter = cf.dataset.cfilter; store.set('ai.ui', ui); render(); return; }
+  if (t.closest('[data-ccats]')) { openCollCats(); return; }
+  const lk = t.closest('[data-clink]');
+  if (lk) { e.stopPropagation(); window.open(lk.dataset.clink, '_blank', 'noopener'); return; }
+  const cl = t.closest('.nb-line[data-cid]');
+  if (cl) { const en = coll.find(x => x.id === cl.dataset.cid); if (en) openColl(en); return; }
   const nbt = t.closest('[data-nb]');
   if (nbt) { ui.nbArea = nbt.dataset.nb; store.set('ai.ui', ui); render(); return; }
   const nbc = t.closest('[data-nbcheck]');
@@ -646,7 +793,7 @@ document.addEventListener('click', (e) => {
   if (ch) { ui.area = ch.dataset.area; store.set('ai.ui', ui); render(); }
 });
 $('#search').addEventListener('input', (e) => { search = e.target.value; render(); });
-$('#fab').addEventListener('click', () => isGuest() ? openSuggest() : openEdit(null));
+$('#fab').addEventListener('click', () => isGuest() ? openSuggest() : (ui.tab === 'notebook' && ui.nbBook === 'coll') ? openColl({ cat: ui.collCat, status: 'want' }) : openEdit(null));
 $('#btnSettings').addEventListener('click', openSettings);
 $('#btnRefresh').addEventListener('click', () => load());
 $('#btnReport').addEventListener('click', openReport);
@@ -1255,6 +1402,8 @@ $('#ordSave').addEventListener('click', async () => {
 /* ---------- 🎙 Siri / iPhone Shortcuts ---------- */
 let siriKey = '';
 let calCfg = { names: [], map: {} };
+const COLL_DEFAULT = [{ id: 'food', name: '🍽 מסעדות', kind: 'try' }, { id: 'recipe', name: '🍳 מתכונים', kind: 'try' }, { id: 'trip', name: '🧭 טיולים', kind: 'try' }, { id: 'drink', name: '🍸 קוקטיילים ומשקאות', kind: 'try' }, { id: 'story', name: '💬 אנקדוטות', kind: 'note' }];
+let coll = [], collCats = COLL_DEFAULT.slice();
 async function openSiri() {
   const box = $('#siriBody'); $('#dlgSiri').showModal();
   if (settings.demo) { box.innerHTML = `<p class="hint">${L('Connect your sheet first — Siri adds items straight into it.', 'חבר קודם את הגיליון — סירי מוסיפה משימות ישירות אליו.')}</p>`; return; }
@@ -1482,6 +1631,8 @@ function applyList(j) {
   pending = j.pending || [];
   pwReq = j.pwRequests || [];
   if (j.calCfg) calCfg = j.calCfg;
+  if (Array.isArray(j.coll)) coll = j.coll;
+  if (Array.isArray(j.collCats) && j.collCats.length) collCats = j.collCats;
   mySugg = j.mySuggestions || [];
   data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report, areaHints: j.areaHints || {} };
   if (!data.areas.includes(ui.area) && ui.area !== 'All') ui.area = 'All';
@@ -1779,7 +1930,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 30;
+const APP_VERSION = 31;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

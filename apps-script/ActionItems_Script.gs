@@ -253,11 +253,14 @@ function doPost(e) {
     }
     /* ---- owner ---- */
     switch (req.action) {
-      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending'), pwRequests: pwRequests_().filter(r => !r.handled), calCfg: calCfg_() }));
+      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending'), pwRequests: pwRequests_().filter(r => !r.handled), calCfg: calCfg_(), coll: collRead_(), collCats: collCats_() }));
       case 'pwHandled': { const L = pwRequests_(); L.forEach(r => { if (r.id === req.id) r.handled = true; }); PropertiesService.getScriptProperties().setProperty('PW_REQUESTS', JSON.stringify(L)); return json_({ ok: true }); }
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
+      case 'collSave': return withLock_(() => json_({ ok: true, entry: collSave_(req.entry) }));
+      case 'collDelete': return withLock_(() => { collDelete_(req.id); return json_({ ok: true }); });
+      case 'collCats': return json_({ ok: true, collCats: collSaveCats_(req.cats) });
       case 'getCal': return json_(Object.assign({ ok: true, key: siriKey_(false) }, calStatus_()));
       case 'saveCal': return json_(Object.assign({ ok: true }, saveCalCfg_(req.config), calStatus_()));
       case 'calResend': { PropertiesService.getScriptProperties().deleteProperty('CAL_SYNCED'); return json_(Object.assign({ ok: true }, calStatus_())); }
@@ -873,6 +876,66 @@ function saveAreas_(req) {
   return Object.assign({ moved: changed }, readAll_());
 }
 
+
+/* =====================================================================
+ *  💡 Collection notebook — restaurants, recipes, trips, drinks, anecdotes…
+ *  Stored in its own "Collection" tab, separate from the action items.
+ * ===================================================================== */
+const COLL_SHEET = 'Collection';
+const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated'];
+const COLL_DEFAULT_CATS_ = [
+  { id: 'food', name: '🍽 מסעדות', kind: 'try' }, { id: 'recipe', name: '🍳 מתכונים', kind: 'try' },
+  { id: 'trip', name: '🧭 טיולים', kind: 'try' }, { id: 'drink', name: '🍸 קוקטיילים ומשקאות', kind: 'try' },
+  { id: 'story', name: '💬 אנקדוטות', kind: 'note' }];
+function collCats_() {
+  try { const c = JSON.parse(PropertiesService.getScriptProperties().getProperty('COLL_CATS') || 'null'); if (Array.isArray(c) && c.length) return c; } catch (e) { /* default */ }
+  return COLL_DEFAULT_CATS_;
+}
+function collSaveCats_(cats) {
+  const clean = (cats || []).map(c => ({ id: String(c.id || Utilities.getUuid().slice(0, 6)).replace(/[^\w-]/g, '').slice(0, 20) || Utilities.getUuid().slice(0, 6),
+    name: String(c.name || '').trim().slice(0, 40), kind: c.kind === 'note' ? 'note' : 'try' })).filter(c => c.name).slice(0, 15);
+  if (!clean.length) throw new Error('Keep at least one category');
+  PropertiesService.getScriptProperties().setProperty('COLL_CATS', JSON.stringify(clean));
+  return clean;
+}
+function collSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(COLL_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(COLL_SHEET);
+    sh.getRange(1, 1, 1, COLL_HEAD.length).setValues([COLL_HEAD]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+function collRead_() {
+  const sh = collSheet_(), n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  const d = (v) => v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v || '');
+  return sh.getRange(2, 1, n, COLL_HEAD.length).getValues().filter(r => r[0] && r[2]).map(r => ({
+    id: String(r[0]), cat: String(r[1]), title: String(r[2]), notes: String(r[3]), link: String(r[4]), place: String(r[5]),
+    by: String(r[6]), status: String(r[7]) === 'tried' ? 'tried' : 'want', rating: Number(r[8]) || 0, added: d(r[9]), updated: d(r[10]) }));
+}
+function collSave_(e) {
+  if (!e || !String(e.title || '').trim()) throw new Error('A title is required');
+  const sh = collSheet_(), tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  const link = String(e.link || '').trim();
+  const out = { id: e.id ? String(e.id) : Utilities.getUuid().slice(0, 12), cat: String(e.cat || '').slice(0, 20), title: String(e.title).trim().slice(0, 200),
+    notes: String(e.notes || '').slice(0, 3000), link: /^https?:\/\//i.test(link) ? link.slice(0, 500) : '', place: String(e.place || '').slice(0, 120),
+    by: String(e.by || '').slice(0, 60), status: e.status === 'tried' ? 'tried' : 'want', rating: Math.max(0, Math.min(5, Number(e.rating) || 0)), added: e.added || today, updated: today };
+  const row = [out.id, out.cat, out.title, out.notes, out.link, out.place, out.by, out.status, out.rating || '', out.added, out.updated];
+  const n = sh.getLastRow() - 1;
+  const ids = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0])) : [];
+  const i = ids.indexOf(out.id);
+  if (i >= 0) sh.getRange(i + 2, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
+  return out;
+}
+function collDelete_(id) {
+  const sh = collSheet_(), n = sh.getLastRow() - 1; if (n < 1) return;
+  const i = sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0])).indexOf(String(id));
+  if (i >= 0) sh.deleteRow(i + 2);
+}
 
 /* =====================================================================
  *  iPhone (iCloud) calendar sync — done by an iPhone Shortcut:
