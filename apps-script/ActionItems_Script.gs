@@ -1118,6 +1118,11 @@ function calImport_(req) {
     }
   }
   if (evs && !Array.isArray(evs) && typeof evs === 'object') evs = [evs];      // a single event
+  if (Array.isArray(evs)) evs = evs.map(e => {                                 // iOS may send each dictionary as text
+    if (typeof e !== 'string') return e;
+    const t = e.trim(); if (t.charAt(0) !== '{') return e;
+    try { return JSON.parse(t); } catch (err) { return e; }
+  });
   if (!Array.isArray(evs)) return { ok: false, message: 'לא התקבלו אירועים מהקיצור.' };
   const pick = (o, ks) => { for (const k of ks) { if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k]; } return ''; };
   const items = readAll_().items, have = {};
