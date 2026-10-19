@@ -1722,7 +1722,7 @@ $('#ciGuideBox').addEventListener('toggle', () => {
       <li>${L('<b>Repeat with Each</b> (the events). Inside it, one <b>Dictionary</b> action with Text items:', '<b>חזור עם כל פריט</b> (האירועים). בתוכו פעולת <b>מילון</b> אחת עם פריטי טקסט:')}
         <div class="siri-fields">${field('title', L('Repeat Item › <b>Title</b>', 'פריט חוזר › <b>כותרת</b>'))}<br>${field('start', L('Repeat Item › <b>Start Date</b> — tap it › Date Format <b>ISO 8601</b>, include time', 'פריט חוזר › <b>תאריך התחלה</b> — לחץ עליו › פורמט <b>ISO 8601</b>, כולל שעה'))}<br>${field('end', L('Repeat Item › <b>End Date</b> (ISO 8601 too)', 'פריט חוזר › <b>תאריך סיום</b> (גם ISO 8601)'))}<br>${field('calendar', L('Repeat Item › <b>Calendar</b>', 'פריט חוזר › <b>לוח שנה</b>'))}<br>${field('allday', L('Repeat Item › <b>Is All Day</b>', 'פריט חוזר › <b>כל היום</b>'))}<br>${field('location', L('Repeat Item › <b>Location</b>', 'פריט חוזר › <b>מיקום</b>'))}<br>${field('notes', L('Repeat Item › <b>Notes</b>', 'פריט חוזר › <b>הערות</b>'))}</div></li>
       <li>${L('After the repeat: <b>Get Contents of URL</b> — the URL · Method <b>POST</b> · Request Body <b>JSON</b> · fields:', 'אחרי החזרה: <b>קבל תוכן של URL</b> — הכתובת · שיטה <b>POST</b> · גוף <b>JSON</b> · שדות:')}
-        <div class="siri-fields">${field('action', '<code>calImport</code>')}<br>${field('key', L('the key', 'המפתח'))}<br>${field('events', L('type <b>Array</b> → the variable <b>Repeat Results</b>', 'סוג <b>מערך</b> (Array) ← המשתנה <b>תוצאות חזרה</b> (Repeat Results)'))}</div></li>
+        <div class="siri-fields">${field('action', '<code>calImport</code>')}<br>${field('key', L('the key', 'המפתח'))}<br>${field('events', L('a <b>Text</b> field → the variable <b>Repeat Results</b>', 'שדה <b>טקסט</b> ← המשתנה <b>תוצאות חזרה</b> (Repeat Results)'))}</div></li>
       <li>${L('<b>Get Dictionary Value</b> › <code>message</code> › <b>Show Notification</b> (or Show Result). Optional: <b>Open URLs</b> › this app\'s address to come back.', '<b>קבל ערך ממילון</b> › <code>message</code> › <b>הצג הודעה</b> (או הצג תוצאה). רשות: <b>פתח כתובות URL</b> › כתובת האפליקציה כדי לחזור אליה.')}</li>
     </ol>
     <p class="hint">${L('Events you created from the app (📅 iPhone calendar) and items you already have on that date are never offered.', 'אירועים שנוצרו מהאפליקציה (📅 יומן אייפון) ומשימות שכבר קיימות באותו תאריך לא יוצעו לעולם.')}</p>`;
@@ -2154,7 +2154,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 33;
+const APP_VERSION = 34;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

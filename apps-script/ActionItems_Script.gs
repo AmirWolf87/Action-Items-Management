@@ -1099,9 +1099,24 @@ function calImport_(req) {
   if (!calCheckKey_(req)) return { ok: false, message: 'המפתח לא נכון — העתק אותו שוב מהאפליקציה (☰ › ייבוא מהיומן).' };
   const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone(), now = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
   let evs = req.events;
-  if (typeof evs === 'string') {               // text format: one event per line, fields separated by |||
-    evs = evs.split(/\n(?=[^\n]*\|\|\|)/).map(l => { const f = l.split('|||'); return { title: f[0], start: f[1], end: f[2], calendar: f[3], location: f[4], allday: f[5], notes: f[6] }; });
+  if (typeof evs === 'string') {
+    const t = evs.trim();
+    if (t.charAt(0) === '[') { try { evs = JSON.parse(t); } catch (e) { evs = []; } }
+    else if (t.indexOf('{') >= 0) {             // a Text field holding the dictionaries one after another
+      const out = []; let depth = 0, start = -1, inStr = false, esc = false;
+      for (let i = 0; i < t.length; i++) {
+        const ch = t[i];
+        if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+        if (ch === '"') inStr = true;
+        else if (ch === '{') { if (depth === 0) start = i; depth++; }
+        else if (ch === '}') { depth--; if (depth === 0 && start >= 0) { try { out.push(JSON.parse(t.slice(start, i + 1))); } catch (e) { /* skip */ } start = -1; } }
+      }
+      evs = out;
+    } else {                                    // text format: one event per line, fields separated by |||
+      evs = t.split(/\n(?=[^\n]*\|\|\|)/).map(l => { const f = l.split('|||'); return { title: f[0], start: f[1], end: f[2], calendar: f[3], location: f[4], allday: f[5], notes: f[6] }; });
+    }
   }
+  if (evs && !Array.isArray(evs) && typeof evs === 'object') evs = [evs];      // a single event
   if (!Array.isArray(evs)) return { ok: false, message: 'לא התקבלו אירועים מהקיצור.' };
   const pick = (o, ks) => { for (const k of ks) { if (o[k] !== undefined && o[k] !== null && o[k] !== '') return o[k]; } return ''; };
   const items = readAll_().items, have = {};
