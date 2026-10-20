@@ -930,7 +930,7 @@ function collSheet_() {
   return sh;
 }
 function collRead_() {
-  collSeedDrinks_(); collCampariBase_();
+  collSeedDrinks_(); collBaseFix_(); collDrinkImages_();
   const sh = collSheet_(), n = sh.getLastRow() - 1;
   if (n < 1) return [];
   const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
@@ -955,33 +955,117 @@ const SEED_DRINKS_ = [
   ['אולד פאשנד', 'whisky', 'קוביית סוכר, אנגוסטורה', '45 מ״ל בורבון או ריי\n1 קוביית סוכר\nכמה טיפות אנגוסטורה ביטרס\nכמה טיפות מים\nלהשרות את הסוכר בביטרס, להוסיף מים ולכתוש עד שנמס.\nלמלא בקרח, להוסיף וויסקי ולערבב בעדינות.\nקישוט: קליפת תפוז ודובדבן.\n— Old Fashioned', 'old-fashioned'],
   ['וויסקי סאוור', 'whisky', 'מיץ לימון, סירופ סוכר, חלבון (לא חובה)', '45 מ״ל בורבון\n25 מ״ל מיץ לימון טרי\n20 מ״ל סירופ סוכר\nכמה טיפות חלבון ביצה (לא חובה)\nלנער היטב עם קרח ולסנן לכוס, או לכוס אולד פאשנד עם קרח.\nקישוט: חצי פרוסת תפוז ודובדבן.\n— Whiskey Sour', 'whiskey-sour'],
   ['בולבארדייה', 'whisky', 'קמפרי, ורמוט אדום מתוק', '45 מ״ל בורבון או ריי\n30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nלערבב עם קרח ולסנן לכוס קוקטייל מצוננת.\nקישוט: קליפת תפוז.\n— Boulevardier', 'boulevardier'],
-  ['אפרול שפריץ', 'sparkling', 'אפרול, סודה', '90 מ״ל פרוסקו\n60 מ״ל אפרול\nמעט סודה\nלבנות בכוס יין מלאה קרח ולערבב בעדינות.\nקישוט: פרוסת תפוז.\n— Aperol Spritz', 'spritz'],
-  ['אמריקנו', 'campari', 'ורמוט אדום מתוק, סודה', '30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nמעט סודה\nלמזוג לכוס אולד פאשנד עם קרח ולערבב.\nקישוט: חצי פרוסת תפוז וקליפת לימון.\n— Americano', 'americano']];
-function collCampariBase_() {
+  ['אפרול שפריץ', 'aperol', 'פרוסקו, סודה', '90 מ״ל פרוסקו\n60 מ״ל אפרול\nמעט סודה\nלבנות בכוס יין מלאה קרח ולערבב בעדינות.\nקישוט: פרוסת תפוז.\n— Aperol Spritz', 'spritz'],
+  ['אמריקנו', 'campari', 'ורמוט אדום מתוק, סודה', '30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nמעט סודה\nלמזוג לכוס אולד פאשנד עם קרח ולערבב.\nקישוט: חצי פרוסת תפוז וקליפת לימון.\n— Americano', 'americano'],
+  ['דריי מרטיני', 'gin', 'ורמוט יבש', '60 מ״ל ג׳ין\n10 מ״ל ורמוט יבש\nלערבב היטב עם קרח בכוס ערבוב ולסנן לכוס מרטיני מצוננת.\nקישוט: שמן מקליפת לימון, או זיתים ירוקים.\n— Dry Martini', 'dry-martini'],
+  ['אביאציה', 'gin', 'מרסקינו, מיץ לימון, קרם דה ויולט', '45 מ״ל ג׳ין\n15 מ״ל ליקר מרסקינו (Luxardo)\n15 מ״ל מיץ לימון טרי\n1 כפית בר קרם דה ויולט\nלנער עם קרח ולסנן לכוס קוקטייל מצוננת.\nקישוט (לא חובה): דובדבן מרסקינו.\n— Aviation', 'aviation'],
+  ['ברמבל', 'gin', 'מיץ לימון, סירופ סוכר, ליקר אוכמניות', '50 מ״ל ג׳ין\n25 מ״ל מיץ לימון טרי\n12.5 מ״ל סירופ סוכר\n15 מ״ל קרם דה מור (ליקר פטל שחור)\nלנער הכול מלבד הליקר עם קרח ולסנן על קרח כתוש בכוס אולד פאשנד.\nלטפטף את הליקר מלמעלה בעיגול.\nקישוט: פרוסת לימון ופטל שחור.\n— Bramble', 'bramble'],
+  ['בלאדי מרי', 'vodka', 'מיץ עגבניות, לימון, ווסטרשייר, טבסקו, מלח סלרי, פלפל', '45 מ״ל וודקה\n90 מ״ל מיץ עגבניות\n15 מ״ל מיץ לימון טרי\n2 טיפות ווסטרשייר\nטבסקו, מלח סלרי ופלפל לפי הטעם\nלערבב בעדינות עם קרח ולמזוג לכוס.\nקישוט: גבעול סלרי ופלח לימון.\n— Bloody Mary', 'bloody-mary'],
+  ['בלאק ראשן', 'vodka', 'ליקר קפה', '50 מ״ל וודקה\n20 מ״ל ליקר קפה\nלמזוג לכוס אולד פאשנד מלאה קרח ולערבב בעדינות.\n— Black Russian', 'black-russian'],
+  ['סקס און דה ביץ׳', 'vodka', 'שנאפס אפרסקים, מיץ תפוזים, מיץ חמוציות', '40 מ״ל וודקה\n20 מ״ל שנאפס אפרסקים\n40 מ״ל מיץ תפוזים טרי\n40 מ״ל מיץ חמוציות\nלבנות בכוס הייבול מלאה קרח.\nקישוט: חצי פרוסת תפוז.\n— Sex on the Beach', 'sex-on-the-beach'],
+  ['מאי טאי', 'rum', 'קורסאו כתום, סירופ שקדים (אורז׳ה), מיץ ליים, סירופ סוכר', '30 מ״ל רום ג׳מייקני כהה\n30 מ״ל רום מרטיניק\n15 מ״ל קורסאו כתום\n15 מ״ל סירופ אורז׳ה (שקדים)\n30 מ״ל מיץ ליים טרי\n7.5 מ״ל סירופ סוכר\nלנער עם קרח ולמזוג לכוס.\nקישוט: אננס, עלי נענע וקליפת ליים.\n— Mai Tai', 'mai-tai'],
+  ['קובה ליברה', 'rum', 'קולה, מיץ ליים', '50 מ״ל רום לבן\n120 מ״ל קולה\n10 מ״ל מיץ ליים טרי\nלבנות בכוס הייבול מלאה קרח.\nקישוט: פלח ליים.\n— Cuba Libre', 'cuba-libre'],
+  ['דארק אנד סטורמי', 'rum', 'ג׳ינג׳ר ביר', '60 מ״ל רום כהה (Goslings)\n100 מ״ל ג׳ינג׳ר ביר\nלמלא כוס הייבול בקרח, למזוג ג׳ינג׳ר ביר ולהציף את הרום מלמעלה.\nקישוט: פלח ליים.\n— Dark ’n’ Stormy', 'dark-n-stormy'],
+  ['מנהטן', 'whisky', 'ורמוט אדום מתוק, אנגוסטורה', '50 מ״ל וויסקי ריי\n20 מ״ל ורמוט אדום מתוק\nטיפה אנגוסטורה ביטרס\nלערבב היטב עם קרח ולסנן לכוס קוקטייל מצוננת.\nקישוט: דובדבן.\n— Manhattan', 'manhattan'],
+  ['אייריש קופי', 'whisky', 'קפה חם, שמנת, סוכר', '50 מ״ל וויסקי אירי\n120 מ״ל קפה שחור חם\n50 מ״ל שמנת מתוקה קרה\n1 כפית סוכר\nלמזוג קפה לכוס מחוממת, להוסיף וויסקי וסוכר ולערבב עד שנמס.\nלצוף את השמנת לאט מעל גב כפית.\n— Irish Coffee', 'irish-coffee'],
+  ['פניצילין', 'whisky', 'מיץ לימון, סירופ דבש, ג׳ינג׳ר, לגבולין', '60 מ״ל סקוטש בלנד\n7.5 מ״ל לגבולין 16\n22.5 מ״ל מיץ לימון טרי\n22.5 מ״ל סירופ דבש\n2–3 פרוסות ג׳ינג׳ר טרי\nלכתוש את הג׳ינג׳ר, להוסיף הכול מלבד הלגבולין, לנער עם קרח ולסנן לכוס עם קרח.\nלצוף את הלגבולין מלמעלה.\nקישוט: ג׳ינג׳ר מסוכר.\n— Penicillin', 'penicillin'],
+  ['פייפר פליין', 'whisky', 'אמרו נונינו, אפרול, מיץ לימון', '30 מ״ל בורבון\n30 מ״ל אמרו נונינו\n30 מ״ל אפרול\n30 מ״ל מיץ לימון טרי\nלנער היטב עם קרח ולסנן לכוס קוקטייל מצוננת.\n— Paper Plane', 'paper-plane'],
+  ['בליני', 'sparkling', 'מחית אפרסק לבן', '100 מ״ל פרוסקו\n50 מ״ל מחית אפרסק לבן\nלשים את המחית בכוס ערבוב עם קרח, להוסיף פרוסקו, לערבב בעדינות ולסנן לכוס שמפניה.\n— Bellini', 'bellini'],
+  ['מימוזה', 'sparkling', 'מיץ תפוזים', '75 מ״ל מיץ תפוזים סחוט\n75 מ״ל פרוסקו\nלמזוג את המיץ לכוס שמפניה, להוסיף בעדינות את היין המבעבע ולערבב קלות.\nקישוט (לא חובה): קליפת תפוז.\n— Mimosa', 'mimosa'],
+  ['גריבלדי', 'campari', 'מיץ תפוזים', '45 מ״ל קמפרי\n120 מ״ל מיץ תפוזים סחוט\nלבנות בכוס הייבול מלאה קרח.\nקישוט: פלח תפוז.\n— Garibaldi', 'garibaldi'],
+  ['קייפירניה', 'other', 'ליים, סוכר', '60 מ״ל קשאסה\n1 ליים חתוך לפלחים קטנים\n4 כפיות סוכר לבן\nלכתוש בעדינות ליים וסוכר בכוס, למלא קרח כתוש, להוסיף קשאסה ולערבב.\n— Caipirinha', 'caipirinha'],
+  ['פיסקו סאוור', 'other', 'מיץ לימון, סירופ סוכר, חלבון', '60 מ״ל פיסקו\n30 מ״ל מיץ לימון טרי\n20 מ״ל סירופ סוכר\nחלבון של ביצה אחת\nלנער עם קרח ולסנן לכוס מצוננת.\nקישוט: כמה טיפות ביטרס מלמעלה.\n— Pisco Sour', 'pisco-sour']];
+const SEED_DRINK_IMG_ = {
+  'negroni': 'the-unforgettables-negroni-6694911cc3b65',
+  'french-75': 'contemporary-classics-french-75-6695cdb175e06',
+  'moscow-mule': 'contemporary-classics-moscow-mule-6695cdc7d8cb2',
+  'espresso-martini': 'new-era-espresso-martini-6695d3a172fd3',
+  'cosmopolitan': 'contemporary-classics-cosmopolitan-6695cdae389dc',
+  'mojito': 'contemporary-classics-mojito-6695cdc755626',
+  'daiquiri': 'the-unforgettables-daiquiri-6694910c5866e',
+  'pina-colada': 'contemporary-classics-pina-colada-6695cdcabbf00',
+  'margarita': 'contemporary-classics-margarita-6695cdd7505e0',
+  'paloma': 'new-era-paloma-6695d3b19cda4',
+  'old-fashioned': 'the-unforgettables-old-fashioned-6694911fce360',
+  'whiskey-sour': 'the-unforgettables-whiskey-sour-66949132e6ae9',
+  'boulevardier': 'the-unforgettables-boulevardier-6694910552acd',
+  'spritz': 'new-era-spritz-6695d3c0f113f',
+  'americano': 'the-unforgettables-americano-669490fe3cb42',
+  'dry-martini': 'the-unforgettables-dry-martini-6694910fb500c',
+  'aviation': 'the-unforgettables-aviation-66949102296a4',
+  'bramble': 'new-era-bramble-6695d398036e1',
+  'bloody-mary': 'contemporary-classics-bloody-mary-6695cda72fe0f',
+  'black-russian': 'contemporary-classics-black-russian-6695cda4183dc',
+  'bellini': 'contemporary-classics-bellini-6695cda4217da',
+  'caipirinha': 'contemporary-classics-caipirinha-6695cda74b13a',
+  'mai-tai': 'contemporary-classics-mai-tai-6695cdc169ea3',
+  'manhattan': 'the-unforgettables-manhattan-6694911627de7',
+  'irish-coffee': 'contemporary-classics-irish-coffee-copy-6695cdbb430cd',
+  'penicillin': 'new-era-penicillin-6695d3b47b79f',
+  'paper-plane': 'new-era-paper-plane-6695d3b4745eb',
+  'cuba-libre': 'contemporary-classics-cuba-libre-6695cdb0a6f80',
+  'dark-n-stormy': 'new-era-dark-n-stormy-6695d39e2bd94',
+  'mimosa': 'contemporary-classics-mimosa-6695cdc4463c9',
+  'garibaldi': 'contemporary-classics-garibaldi-6695cdb4cbf81',
+  'pisco-sour': 'contemporary-classics-pisco-sour-6695cdcaf1122',
+  'sex-on-the-beach': 'contemporary-classics-sex-on-the-beach-6695cdd0aecf3'};
+/* one-time base fixes for drinks already in the sheet: Campari / Aperol drinks get their own base */
+function collBaseFix_() {
   const P = PropertiesService.getScriptProperties();
-  if (P.getProperty('COLL_CAMPARI_BASE') === '1') return;
-  const cat = collCats_().find(c => catStyle_(c.id, c.name) === 'drink'); if (!cat) return; const catId = cat.id;
-  P.setProperty('COLL_CAMPARI_BASE', '1');
+  if (P.getProperty('COLL_BASE_FIX') === '2') return;
+  const cat = collCats_().find(c => catStyle_(c.id, c.name) === 'drink'); if (!cat) return;
+  P.setProperty('COLL_BASE_FIX', '2');
   const sh = collSheet_(), n = sh.getLastRow() - 1; if (n < 1) return;
-  const v = sh.getRange(2, 1, n, 16).getValues();
-  v.forEach((r, i) => { if (String(r[1]) === catId && /קמפרי|campari/i.test(String(r[2])) && ['', 'liqueur', 'other'].indexOf(String(r[15])) >= 0) sh.getRange(i + 2, 16).setValue('campari'); });
+  sh.getRange(2, 1, n, 16).getValues().forEach((r, i) => {
+    if (String(r[1]) !== cat.id) return;
+    const t = String(r[2]), b = String(r[15]);
+    if (/אפרול|aperol/i.test(t) && ['', 'liqueur', 'other', 'sparkling'].indexOf(b) >= 0) sh.getRange(i + 2, 16).setValue('aperol');
+    else if (/קמפרי|campari/i.test(t) && ['', 'liqueur', 'other'].indexOf(b) >= 0) sh.getRange(i + 2, 16).setValue('campari');
+  });
 }
+/* classics (IBA official recipes) go into the drinks category once each — a drink you delete is not added again */
 function collSeedDrinks_() {
   const P = PropertiesService.getScriptProperties();
-  if (P.getProperty('COLL_SEED_DRINKS') === '1') return;
-  const cat = collCats_().find(c => catStyle_(c.id, c.name) === 'drink');
-  if (!cat) return;
-  P.setProperty('COLL_SEED_DRINKS', '1');   // mark first, so two app opens at once can't add the list twice
+  const cat = collCats_().find(c => catStyle_(c.id, c.name) === 'drink'); if (!cat) return;
+  let done = []; try { done = JSON.parse(P.getProperty('COLL_SEEDED') || '[]'); } catch (e) { done = []; }
+  if (P.getProperty('COLL_SEED_DRINKS') === '1' && !done.length) done = SEED_DRINKS_.slice(0, 15).map(d => d[4]);   // the first batch went in earlier
+  const todo = SEED_DRINKS_.filter(d => done.indexOf(d[4]) < 0);
+  if (!todo.length) return;
+  P.setProperty('COLL_SEEDED', JSON.stringify(done.concat(todo.map(d => d[4]))));   // mark first, so two app opens at once can't add twice
   try {
     const sh = collSheet_(), n = sh.getLastRow() - 1;
-    const norm = (t) => String(t || '').toLowerCase().replace(/[׳'"`\s\-]/g, '');
-    const have = n > 0 ? sh.getRange(2, 2, n, 4).getValues().filter(r => String(r[0]) === cat.id).map(r => norm(r[1]) + '|' + norm(String(r[2]).split('\n').pop().replace(/^—\s*/, ''))) : [];
-    const exists = (he, en) => have.some(h => h.split('|').some(x => x && (x === norm(he) || x === norm(en))));
+    const norm = (t) => String(t || '').toLowerCase().replace(/[׳'"`’\s\-]/g, '');
+    const have = n > 0 ? sh.getRange(2, 2, n, 4).getValues().filter(r => String(r[0]) === cat.id).map(r => norm(r[1]) + '|' + norm(String(r[2]).split('\n').pop().replace(/^—\s*/, '')) + '|' + norm(r[3])) : [];
+    const exists = (d) => { const k = [norm(d[0]), norm(d[3].split('\n').pop().replace(/^—\s*/, '')), norm('https://iba-world.com/iba-cocktail/' + d[4] + '/')];
+      return have.some(h => h.split('|').some(x => x && k.indexOf(x) >= 0)); };
     const today = Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
-    const rows = SEED_DRINKS_.filter(d => !exists(d[0], d[3].split('\n').pop().replace(/^—\s*/, ''))).map(d =>
+    const rows = todo.filter(d => !exists(d)).map(d =>
       [Utilities.getUuid().slice(0, 12), cat.id, d[0], d[3], 'https://iba-world.com/iba-cocktail/' + d[4] + '/', '', 'IBA', 'want', '', today, today, '', '', '', '', d[1], d[2]]);
     if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
-  } catch (e) { P.deleteProperty('COLL_SEED_DRINKS'); }
+  } catch (e) { P.setProperty('COLL_SEEDED', JSON.stringify(done)); }
+}
+/* photos for drinks that link to an IBA recipe but have no picture yet: read the real photo from the recipe page; known list as a fallback */
+function collDrinkImages_() {
+  const P = PropertiesService.getScriptProperties(), ver = String(SEED_DRINKS_.length);
+  if (P.getProperty('COLL_DRINK_IMG') === ver) return;
+  P.setProperty('COLL_DRINK_IMG', ver);
+  try {
+    const sh = collSheet_(), n = sh.getLastRow() - 1; if (n < 1) return;
+    const miss = [];
+    sh.getRange(2, 1, n, 15).getValues().forEach((r, i) => {
+      const m = String(r[4]).match(/iba-world\.com\/(?:iba-cocktail|iba-official-cocktails)\/([\w-]+)/i);
+      if (m && !String(r[14])) miss.push({ row: i + 2, url: String(r[4]), slug: m[1].toLowerCase() });
+    });
+    if (!miss.length) return;
+    let pages = [];
+    try { pages = UrlFetchApp.fetchAll(miss.slice(0, 40).map(x => ({ url: x.url, muteHttpExceptions: true, followRedirects: true }))); } catch (e) { pages = []; }
+    miss.slice(0, 40).forEach((x, k) => {
+      let img = '';
+      try { const res = pages[k]; if (res && res.getResponseCode() === 200) { const m = res.getContentText().match(/https:\/\/iba-world\.com\/wp-content\/uploads\/[^"' )]*iba-cocktail-[^"' )]+\.(?:webp|jpe?g|png)/i); if (m) img = m[0]; } } catch (e) { img = ''; }
+      if (!img && SEED_DRINK_IMG_[x.slug]) img = 'https://iba-world.com/wp-content/uploads/2024/07/iba-cocktail-' + SEED_DRINK_IMG_[x.slug] + '.webp';
+      if (img) sh.getRange(x.row, 15).setValue(img);
+    });
+  } catch (e) { /* pictures are optional */ }
 }
 function collSave_(e) {
   if (!e || !String(e.title || '').trim()) throw new Error('A title is required');
@@ -1167,7 +1251,7 @@ function aiExtract_(style, catName, raw, url, blocked) {
     food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence.',
     trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
     activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
-    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit, ONE of: gin, vodka, rum, tequila, whisky, campari, wine, beer, sparkling, liqueur, none (non-alcoholic), other. ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
+    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit, ONE of: gin, vodka, rum, tequila, whisky, campari, aperol, wine, beer, sparkling, liqueur, none (non-alcoholic), other. ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
   };
   const prompt = 'You read a social-media post or web page that someone saved to their "' + catName + '" list. Answer in the language of the post (Hebrew if Hebrew).\n' +
     rules[style] + '\n' +
@@ -1259,8 +1343,8 @@ function linkGather_(url, pasted) {
 }
 const DRINK_BASES_ = [['gin', /ג'?ין|גין\b|\bgin\b|טנקריי|הנדריקס|בומביי/i], ['vodka', /וודקה|vodka|אבסולוט|גריי גוס/i], ['rum', /רום|\brum\b|מוחיטו|דאקירי|פינה קולדה|mojito|daiquiri/i],
   ['tequila', /טקילה|tequila|מרגריטה|margarita|פלומה|מזקל|mezcal/i], ['whisky', /וויסקי|ויסקי|whisk(e)?y|בורבון|bourbon|סקוטש|אולד פאשן|old fashioned/i],
-  ['sparkling', /שמפניה|קאווה|פרוסקו|prosecco|champagne|cava|ספריץ|spritz/i], ['wine', /יין|wine|סנגריה|sangria/i], ['beer', /בירה|beer|ipa\b|לאגר/i],
-  ['campari', /קמפרי|campari|אמריקנו|americano/i], ['liqueur', /ליקר|liqueur|אפרול|aperol|אמרטו|בייליס|קלואה/i], ['none', /ללא אלכוהול|נטול אלכוהול|מוקטייל|mocktail|non.?alcoholic|0%/i]];
+  ['aperol', /אפרול|aperol/i], ['sparkling', /שמפניה|קאווה|פרוסקו|prosecco|champagne|cava|ספריץ|spritz/i], ['wine', /יין|wine|סנגריה|sangria/i], ['beer', /בירה|beer|ipa\b|לאגר/i],
+  ['campari', /קמפרי|campari|אמריקנו|americano|גריבלדי|garibaldi/i], ['liqueur', /ליקר|liqueur|אפרול|aperol|אמרטו|בייליס|קלואה/i], ['none', /ללא אלכוהול|נטול אלכוהול|מוקטייל|mocktail|non.?alcoholic|0%/i]];
 function drinkBase_(text) { const t = String(text || ''); const f = DRINK_BASES_.find(b => b[1].test(t)); return f ? f[0] : ''; }
 function linkInfo_(url, opt) {
   opt = opt || {};

@@ -423,7 +423,7 @@ function catStyleC(c) {
   if (/recipe|מתכו/i.test(n)) return 'recipe';
   return 'other';
 }
-const C_BASES = [['gin', '🍸', 'Gin', "ג'ין"], ['vodka', '🧊', 'Vodka', 'וודקה'], ['rum', '🍹', 'Rum', 'רום'], ['tequila', '🌵', 'Tequila', 'טקילה'], ['whisky', '🥃', 'Whisky', 'וויסקי'], ['campari', '🔴', 'Campari', 'קמפרי'],
+const C_BASES = [['gin', '🍸', 'Gin', "ג'ין"], ['vodka', '🧊', 'Vodka', 'וודקה'], ['rum', '🍹', 'Rum', 'רום'], ['tequila', '🌵', 'Tequila', 'טקילה'], ['whisky', '🥃', 'Whisky', 'וויסקי'], ['campari', '🔴', 'Campari', 'קמפרי'], ['aperol', '🟠', 'Aperol', 'אפרול'],
   ['sparkling', '🥂', 'Sparkling', 'מבעבע'], ['wine', '🍷', 'Wine', 'יין'], ['beer', '🍺', 'Beer', 'בירה'], ['liqueur', '🍊', 'Liqueur', 'ליקר'], ['none', '🍋', 'Non-alcoholic', 'ללא אלכוהול'], ['other', '✨', 'Other', 'אחר']];
 const baseOf = (k) => C_BASES.find(b => b[0] === k) || C_BASES[C_BASES.length - 1];
 const collLayout = (c) => (ui.collLayout || {})[c.id] || (catStyleC(c) === 'drink' ? 'table' : 'board');
@@ -510,6 +510,11 @@ function collTable(cat, list) {
 }
 /* 🍸 drinks: a real table — Base | Name | Other ingredients — sorted by base, then name (A→Z / א→ת); tap a row to open it */
 const ctIsVideo = (u) => /youtu|tiktok|instagram\.com\/(reel|tv)|facebook\.com\/.*video|fb\.watch/i.test(u || '');
+function drinkVideoUrl(en) {
+  const last = String(en.notes || '').trim().split('\n').pop();
+  const name = /^—\s*/.test(last) ? last.replace(/^—\s*/, '') : en.title;
+  return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(name + ' ' + (/[\u0590-\u05FF]/.test(name) ? 'קוקטייל מתכון' : 'cocktail recipe'));
+}
 function drinkTable(cat, list) {
   const lang = isHe() ? 'he' : 'en';
   const cmp = (a, b) => String(a).localeCompare(String(b), lang, { sensitivity: 'base', numeric: true });
@@ -521,7 +526,7 @@ function drinkTable(cat, list) {
     const tried = en.status === 'tried';
     const row = `<tr class="dt-row ${first ? 'dt-first' : ''} ${open ? 'open' : ''} ${tried ? 'done' : ''}" data-ctr="${esc(en.id)}" tabindex="0" aria-expanded="${open}">
       <td class="dt-base ${first ? '' : 'rep'}"><span class="dt-bi">${b[1]}</span><span class="dt-bl">${esc(L(b[2], b[3]))}</span></td>
-      <td class="dt-name" dir="auto"><b>${esc(en.title)}</b>${tried ? ' <span class="ct-ok">✓</span>' : ''}${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}</td>
+      <td class="dt-name" dir="auto">${en.img ? `<img class="dt-thumb" src="${esc(en.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<b>${esc(en.title)}</b>${tried ? ' <span class="ct-ok">✓</span>' : ''}${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}</td>
       <td class="dt-ing" dir="auto">${en.ing ? esc(en.ing) : '<span class="dt-none">—</span>'}</td>
       <td class="dt-end">${en.link ? (ctIsVideo(en.link) ? '<span class="dt-ic">▶</span>' : '<span class="dt-ic">🔗</span>') : ''}<span class="ct-chev">⌄</span></td></tr>`;
     if (!open) return row;
@@ -530,6 +535,7 @@ function drinkTable(cat, list) {
         ${en.notes ? `<div class="ct-notes" dir="auto">${esc(en.notes)}</div>` : `<p class="hint">${L('No instructions yet — tap Edit to add them.', 'עוד אין הוראות — לחץ עריכה כדי להוסיף.')}</p>`}
         ${en.by ? `<p class="ct-by">👤 ${esc(en.by)}</p>` : ''}
         <div class="ct-actions">${en.link ? `<button class="btn ${ctIsVideo(en.link) ? 'primary' : 'ghost'}" data-clink="${esc(en.link)}">${ctIsVideo(en.link) ? L('▶ Watch the video', '▶ לסרטון') : L('📖 Recipe', '📖 למתכון')}</button>` : ''}
+          ${ctIsVideo(en.link) ? '' : `<button class="btn ghost" data-clink="${esc(drinkVideoUrl(en))}">${L('🎬 Videos', '🎬 סרטוני הכנה')}</button>`}
           ${collRO() ? '' : `<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
       </div></td></tr>`;
   }).join('');
@@ -2590,7 +2596,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 44;
+const APP_VERSION = 45;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

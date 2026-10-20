@@ -734,3 +734,6 @@ body.story-open .fab-play,body.story-open .fab{visibility:hidden}
 .dt-detail td{padding:0;border-bottom:1px solid var(--line)}
 .dt-detail .ct-detail{padding:4px 12px 14px}
 @media (max-width:420px){.dt{font-size:14px}.dt td,.dt th{padding:10px 7px}.dt-base .dt-bl{display:block;font-size:12px}.dt-base .dt-bi{margin:0}}
+.dt-thumb{float:inline-start;width:42px;height:42px;object-fit:cover;border-radius:10px;margin-inline-end:9px;background:var(--bg);border:1px solid var(--line)}
+.dt-name{min-width:0}
+.dt-detail .ct-img{max-height:260px;object-fit:contain;background:var(--card)}
