@@ -1855,7 +1855,7 @@ async function openImport() {
 }
 async function ciLoad() {
   $('#ciList').innerHTML = `<p class="hint">${tr('Loading…')}</p>`;
-  try { const j = await api('POST', { action: 'calInbox', all: ciAll }); ciEvents = j.events || []; ciLast = j.lastImport || ''; ciIgnore = j.ignore || []; ciRender(); }
+  try { const j = await api('POST', { action: 'calInbox', all: ciAll }); ciEvents = j.events || []; ciLast = j.lastImport || ''; ciIgnore = j.ignore || []; if (ciLast) store.set('ai.ciReady', true); ciRender(); }
   catch (e) { $('#ciList').innerHTML = `<p class="hint">${esc(/Unknown action/i.test(e.message) ? L('Paste the new ActionItems_Script.gs into Apps Script and deploy a new version first.', 'קודם הדבק את ActionItems_Script.gs החדש ב-Apps Script ופרסם גרסה חדשה (New version).') : e.message)}</p>`; }
 }
 function ciRender() {
@@ -1938,18 +1938,18 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && $(
 
 /* ---------- 🎬 Summary "video": animated story slides with spoken narration ---------- */
 let story = null;
-function storySlides() {
-  const all = filtered().filter(it => !isClosed(it));
+function storySlides(area) {
+  const all = (area ? data.items.filter(it => it.area === area) : filtered()).filter(it => !isClosed(it));
   const t = today(), late = (it) => Math.max(1, dayDiff(t, parse(it.due)));
   const over = all.filter(it => horizon(it) === 'Overdue').sort((a, b) => parse(a.due) - parse(b.due));
   const tod = all.filter(it => horizon(it) === 'Today').sort((a, b) => String(a.time || '99').localeCompare(String(b.time || '99')) || prioRank(a.prio) - prioRank(b.prio));
   const wk = all.filter(it => horizon(it) === 'This week').sort(sortOpen);
   const hot = wk.filter(it => /^1/.test(it.prio || '')).concat(wk.filter(it => !/^1/.test(it.prio || ''))).slice(0, 5);
   const waiting = all.filter(it => it.status === 'Waiting').sort((a, b) => (waitDays(b) || 0) - (waitDays(a) || 0));
-  const doneWk = data.items.filter(it => it.status === 'Done' && parse(it.done) >= weekStart(t)).length;
+  const doneWk = data.items.filter(it => it.status === 'Done' && parse(it.done) >= weekStart(t) && (!area ? (ui.area === 'All' || it.area === ui.area) : it.area === area)).length;
   const h = new Date().getHours();
   const hello = h < 12 ? L('Good morning', 'בוקר טוב') : h < 17 ? L('Good afternoon', 'צהריים טובים') : L('Good evening', 'ערב טוב');
-  const areaTxt = ui.area !== 'All' ? ' · ' + tr(ui.area) : '';
+  const areaTxt = (area || ui.area) !== 'All' ? ' · ' + tr(area || ui.area) : '';
   const li = (it, extra) => `<li><b dir="auto">${esc(it.item)}</b>${extra ? `<span>${extra}</span>` : ''}</li>`;
   const names = (arr) => arr.slice(0, 3).map(it => it.item).join(isHe() ? ', ' : ', ');
   const S = [];
@@ -2011,8 +2011,8 @@ function confetti(host) {
     if (k % 3 === 0) c.style.borderRadius = '50%'; box.appendChild(c); }
   host.appendChild(box);
 }
-function openStory() {
-  const slides = storySlides();
+function openStory(area) {
+  const slides = storySlides(typeof area === 'string' ? area : null);
   const el = document.createElement('div'); el.className = 'story'; el.setAttribute('role', 'dialog');
   el.innerHTML = `<div class="st-bars">${slides.map(() => '<i><b></b></i>').join('')}</div>
     <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><button class="st-snd" data-st-snd aria-label="sound"></button></div>
@@ -2080,6 +2080,58 @@ function storyClose() {
   if (!story) return; clearTimeout(story.timer); try { speechSynthesis.cancel(); } catch (e) { /* none */ }
   story.el.remove(); story = null; document.body.classList.remove('story-open'); document.removeEventListener('keydown', storyKey);
 }
+
+/* ---------- ▶ quick-actions button (bottom right) ---------- */
+function qaAreas() {
+  const pref = ['Work', 'Home'].filter(a => data.areas.includes(a));
+  return pref.length ? pref : data.areas.slice(0, 2);
+}
+const AREA_EMOJI = { Work: '💼', Home: '🏠', Personal: '🙂', 'M.Sc': '🎓', 'Reserve Duty': '🪖', Family: '👨‍👩‍👧', Finance: '💰', Health: '🩺' };
+function renderPlayMenu() {
+  const open = (it) => !isClosed(it);
+  const urgent = (a) => data.items.filter(it => it.area === a && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;
+  const items = [];
+  if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
+  qaAreas().forEach(a => { const n = urgent(a); items.push(['story:' + a, AREA_EMOJI[a] || '🎬', L(`What’s urgent · ${a}`, `מה דחוף · ${tr(a)}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); });
+  items.push(['story:', '🎬', L('Everything urgent', 'כל מה שדחוף'), L('All areas', 'כל התחומים')]);
+  if (!isGuest()) {
+    items.push(['clip', '📋', L('Link → Collection', 'קישור לאוסף'), L('Paste the link you just copied', 'מדביק את הקישור שהעתקת עכשיו')]);
+    items.push(['report', '✉️', L('Weekly report', 'דוח שבועי'), L('Ready to send', 'מוכן לשליחה')]);
+  }
+  $('#playMenu').innerHTML = items.map(([k, ic, t, sub]) => `<button data-play="${esc(k)}"><span class="pm-ic">${ic}</span><span><b>${esc(t)}</b><small>${esc(sub)}</small></span></button>`).join('');
+}
+function togglePlay(open) {
+  const m = $('#playMenu'), b = $('#fabPlay');
+  open = open === undefined ? m.hidden : open;
+  if (open) renderPlayMenu();
+  m.hidden = !open; b.classList.toggle('open', open); b.firstElementChild.textContent = open ? '✕' : '▶'; b.setAttribute('aria-expanded', open); $('#playShade').hidden = !open;
+}
+$('#fabPlay').addEventListener('click', () => togglePlay());
+$('#playShade').addEventListener('click', () => togglePlay(false));
+$('#playMenu').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-play]'); if (!b) return; const k = b.dataset.play; togglePlay(false);
+  if (k.startsWith('story:')) { openStory(k.slice(6) || null); return; }
+  if (k === 'report') { openReport(); return; }
+  if (k === 'sync') {
+    if (settings.demo || !store.get('ai.ciReady', false)) { openImport(); return; }   // first time → the screen with the setup guide
+    try { sessionStorage.setItem('ai.ciBack', String(Date.now())); } catch (err) { /* ignore */ }
+    location.href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(ciName());
+    return;
+  }
+  if (k === 'clip') {
+    let txt = '';
+    try { txt = await navigator.clipboard.readText(); } catch (err) { txt = ''; }
+    const m = String(txt || '').match(/https?:\/\/\S+/);
+    if (!m) { toast(L('No link on the clipboard — copy a link first', 'אין קישור בלוח — העתק קודם קישור')); return; }
+    ui.tab = 'notebook'; ui.nbBook = 'coll'; if (!ui.collCat || ui.collCat === '*') ui.collCat = (collCats[0] || {}).id; store.set('ai.ui', ui); render();
+    collQuickAdd(m[0]);
+  }
+});
+// back from the calendar shortcut → show the new suggestions
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return; let t = 0; try { t = Number(sessionStorage.getItem('ai.ciBack') || 0); } catch (e) { t = 0; }
+  if (t && Date.now() - t < 10 * 60000) { try { sessionStorage.removeItem('ai.ciBack'); } catch (e) { /* ignore */ } setTimeout(openImport, 400); }
+});
 
 /* ---------- statistics ---------- */
 async function openStats() {
@@ -2499,7 +2551,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 40;
+const APP_VERSION = 41;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

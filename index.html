@@ -14,7 +14,7 @@
 <script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('ai.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
-<link rel="stylesheet" href="styles.css?v=40">
+<link rel="stylesheet" href="styles.css?v=41">
 </head>
 <body>
 <header class="top">
@@ -60,6 +60,9 @@
 <main id="list" class="list"></main>
 
 <button class="fab" id="fab" aria-label="Add action item">+</button>
+<div class="play-shade" id="playShade" hidden></div>
+<div class="play-menu" id="playMenu" hidden role="menu"></div>
+<button class="fab fab-play" id="fabPlay" aria-label="Quick actions" aria-expanded="false"><span>▶</span></button>
 <div class="toast" id="toast"></div>
 
 <!-- Edit / add -->
@@ -470,7 +473,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=40"></script>
-<script src="app.js?v=40"></script>
+<script src="i18n.js?v=41"></script>
+<script src="app.js?v=41"></script>
 </body>
 </html>
