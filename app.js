@@ -183,7 +183,7 @@ async function remove(row, track = true) {
 
 /* ---------- complete / reopen ---------- */
 async function toggleDone(it) {
-  const copy = Object.assign({}, it);
+  const copy = Object.assign({}, it), at = Object.assign({}, lastTap);   // where the item was tapped (before any question box)
   if (isClosed(it)) { copy.status = 'In progress'; copy.done = ''; await save(copy); return; }
   const h = await askHours(it);
   if (h === null) return;                                   // closed the box = cancel
@@ -200,10 +200,12 @@ async function toggleDone(it) {
         L(`Plan ${h} h`, `תכנן ${h} שע׳`), L(`Keep ${plan} h`, `השאר ${plan} שע׳`));
       if (upd) copy.hrs = String(h);
     }
-    if (await save(copy)) { celebrate(); toast(L(`Done ✓  Next: ${fmt(copy.due, true)}`, `בוצע ✓  הבא: ${fmt(copy.due, true)}`)); }
+    celebrate(at.x, at.y);                                    // right away — don't wait for the sheet
+    if (await save(copy)) { toast(L(`Done ✓  Next: ${fmt(copy.due, true)}`, `בוצע ✓  הבא: ${fmt(copy.due, true)}`)); }
   } else {
     copy.status = 'Done'; copy.done = iso(today());
-    if (await save(copy)) { celebrate(); toast('Done ✓'); }
+    celebrate(at.x, at.y);
+    if (await save(copy)) toast('Done ✓');
   }
 }
 
@@ -864,7 +866,8 @@ async function nbToggle(it) {
   const copy = Object.assign({}, it);
   const finishing = !isClosed(it);
   if (isClosed(it)) { copy.status = 'Not started'; copy.done = ''; } else { copy.status = 'Done'; copy.done = iso(today()); }
-  if (await save(copy) && finishing) celebrate();
+  if (finishing) celebrate();
+  await save(copy);
 }
 async function nbAdd(text) {
   text = text.trim(); if (!text) return;
@@ -951,7 +954,8 @@ frm.addEventListener('submit', async (e) => {
     }
   }
   dlgEdit.close();
-  if (await save(it)) { if (justDone) celebrate(innerWidth / 2, innerHeight * 0.45); toast(editing ? 'Saved' : 'Added'); }
+  if (justDone) celebrate(innerWidth / 2, innerHeight * 0.45);
+  if (await save(it)) { toast(editing ? 'Saved' : 'Added'); }
 });
 $('#btnDelete').addEventListener('click', () => {
   if (editing && confirm('Delete this action item?')) { dlgEdit.close(); remove(editing.row); }
@@ -2608,7 +2612,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 46;
+const APP_VERSION = 47;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
