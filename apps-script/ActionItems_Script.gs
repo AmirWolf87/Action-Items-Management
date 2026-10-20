@@ -970,11 +970,11 @@ const SEED_DRINKS_ = [
   ['אייריש קופי', 'whisky', 'קפה חם, שמנת, סוכר', '50 מ״ל וויסקי אירי\n120 מ״ל קפה שחור חם\n50 מ״ל שמנת מתוקה קרה\n1 כפית סוכר\nלמזוג קפה לכוס מחוממת, להוסיף וויסקי וסוכר ולערבב עד שנמס.\nלצוף את השמנת לאט מעל גב כפית.\n— Irish Coffee', 'irish-coffee'],
   ['פניצילין', 'whisky', 'מיץ לימון, סירופ דבש, ג׳ינג׳ר, לגבולין', '60 מ״ל סקוטש בלנד\n7.5 מ״ל לגבולין 16\n22.5 מ״ל מיץ לימון טרי\n22.5 מ״ל סירופ דבש\n2–3 פרוסות ג׳ינג׳ר טרי\nלכתוש את הג׳ינג׳ר, להוסיף הכול מלבד הלגבולין, לנער עם קרח ולסנן לכוס עם קרח.\nלצוף את הלגבולין מלמעלה.\nקישוט: ג׳ינג׳ר מסוכר.\n— Penicillin', 'penicillin'],
   ['פייפר פליין', 'whisky', 'אמרו נונינו, אפרול, מיץ לימון', '30 מ״ל בורבון\n30 מ״ל אמרו נונינו\n30 מ״ל אפרול\n30 מ״ל מיץ לימון טרי\nלנער היטב עם קרח ולסנן לכוס קוקטייל מצוננת.\n— Paper Plane', 'paper-plane'],
-  ['בליני', 'sparkling', 'מחית אפרסק לבן', '100 מ״ל פרוסקו\n50 מ״ל מחית אפרסק לבן\nלשים את המחית בכוס ערבוב עם קרח, להוסיף פרוסקו, לערבב בעדינות ולסנן לכוס שמפניה.\n— Bellini', 'bellini'],
-  ['מימוזה', 'sparkling', 'מיץ תפוזים', '75 מ״ל מיץ תפוזים סחוט\n75 מ״ל פרוסקו\nלמזוג את המיץ לכוס שמפניה, להוסיף בעדינות את היין המבעבע ולערבב קלות.\nקישוט (לא חובה): קליפת תפוז.\n— Mimosa', 'mimosa'],
+  ['בליני', 'prosecco', 'מחית אפרסק לבן', '100 מ״ל פרוסקו\n50 מ״ל מחית אפרסק לבן\nלשים את המחית בכוס ערבוב עם קרח, להוסיף פרוסקו, לערבב בעדינות ולסנן לכוס שמפניה.\n— Bellini', 'bellini'],
+  ['מימוזה', 'prosecco', 'מיץ תפוזים', '75 מ״ל מיץ תפוזים סחוט\n75 מ״ל פרוסקו\nלמזוג את המיץ לכוס שמפניה, להוסיף בעדינות את היין המבעבע ולערבב קלות.\nקישוט (לא חובה): קליפת תפוז.\n— Mimosa', 'mimosa'],
   ['גריבלדי', 'campari', 'מיץ תפוזים', '45 מ״ל קמפרי\n120 מ״ל מיץ תפוזים סחוט\nלבנות בכוס הייבול מלאה קרח.\nקישוט: פלח תפוז.\n— Garibaldi', 'garibaldi'],
-  ['קייפירניה', 'other', 'ליים, סוכר', '60 מ״ל קשאסה\n1 ליים חתוך לפלחים קטנים\n4 כפיות סוכר לבן\nלכתוש בעדינות ליים וסוכר בכוס, למלא קרח כתוש, להוסיף קשאסה ולערבב.\n— Caipirinha', 'caipirinha'],
-  ['פיסקו סאוור', 'other', 'מיץ לימון, סירופ סוכר, חלבון', '60 מ״ל פיסקו\n30 מ״ל מיץ לימון טרי\n20 מ״ל סירופ סוכר\nחלבון של ביצה אחת\nלנער עם קרח ולסנן לכוס מצוננת.\nקישוט: כמה טיפות ביטרס מלמעלה.\n— Pisco Sour', 'pisco-sour']];
+  ['קייפירניה', 'cachaca', 'ליים, סוכר', '60 מ״ל קשאסה\n1 ליים חתוך לפלחים קטנים\n4 כפיות סוכר לבן\nלכתוש בעדינות ליים וסוכר בכוס, למלא קרח כתוש, להוסיף קשאסה ולערבב.\n— Caipirinha', 'caipirinha'],
+  ['פיסקו סאוור', 'pisco', 'מיץ לימון, סירופ סוכר, חלבון', '60 מ״ל פיסקו\n30 מ״ל מיץ לימון טרי\n20 מ״ל סירופ סוכר\nחלבון של ביצה אחת\nלנער עם קרח ולסנן לכוס מצוננת.\nקישוט: כמה טיפות ביטרס מלמעלה.\n— Pisco Sour', 'pisco-sour']];
 const SEED_DRINK_IMG_ = {
   'negroni': 'the-unforgettables-negroni-6694911cc3b65',
   'french-75': 'contemporary-classics-french-75-6695cdb175e06',
@@ -1012,15 +1012,19 @@ const SEED_DRINK_IMG_ = {
 /* one-time base fixes for drinks already in the sheet: Campari / Aperol drinks get their own base */
 function collBaseFix_() {
   const P = PropertiesService.getScriptProperties();
-  if (P.getProperty('COLL_BASE_FIX') === '2') return;
+  if (P.getProperty('COLL_BASE_FIX') === '3') return;
   const cat = collCats_().find(c => catStyle_(c.id, c.name) === 'drink'); if (!cat) return;
-  P.setProperty('COLL_BASE_FIX', '2');
+  P.setProperty('COLL_BASE_FIX', '3');
   const sh = collSheet_(), n = sh.getLastRow() - 1; if (n < 1) return;
   sh.getRange(2, 1, n, 16).getValues().forEach((r, i) => {
     if (String(r[1]) !== cat.id) return;
-    const t = String(r[2]), b = String(r[15]);
-    if (/אפרול|aperol/i.test(t) && ['', 'liqueur', 'other', 'sparkling'].indexOf(b) >= 0) sh.getRange(i + 2, 16).setValue('aperol');
-    else if (/קמפרי|campari/i.test(t) && ['', 'liqueur', 'other'].indexOf(b) >= 0) sh.getRange(i + 2, 16).setValue('campari');
+    const t = String(r[2]), b = String(r[15]), body = t + ' ' + String(r[3]).split('\n').slice(0, 3).join(' ');
+    const loose = ['', 'other', 'sparkling', 'liqueur'].indexOf(b) >= 0;
+    let nb = '';
+    if (/אפרול|aperol/i.test(t) && loose) nb = 'aperol';
+    else if (/קמפרי|campari/i.test(t) && ['', 'liqueur', 'other'].indexOf(b) >= 0) nb = 'campari';
+    else if (['', 'other', 'sparkling'].indexOf(b) >= 0) { const f = DRINK_BASES_.find(x => x[1].test(body)); if (f && f[0] !== b && f[0] !== 'sparkling' || f && !b) nb = f[0]; }
+    if (nb && nb !== b) sh.getRange(i + 2, 16).setValue(nb);
   });
 }
 /* classics (IBA official recipes) go into the drinks category once each — a drink you delete is not added again */
@@ -1251,7 +1255,7 @@ function aiExtract_(style, catName, raw, url, blocked) {
     food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence.',
     trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
     activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
-    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit, ONE of: gin, vodka, rum, tequila, whisky, campari, aperol, wine, beer, sparkling, liqueur, none (non-alcoholic), other. ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
+    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit (use judgment — the one the drink is built on, never "other" when it is clear). Prefer ONE of: gin, vodka, rum, tequila, whisky, brandy, pisco, cachaca, arak, campari, aperol, prosecco, sparkling (champagne / cava), wine, beer, liqueur, none (non-alcoholic). If none of these fits, write the short name of the spirit in Hebrew (e.g. "סאקה", "מזקל"). ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
   };
   const prompt = 'You read a social-media post or web page that someone saved to their "' + catName + '" list. Answer in the language of the post (Hebrew if Hebrew).\n' +
     rules[style] + '\n' +
@@ -1341,9 +1345,10 @@ function linkGather_(url, pasted) {
   raw.blocked = !raw.caption && !raw.title;
   return raw;
 }
-const DRINK_BASES_ = [['gin', /ג'?ין|גין\b|\bgin\b|טנקריי|הנדריקס|בומביי/i], ['vodka', /וודקה|vodka|אבסולוט|גריי גוס/i], ['rum', /רום|\brum\b|מוחיטו|דאקירי|פינה קולדה|mojito|daiquiri/i],
+const DRINK_BASES_ = [['pisco', /פיסקו|pisco/i], ['cachaca', /קשאסה|קשסה|cacha[cç]a|קייפירניה|caipirinha/i], ['arak', /ערק|\barak\b|אוזו|ouzo|פסטיס|pastis/i],
+  ['brandy', /ברנדי|brandy|קוניאק|cognac|ארמניאק|armagnac|קלבדוס|calvados/i], ['gin', /ג'?ין|גין\b|\bgin\b|טנקריי|הנדריקס|בומביי/i], ['vodka', /וודקה|vodka|אבסולוט|גריי גוס/i], ['rum', /רום|\brum\b|מוחיטו|דאקירי|פינה קולדה|mojito|daiquiri/i],
   ['tequila', /טקילה|tequila|מרגריטה|margarita|פלומה|מזקל|mezcal/i], ['whisky', /וויסקי|ויסקי|whisk(e)?y|בורבון|bourbon|סקוטש|אולד פאשן|old fashioned/i],
-  ['aperol', /אפרול|aperol/i], ['sparkling', /שמפניה|קאווה|פרוסקו|prosecco|champagne|cava|ספריץ|spritz/i], ['wine', /יין|wine|סנגריה|sangria/i], ['beer', /בירה|beer|ipa\b|לאגר/i],
+  ['aperol', /אפרול|aperol/i], ['prosecco', /פרוסקו|prosecco|בליני|bellini|מימוזה|mimosa/i], ['sparkling', /שמפניה|קאווה|פרוסקו|prosecco|champagne|cava|ספריץ|spritz/i], ['wine', /יין|wine|סנגריה|sangria/i], ['beer', /בירה|beer|ipa\b|לאגר/i],
   ['campari', /קמפרי|campari|אמריקנו|americano|גריבלדי|garibaldi/i], ['liqueur', /ליקר|liqueur|אפרול|aperol|אמרטו|בייליס|קלואה/i], ['none', /ללא אלכוהול|נטול אלכוהול|מוקטייל|mocktail|non.?alcoholic|0%/i]];
 function drinkBase_(text) { const t = String(text || ''); const f = DRINK_BASES_.find(b => b[1].test(t)); return f ? f[0] : ''; }
 function linkInfo_(url, opt) {

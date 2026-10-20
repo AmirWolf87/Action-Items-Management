@@ -423,9 +423,20 @@ function catStyleC(c) {
   if (/recipe|מתכו/i.test(n)) return 'recipe';
   return 'other';
 }
-const C_BASES = [['gin', '🍸', 'Gin', "ג'ין"], ['vodka', '🧊', 'Vodka', 'וודקה'], ['rum', '🍹', 'Rum', 'רום'], ['tequila', '🌵', 'Tequila', 'טקילה'], ['whisky', '🥃', 'Whisky', 'וויסקי'], ['campari', '🔴', 'Campari', 'קמפרי'], ['aperol', '🟠', 'Aperol', 'אפרול'],
-  ['sparkling', '🥂', 'Sparkling', 'מבעבע'], ['wine', '🍷', 'Wine', 'יין'], ['beer', '🍺', 'Beer', 'בירה'], ['liqueur', '🍊', 'Liqueur', 'ליקר'], ['none', '🍋', 'Non-alcoholic', 'ללא אלכוהול'], ['other', '✨', 'Other', 'אחר']];
-const baseOf = (k) => C_BASES.find(b => b[0] === k) || C_BASES[C_BASES.length - 1];
+const C_BASES = [['gin', '🍸', 'Gin', "ג'ין"], ['vodka', '🧊', 'Vodka', 'וודקה'], ['rum', '🍹', 'Rum', 'רום'], ['tequila', '🌵', 'Tequila', 'טקילה'], ['whisky', '🥃', 'Whisky', 'וויסקי'],
+  ['brandy', '🍂', 'Brandy / Cognac', 'ברנדי / קוניאק'], ['pisco', '🏔', 'Pisco', 'פיסקו'], ['cachaca', '🌴', 'Cachaça', 'קשאסה'], ['arak', '🌿', 'Arak / Ouzo', 'ערק / אוזו'],
+  ['campari', '🔴', 'Campari', 'קמפרי'], ['aperol', '🟠', 'Aperol', 'אפרול'], ['prosecco', '🫧', 'Prosecco', 'פרוסקו'], ['sparkling', '🥂', 'Champagne / sparkling', 'שמפניה / מבעבע'],
+  ['wine', '🍷', 'Wine', 'יין'], ['beer', '🍺', 'Beer', 'בירה'], ['liqueur', '🍊', 'Liqueur', 'ליקר'], ['none', '🍋', 'Non-alcoholic', 'ללא אלכוהול'], ['other', '✨', 'Other', 'אחר']];
+/* a base can also be free text the user added (e.g. "סאקה") — shown as its own group */
+const baseOf = (k) => C_BASES.find(b => b[0] === k) || (k && k !== 'other' ? [k, '🥤', k, k] : C_BASES[C_BASES.length - 1]);
+const NEW_BASE = '__new';
+function fillBaseSelect(cur) {
+  const custom = [...new Set(coll.map(x => x.base).filter(b => b && !C_BASES.some(c => c[0] === b)))];
+  if (cur && !C_BASES.some(c => c[0] === cur) && custom.indexOf(cur) < 0) custom.push(cur);
+  $('#collBase').innerHTML = `<option value="">${L('— choose —', '— בחר —')}</option>` + C_BASES.map(b => `<option value="${b[0]}">${b[1]} ${esc(L(b[2], b[3]))}</option>`).join('') +
+    custom.map(b => `<option value="${esc(b)}">🥤 ${esc(b)}</option>`).join('') + `<option value="${NEW_BASE}">${L('＋ Add a base…', '＋ הוספת בסיס…')}</option>`;
+  $('#collBase').value = cur || ''; $('#collBaseNew').hidden = true; $('#collBaseNew').value = '';
+}
 const collLayout = (c) => (ui.collLayout || {})[c.id] || (catStyleC(c) === 'drink' ? 'table' : 'board');
 let ctOpen = {};
 function statusWords(kind) {
@@ -669,7 +680,7 @@ async function collFillFromLink() {
   if (info.title && (!cur || cur === auto || /^[\w.-]+\.(com|co\.il|il|net|org|io)$/i.test(cur))) { f.elements.title.value = info.title; f.dataset.autoTitle = info.title; }
   const set = (k, v) => { if (v && !f.elements[k].value.trim()) f.elements[k].value = v; };
   set('place', info.place); set('by', info.by);
-  if (info.base && !$('#collBase').value) $('#collBase').value = info.base;
+  if (info.base && (!$('#collBase').value || $('#collBase').value === NEW_BASE)) fillBaseSelect(info.base);
   if (info.ing && !$('#collIng').value.trim()) $('#collIng').value = info.ing;
   const add = info.summary || info.notes;
   if (add && !f.elements.notes.value.includes(add.slice(0, 30))) f.elements.notes.value = blockedBefore ? (info.summary ? info.summary + '\n\n' : '') + f.elements.notes.value : (f.elements.notes.value.trim() ? f.elements.notes.value.trim() + '\n\n' : '') + add;
@@ -738,7 +749,7 @@ function openColl(en) {
   $('#collCat').innerHTML = collCats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
   f.elements.title.value = en.title || ''; $('#collCat').value = en.cat && en.cat !== '*' ? en.cat : (collCats[0] || {}).id; f.elements.place.value = en.place || ''; f.elements.by.value = en.by || '';
   f.elements.link.value = en.link || ''; f.elements.notes.value = en.notes || ''; f.elements.for.value = en.for || '';
-  $('#collBase').innerHTML = `<option value="">${L('— choose —', '— בחר —')}</option>` + C_BASES.map(b => `<option value="${b[0]}">${b[1]} ${esc(L(b[2], b[3]))}</option>`).join(''); $('#collBase').value = en.base || ''; $('#collIng').value = en.ing || '';
+  fillBaseSelect(en.base || ''); $('#collIng').value = en.ing || '';
   f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0;
   f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = en._pin || ''; f.dataset.img = en.img || ''; f.dataset.autoTitle = en._auto || ''; f.dataset.geo = en._geo || '';
   $('#collNote').hidden = true; $('#placeAc').hidden = true; $('#collGeo').classList.remove('warn');
@@ -792,13 +803,14 @@ $('#frmColl').addEventListener('paste', (e) => {
   if (e.target.name !== 'link' || collRO()) return;
   setTimeout(() => { const f = $('#frmColl'); if (!f.elements.title.value.trim() || !f.elements.notes.value.trim()) collFillFromLink(); }, 50);
 });
+$('#collBase').addEventListener('change', () => { const n = $('#collBase').value === NEW_BASE; $('#collBaseNew').hidden = !n; if (n) $('#collBaseNew').focus(); });
 $('#frmColl').addEventListener('submit', async (e) => {
   e.preventDefault(); if (collRO()) return; const f = $('#frmColl');
   const title = f.elements.title.value.trim(); if (!title) { f.elements.title.focus(); return; }
   let link = f.elements.link.value.trim(); if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
   const c = catOf($('#collCat').value);
   const en = Object.assign({}, collEditing || {}, { title, cat: c.id, place: c.map ? f.elements.place.value.trim() : '', by: c.kind === 'wish' ? '' : f.elements.by.value.trim(), link, notes: f.elements.notes.value,
-    base: catStyleC(c) === 'drink' ? $('#collBase').value : '', ing: catStyleC(c) === 'drink' ? $('#collIng').value.trim() : '', img: f.dataset.img || '', for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
+    base: catStyleC(c) === 'drink' ? ($('#collBase').value === NEW_BASE ? $('#collBaseNew').value.trim() : $('#collBase').value) : '', ing: catStyleC(c) === 'drink' ? $('#collIng').value.trim() : '', img: f.dataset.img || '', for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
     lat: f.dataset.manual ? Number(f.dataset.lat) : (collEditing && f.dataset.lat !== '' ? collEditing.lat : null), lng: f.dataset.manual ? Number(f.dataset.lng) : (collEditing && f.dataset.lat !== '' ? collEditing.lng : null) });
   if (!f.dataset.manual) { delete en.lat; delete en.lng; }
   $('#dlgColl').close(); if (ui.collCat !== '*') ui.collCat = en.cat; await collStore(en);
@@ -2596,7 +2608,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 45;
+const APP_VERSION = 46;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
