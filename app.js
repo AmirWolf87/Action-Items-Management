@@ -200,11 +200,42 @@ async function toggleDone(it) {
         L(`Plan ${h} h`, `תכנן ${h} שע׳`), L(`Keep ${plan} h`, `השאר ${plan} שע׳`));
       if (upd) copy.hrs = String(h);
     }
-    if (await save(copy)) toast(L(`Done ✓  Next: ${fmt(copy.due, true)}`, `בוצע ✓  הבא: ${fmt(copy.due, true)}`));
+    if (await save(copy)) { celebrate(); toast(L(`Done ✓  Next: ${fmt(copy.due, true)}`, `בוצע ✓  הבא: ${fmt(copy.due, true)}`)); }
   } else {
     copy.status = 'Done'; copy.done = iso(today());
-    if (await save(copy)) toast('Done ✓');
+    if (await save(copy)) { celebrate(); toast('Done ✓'); }
   }
+}
+
+/* ---------- 🎉 celebration when an item is completed (in the background, never blocks) ---------- */
+let lastTap = { x: innerWidth / 2, y: innerHeight / 2 };
+document.addEventListener('pointerdown', (e) => { lastTap = { x: e.clientX, y: e.clientY }; }, true);
+function celebrate(x, y) {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  x = x ?? lastTap.x; y = y ?? lastTap.y;
+  const layer = document.createElement('div'); layer.className = 'celebrate';
+  const cols = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FB923C'];
+  const N = innerWidth < 600 ? 70 : 110;
+  for (let k = 0; k < N; k++) {
+    const c = document.createElement('i');
+    const ang = (-90 + (Math.random() - 0.5) * 150) * Math.PI / 180, sp = 180 + Math.random() * 380;
+    c.style.left = x + 'px'; c.style.top = y + 'px'; c.style.background = cols[k % cols.length];
+    c.style.setProperty('--dx', Math.cos(ang) * sp + 'px'); c.style.setProperty('--dy', Math.sin(ang) * sp + 'px');
+    c.style.setProperty('--fall', (innerHeight - y + 120 + Math.random() * 200) + 'px');
+    c.style.setProperty('--rot', (Math.random() * 1080 - 540) + 'deg');
+    c.style.animationDuration = (1.6 + Math.random() * 1.2) + 's';
+    if (k % 4 === 0) { c.style.borderRadius = '50%'; c.style.width = c.style.height = '8px'; }
+    else if (k % 4 === 1) { c.style.width = '4px'; c.style.height = '14px'; }
+    layer.appendChild(c);
+  }
+  ['🎉', '✨', '🥳', '⭐', '👏'].sort(() => Math.random() - 0.5).slice(0, 3).forEach((em, k) => {
+    const e = document.createElement('b'); e.textContent = em;
+    e.style.left = (x + (k - 1) * 46) + 'px'; e.style.top = (y - 10) + 'px'; e.style.animationDelay = (k * 0.08) + 's';
+    layer.appendChild(e);
+  });
+  const glow = document.createElement('u'); glow.style.left = x + 'px'; glow.style.top = y + 'px'; layer.appendChild(glow);
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 3200);
 }
 
 /* ---------- small modal helpers ---------- */
@@ -660,8 +691,9 @@ $('#ccSave').addEventListener('click', async () => {
 });
 async function nbToggle(it) {
   const copy = Object.assign({}, it);
+  const finishing = !isClosed(it);
   if (isClosed(it)) { copy.status = 'Not started'; copy.done = ''; } else { copy.status = 'Done'; copy.done = iso(today()); }
-  await save(copy);
+  if (await save(copy) && finishing) celebrate();
 }
 async function nbAdd(text) {
   text = text.trim(); if (!text) return;
@@ -732,6 +764,7 @@ frm.addEventListener('submit', async (e) => {
   it.checklist = curCl.filter(x => x.t);
   if (it.status === 'Waiting' && (!editing || editing.status !== 'Waiting' || !editing.wsince)) it.wsince = (editing && editing.status === 'Waiting' && editing.wsince) || iso(today());
   if (it.status !== 'Waiting') it.wsince = '';
+  const justDone = it.status === 'Done' && (!editing || editing.status !== 'Done');
   if (it.status === 'Done' && !it.done) it.done = iso(today());
   if (!editing) it.created = iso(today());
   const plan = parseFloat(it.hrs);
@@ -747,7 +780,7 @@ frm.addEventListener('submit', async (e) => {
     }
   }
   dlgEdit.close();
-  if (await save(it)) toast(editing ? 'Saved' : 'Added');
+  if (await save(it)) { if (justDone) celebrate(innerWidth / 2, innerHeight * 0.45); toast(editing ? 'Saved' : 'Added'); }
 });
 $('#btnDelete').addEventListener('click', () => {
   if (editing && confirm('Delete this action item?')) { dlgEdit.close(); remove(editing.row); }
@@ -2342,7 +2375,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 37;
+const APP_VERSION = 38;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

@@ -630,3 +630,17 @@ body.story-open{overflow:hidden}
 @keyframes cfFall{to{top:105%;transform:rotate(720deg) translateX(40px)}}
 @media (max-height:700px){.mc-wrap{width:72px;height:78px}.mc-bubble{margin-bottom:30px;font-size:13px}}
 @media (prefers-reduced-motion: reduce){.mc-body,.mc-svg,.mc-hand,.mc-cup,.st-confetti i{animation:none!important}}
+
+/* 🎉 completion celebration — a background layer that never blocks taps */
+.celebrate{position:fixed;inset:0;pointer-events:none;z-index:90;overflow:hidden}
+.celebrate i{position:absolute;width:8px;height:12px;border-radius:2px;margin:-6px 0 0 -4px;opacity:0;animation:cbBurst 2s cubic-bezier(.15,.6,.35,1) forwards}
+@keyframes cbBurst{
+  0%{opacity:1;transform:translate(0,0) rotate(0)}
+  35%{opacity:1;transform:translate(var(--dx),var(--dy)) rotate(calc(var(--rot) * .4))}
+  100%{opacity:0;transform:translate(calc(var(--dx) * 1.25),calc(var(--dy) + var(--fall))) rotate(var(--rot))}}
+.celebrate b{position:absolute;font-size:30px;margin:-15px 0 0 -15px;opacity:0;animation:cbEmoji 1.4s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes cbEmoji{0%{opacity:0;transform:translateY(0) scale(.3)}25%{opacity:1;transform:translateY(-60px) scale(1.25)}70%{opacity:1;transform:translateY(-90px) scale(1)}100%{opacity:0;transform:translateY(-120px) scale(.8)}}
+.celebrate u{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:radial-gradient(circle,rgba(251,191,36,.55),rgba(251,191,36,0) 70%);animation:cbGlow .9s ease-out forwards}
+@keyframes cbGlow{from{transform:scale(1);opacity:1}to{transform:scale(18);opacity:0}}
+.check.on{animation:cbCheck .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes cbCheck{0%{transform:scale(.6)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
