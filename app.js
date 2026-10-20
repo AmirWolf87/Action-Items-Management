@@ -423,7 +423,7 @@ function catStyleC(c) {
   if (/recipe|מתכו/i.test(n)) return 'recipe';
   return 'other';
 }
-const C_BASES = [['gin', '🍸', 'Gin', "ג'ין"], ['vodka', '🧊', 'Vodka', 'וודקה'], ['rum', '🍹', 'Rum', 'רום'], ['tequila', '🌵', 'Tequila', 'טקילה'], ['whisky', '🥃', 'Whisky', 'וויסקי'],
+const C_BASES = [['gin', '🍸', 'Gin', "ג'ין"], ['vodka', '🧊', 'Vodka', 'וודקה'], ['rum', '🍹', 'Rum', 'רום'], ['tequila', '🌵', 'Tequila', 'טקילה'], ['whisky', '🥃', 'Whisky', 'וויסקי'], ['campari', '🔴', 'Campari', 'קמפרי'],
   ['sparkling', '🥂', 'Sparkling', 'מבעבע'], ['wine', '🍷', 'Wine', 'יין'], ['beer', '🍺', 'Beer', 'בירה'], ['liqueur', '🍊', 'Liqueur', 'ליקר'], ['none', '🍋', 'Non-alcoholic', 'ללא אלכוהול'], ['other', '✨', 'Other', 'אחר']];
 const baseOf = (k) => C_BASES.find(b => b[0] === k) || C_BASES[C_BASES.length - 1];
 const collLayout = (c) => (ui.collLayout || {})[c.id] || (catStyleC(c) === 'drink' ? 'table' : 'board');
@@ -2590,7 +2590,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 43;
+const APP_VERSION = 44;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

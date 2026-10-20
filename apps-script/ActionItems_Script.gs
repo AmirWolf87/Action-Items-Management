@@ -930,7 +930,7 @@ function collSheet_() {
   return sh;
 }
 function collRead_() {
-  collSeedDrinks_();
+  collSeedDrinks_(); collCampariBase_();
   const sh = collSheet_(), n = sh.getLastRow() - 1;
   if (n < 1) return [];
   const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
@@ -956,7 +956,16 @@ const SEED_DRINKS_ = [
   ['וויסקי סאוור', 'whisky', 'מיץ לימון, סירופ סוכר, חלבון (לא חובה)', '45 מ״ל בורבון\n25 מ״ל מיץ לימון טרי\n20 מ״ל סירופ סוכר\nכמה טיפות חלבון ביצה (לא חובה)\nלנער היטב עם קרח ולסנן לכוס, או לכוס אולד פאשנד עם קרח.\nקישוט: חצי פרוסת תפוז ודובדבן.\n— Whiskey Sour', 'whiskey-sour'],
   ['בולבארדייה', 'whisky', 'קמפרי, ורמוט אדום מתוק', '45 מ״ל בורבון או ריי\n30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nלערבב עם קרח ולסנן לכוס קוקטייל מצוננת.\nקישוט: קליפת תפוז.\n— Boulevardier', 'boulevardier'],
   ['אפרול שפריץ', 'sparkling', 'אפרול, סודה', '90 מ״ל פרוסקו\n60 מ״ל אפרול\nמעט סודה\nלבנות בכוס יין מלאה קרח ולערבב בעדינות.\nקישוט: פרוסת תפוז.\n— Aperol Spritz', 'spritz'],
-  ['אמריקנו', 'liqueur', 'ורמוט אדום מתוק, סודה', '30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nמעט סודה\nלמזוג לכוס אולד פאשנד עם קרח ולערבב.\nקישוט: חצי פרוסת תפוז וקליפת לימון.\n— Americano', 'americano']];
+  ['אמריקנו', 'campari', 'ורמוט אדום מתוק, סודה', '30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nמעט סודה\nלמזוג לכוס אולד פאשנד עם קרח ולערבב.\nקישוט: חצי פרוסת תפוז וקליפת לימון.\n— Americano', 'americano']];
+function collCampariBase_() {
+  const P = PropertiesService.getScriptProperties();
+  if (P.getProperty('COLL_CAMPARI_BASE') === '1') return;
+  const cat = collCats_().find(c => catStyle_(c.id, c.name) === 'drink'); if (!cat) return; const catId = cat.id;
+  P.setProperty('COLL_CAMPARI_BASE', '1');
+  const sh = collSheet_(), n = sh.getLastRow() - 1; if (n < 1) return;
+  const v = sh.getRange(2, 1, n, 16).getValues();
+  v.forEach((r, i) => { if (String(r[1]) === catId && /קמפרי|campari/i.test(String(r[2])) && ['', 'liqueur', 'other'].indexOf(String(r[15])) >= 0) sh.getRange(i + 2, 16).setValue('campari'); });
+}
 function collSeedDrinks_() {
   const P = PropertiesService.getScriptProperties();
   if (P.getProperty('COLL_SEED_DRINKS') === '1') return;
@@ -1158,7 +1167,7 @@ function aiExtract_(style, catName, raw, url, blocked) {
     food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence.',
     trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
     activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
-    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit, ONE of: gin, vodka, rum, tequila, whisky, wine, beer, sparkling, liqueur, none (non-alcoholic), other. ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
+    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit, ONE of: gin, vodka, rum, tequila, whisky, campari, wine, beer, sparkling, liqueur, none (non-alcoholic), other. ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
   };
   const prompt = 'You read a social-media post or web page that someone saved to their "' + catName + '" list. Answer in the language of the post (Hebrew if Hebrew).\n' +
     rules[style] + '\n' +
@@ -1251,7 +1260,7 @@ function linkGather_(url, pasted) {
 const DRINK_BASES_ = [['gin', /ג'?ין|גין\b|\bgin\b|טנקריי|הנדריקס|בומביי/i], ['vodka', /וודקה|vodka|אבסולוט|גריי גוס/i], ['rum', /רום|\brum\b|מוחיטו|דאקירי|פינה קולדה|mojito|daiquiri/i],
   ['tequila', /טקילה|tequila|מרגריטה|margarita|פלומה|מזקל|mezcal/i], ['whisky', /וויסקי|ויסקי|whisk(e)?y|בורבון|bourbon|סקוטש|אולד פאשן|old fashioned/i],
   ['sparkling', /שמפניה|קאווה|פרוסקו|prosecco|champagne|cava|ספריץ|spritz/i], ['wine', /יין|wine|סנגריה|sangria/i], ['beer', /בירה|beer|ipa\b|לאגר/i],
-  ['liqueur', /ליקר|liqueur|קמפרי|campari|אפרול|aperol|אמרטו|בייליס|קלואה/i], ['none', /ללא אלכוהול|נטול אלכוהול|מוקטייל|mocktail|non.?alcoholic|0%/i]];
+  ['campari', /קמפרי|campari|אמריקנו|americano/i], ['liqueur', /ליקר|liqueur|אפרול|aperol|אמרטו|בייליס|קלואה/i], ['none', /ללא אלכוהול|נטול אלכוהול|מוקטייל|mocktail|non.?alcoholic|0%/i]];
 function drinkBase_(text) { const t = String(text || ''); const f = DRINK_BASES_.find(b => b[1].test(t)); return f ? f[0] : ''; }
 function linkInfo_(url, opt) {
   opt = opt || {};
