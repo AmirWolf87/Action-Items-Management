@@ -703,3 +703,12 @@ body.story-open{overflow:hidden}
 .play-menu b{display:block;font-size:14.5px}
 .play-menu small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
 body.story-open .fab-play,body.story-open .fab{visibility:hidden}
+
+/* one button: ▶ replaces ＋ (same place) and holds "new item" too */
+#fab{display:none!important}
+.fab-play{right:auto;left:auto;inset-inline-end:20px;bottom:calc(20px + env(safe-area-inset-bottom))}
+[dir=ltr] .fab-play{bottom:calc(20px + env(safe-area-inset-bottom))}
+.play-menu{right:auto;left:auto;inset-inline-end:16px;bottom:calc(88px + env(safe-area-inset-bottom));transform-origin:bottom left}
+[dir=ltr] .play-menu{bottom:calc(88px + env(safe-area-inset-bottom));transform-origin:bottom right}
+.play-menu .pm-main .pm-ic{background:var(--accent);color:#fff;font-size:22px;font-weight:700}
+.play-menu .pm-main{margin-bottom:4px;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0}

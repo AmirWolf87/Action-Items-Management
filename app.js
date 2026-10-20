@@ -2091,6 +2091,12 @@ function renderPlayMenu() {
   const open = (it) => !isClosed(it);
   const urgent = (a) => data.items.filter(it => it.area === a && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;
   const items = [];
+  const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll' && !isGuest();
+  if (isGuest()) { if (me.canSuggest) items.push(['new', '＋', L('Suggest an item', 'הצעת משימה'), L('Goes to the owner for approval', 'נשלחת לאישור')]); }
+  else {
+    if (inColl) items.push(['newcoll', '💡', L('New in the Collection', 'רשומה חדשה באוסף'), esc(catOf(ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat).name || '')]);
+    items.push(['new', '＋', L('New action item', 'משימה חדשה'), L('With date, area, priority…', 'עם תאריך, תחום, עדיפות…')]);
+  }
   if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
   qaAreas().forEach(a => { const n = urgent(a); items.push(['story:' + a, AREA_EMOJI[a] || '🎬', L(`What’s urgent · ${a}`, `מה דחוף · ${tr(a)}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); });
   items.push(['story:', '🎬', L('Everything urgent', 'כל מה שדחוף'), L('All areas', 'כל התחומים')]);
@@ -2098,7 +2104,7 @@ function renderPlayMenu() {
     items.push(['clip', '📋', L('Link → Collection', 'קישור לאוסף'), L('Paste the link you just copied', 'מדביק את הקישור שהעתקת עכשיו')]);
     items.push(['report', '✉️', L('Weekly report', 'דוח שבועי'), L('Ready to send', 'מוכן לשליחה')]);
   }
-  $('#playMenu').innerHTML = items.map(([k, ic, t, sub]) => `<button data-play="${esc(k)}"><span class="pm-ic">${ic}</span><span><b>${esc(t)}</b><small>${esc(sub)}</small></span></button>`).join('');
+  $('#playMenu').innerHTML = items.map(([k, ic, t, sub]) => `<button data-play="${esc(k)}" class="${k === 'new' || k === 'newcoll' ? 'pm-main' : ''}"><span class="pm-ic">${ic}</span><span><b>${esc(t)}</b><small>${esc(sub)}</small></span></button>`).join('');
 }
 function togglePlay(open) {
   const m = $('#playMenu'), b = $('#fabPlay');
@@ -2110,6 +2116,8 @@ $('#fabPlay').addEventListener('click', () => togglePlay());
 $('#playShade').addEventListener('click', () => togglePlay(false));
 $('#playMenu').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-play]'); if (!b) return; const k = b.dataset.play; togglePlay(false);
+  if (k === 'new') { isGuest() ? openSuggest() : openEdit(null); return; }
+  if (k === 'newcoll') { openColl({ cat: ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat, status: 'want' }); return; }
   if (k.startsWith('story:')) { openStory(k.slice(6) || null); return; }
   if (k === 'report') { openReport(); return; }
   if (k === 'sync') {
@@ -2551,7 +2559,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 41;
+const APP_VERSION = 42;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
