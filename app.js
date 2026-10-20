@@ -542,39 +542,114 @@ async function collQuickAdd(text) {
   let title = link ? text.replace(link, '').trim() : text;
   if (link && !settings.demo) {                                    // ✨ read the post / page and open a pre-filled entry to approve
     toast(L('✨ Reading the link…', '✨ קורא את הקישור…'));
-    const info = await linkInfo(link);
-    openColl(Object.assign({ cat: ui.collCat, status: 'want' }, collFromInfo(info, { title, link })));
-    if (info && info.found) toast(L('Filled from the link — check and Save', 'מולא מהקישור — בדוק ולחץ שמירה'));
-    else toast(L('Couldn\'t read details from this link — fill in what you want', 'לא הצלחתי לקרוא פרטים מהקישור — מלא את מה שתרצה'));
+    const cat = catOf(ui.collCat);
+    const info = await linkInfo(link, cat);
+    const en = Object.assign({ cat: cat.id, status: 'want' }, collFromInfo(info, { title, link }));
+    openColl(en); collLinkNote(info);
     return;
   }
   if (!title && link) { try { title = new URL(link).hostname.replace(/^www\./, ''); } catch (e) { title = link; } }
   await collStore({ cat: ui.collCat, title, link, status: 'want', rating: 0 });
   const inp = $('#collNew'); if (inp) inp.focus();
 }
-async function linkInfo(url) {
-  try { return await api('POST', { action: 'linkInfo', url }); } catch (e) { return null; }
+async function linkInfo(url, cat, text) {
+  try { return await api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '' }); } catch (e) { return null; }
 }
 function collFromInfo(info, base) {
   info = info || {};
-  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '' };
+  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '', _auto: info.title || '' };
+  if (info.summary && o.notes.indexOf(info.summary.slice(0, 20)) < 0) o.notes = info.summary + (o.notes ? '\n\n' + o.notes : '');
   if (!o.title) { try { o.title = new URL(base.link).hostname.replace(/^www\./, ''); } catch (e) { o.title = base.link; } }
-  if (info.lat !== null && info.lat !== undefined && info.lat !== '') { o.lat = info.lat; o.lng = info.lng; o._pin = 'link'; }
+  if (info.lat !== null && info.lat !== undefined && info.lat !== '') { o.lat = info.lat; o.lng = info.lng; o._pin = 'link'; o._geo = info.geoName || ''; }
   return o;
 }
-async function collFillFromLink() {
-  const f = $('#frmColl'), link = f.elements.link.value.trim(); if (!/^https?:\/\//i.test(link)) return;
-  const b = $('#collFill'); b.disabled = true; b.textContent = L('✨ Reading…', '✨ קורא…');
-  const info = await linkInfo(link);
-  b.disabled = false; b.textContent = L('✨ Fill from link', '✨ מלא מהקישור');
-  if (!info || !info.found) { toast(L('Couldn\'t read details from this link', 'לא הצלחתי לקרוא פרטים מהקישור')); return; }
-  const set = (k, v) => { if (v && !f.elements[k].value.trim()) f.elements[k].value = v; };
-  set('title', info.title); set('place', info.place); set('by', info.by);
-  if (info.notes && !f.elements.notes.value.includes(info.notes.slice(0, 30))) f.elements.notes.value = (f.elements.notes.value.trim() ? f.elements.notes.value.trim() + '\n\n' : '') + info.notes;
-  if (info.img && !f.dataset.img) f.dataset.img = info.img;
-  if (info.lat !== null && info.lat !== undefined && f.dataset.lat === '') { f.dataset.lat = info.lat; f.dataset.lng = info.lng; f.dataset.manual = 'link'; }
-  collFormUi(); toast(L('Filled from the link ✓', 'מולא מהקישור ✓'));
+/* what happened when reading the link — shown as a banner in the entry window */
+function collLinkNote(info, fromText) {
+  const box = $('#collNote');
+  if (!info || !info.found || info.blocked) {
+    box.className = 'c-note warn'; box.hidden = false;
+    box.innerHTML = L('📋 <b>The post couldn’t be read</b> (Instagram/Facebook often block it). Copy the post’s text in the app, paste it into <b>Notes</b> below and tap <b>✨ Fill from text</b>.',
+      '📋 <b>לא הצלחתי לקרוא את הפוסט</b> (אינסטגרם/פייסבוק חוסמים לפעמים). העתק את הטקסט של הפוסט באפליקציה, הדבק ב<b>הערות</b> למטה ולחץ <b>✨ מלא מהטקסט</b>.');
+  } else {
+    box.className = 'c-note ok'; box.hidden = false;
+    box.innerHTML = (info.ai ? '✨ ' + L('Read with AI', 'נקרא עם AI') : '✓ ' + (fromText ? L('Filled from the text', 'מולא מהטקסט') : L('Filled from the link', 'מולא מהקישור'))) + ' · ' + L('check and Save', 'בדוק ולחץ שמירה') +
+      (info.aiError ? `<br><small>${esc(L('AI didn’t answer: ', 'ה-AI לא ענה: ') + info.aiError)}</small>` : '');
+  }
+  if ($('#dlgColl').open) collFormUi();
 }
+async function collFillFromLink() {
+  const f = $('#frmColl'), link = f.elements.link.value.trim(), notes = f.elements.notes.value.trim();
+  if (!/^https?:\/\//i.test(link) && notes.length < 15) return;
+  const b = $('#collFill'); b.disabled = true; const old = b.textContent; b.textContent = L('✨ Reading…', '✨ קורא…');
+  const cat = catOf($('#collCat').value);
+  const blockedBefore = $('#collNote').classList.contains('warn');
+  const useText = blockedBefore || !/^https?:\/\//i.test(link);
+  const info = await linkInfo(link, cat, useText ? notes : '');
+  b.disabled = false; b.textContent = old;
+  collLinkNote(info, useText);
+  if (!info || !info.found) return;
+  const cur = f.elements.title.value.trim(), auto = f.dataset.autoTitle || '';
+  if (info.title && (!cur || cur === auto || /^[\w.-]+\.(com|co\.il|il|net|org|io)$/i.test(cur))) { f.elements.title.value = info.title; f.dataset.autoTitle = info.title; }
+  const set = (k, v) => { if (v && !f.elements[k].value.trim()) f.elements[k].value = v; };
+  set('place', info.place); set('by', info.by);
+  const add = info.summary || info.notes;
+  if (add && !f.elements.notes.value.includes(add.slice(0, 30))) f.elements.notes.value = blockedBefore ? (info.summary ? info.summary + '\n\n' : '') + f.elements.notes.value : (f.elements.notes.value.trim() ? f.elements.notes.value.trim() + '\n\n' : '') + add;
+  if (info.img && !f.dataset.img) f.dataset.img = info.img;
+  if (info.lat !== null && info.lat !== undefined && (f.dataset.lat === '' || f.dataset.manual === 'link')) { f.dataset.lat = info.lat; f.dataset.lng = info.lng; f.dataset.manual = 'link'; f.dataset.geo = info.geoName || ''; }
+  collFormUi();
+}
+/* ---- place suggestions while typing (OpenStreetMap / Photon — free, no key) ---- */
+const OSM_TYPE = { restaurant: ['Restaurant', 'מסעדה'], cafe: ['Café', 'בית קפה'], bar: ['Bar', 'בר'], pub: ['Pub', 'פאב'], fast_food: ['Fast food', 'מזון מהיר'], ice_cream: ['Ice cream', 'גלידה'],
+  bakery: ['Bakery', 'מאפייה'], spring: ['Spring', 'מעיין'], peak: ['Peak', 'פסגה'], viewpoint: ['Viewpoint', 'תצפית'], waterfall: ['Waterfall', 'מפל'], nature_reserve: ['Nature reserve', 'שמורת טבע'],
+  park: ['Park', 'פארק'], beach: ['Beach', 'חוף'], museum: ['Museum', 'מוזיאון'], attraction: ['Attraction', 'אטרקציה'], marketplace: ['Market', 'שוק'], hotel: ['Hotel', 'מלון'], winery: ['Winery', 'יקב'],
+  city: ['City', 'עיר'], town: ['Town', 'יישוב'], village: ['Village', 'כפר'], suburb: ['Neighborhood', 'שכונה'], neighbourhood: ['Neighborhood', 'שכונה'], street: ['Street', 'רחוב'], residential: ['Street', 'רחוב'], cave_entrance: ['Cave', 'מערה'], stream: ['Stream', 'נחל'] };
+let acTimer = null, acSeq = 0, acItems = [];
+function placeLabel(p) {
+  const name = p.name || [p.street, p.housenumber].filter(Boolean).join(' ');
+  const town = p.city || p.town || p.village || p.county || '';
+  return { name, town, line: [p.street && p.name ? [p.street, p.housenumber].filter(Boolean).join(' ') : '', town !== name ? town : '', p.state && p.state !== town ? p.state : ''].filter(Boolean).join(', '),
+    type: OSM_TYPE[p.osm_value] ? L(OSM_TYPE[p.osm_value][0], OSM_TYPE[p.osm_value][1]) : '' };
+}
+async function placeSuggest(q) {
+  const seq = ++acSeq, box = $('#placeAc'), f = $('#frmColl');
+  const near = f.dataset.lat && f.dataset.manual !== 'pick' ? `&lat=${f.dataset.lat}&lon=${f.dataset.lng}` : '&lat=32.4&lon=35.0&location_bias_scale=0.2';
+  let feats = [];
+  try { const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6${near}`); const j = await r.json(); feats = (j.features || []); }
+  catch (e) { box.hidden = true; return; }
+  if (seq !== acSeq) return;
+  acItems = feats.map(ft => Object.assign(placeLabel(ft.properties || {}), { lat: ft.geometry.coordinates[1], lng: ft.geometry.coordinates[0] })).filter(x => x.name);
+  if (!acItems.length) { box.hidden = true; $('#collGeo').innerHTML = '⚠️ ' + esc(L('No place with this name on the map — check the spelling or add the city.', 'לא נמצא מקום כזה במפה — בדוק את האיות או הוסף את שם העיר.')); $('#collGeo').classList.add('warn'); return; }
+  $('#collGeo').classList.remove('warn');
+  box.innerHTML = acItems.map((x, k) => `<button type="button" data-ac="${k}"><b dir="auto">${esc(x.name)}</b><small dir="auto">${esc([x.type, x.line].filter(Boolean).join(' · '))}</small></button>`).join('');
+  box.hidden = false;
+}
+$('#frmColl').addEventListener('input', (e) => {
+  if (e.target.name !== 'place' || collRO()) return;
+  const q = e.target.value.trim(); clearTimeout(acTimer);
+  if (q.length < 2) { $('#placeAc').hidden = true; return; }
+  acTimer = setTimeout(() => placeSuggest(q), 300);
+});
+$('#placeAc').addEventListener('pointerdown', (e) => e.preventDefault());           // keep the focus while choosing
+$('#placeAc').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ac]'); if (!b) return; const x = acItems[Number(b.dataset.ac)], f = $('#frmColl');
+  f.elements.place.value = x.town && x.town !== x.name ? x.name + ', ' + x.town : x.name;
+  f.dataset.lat = x.lat; f.dataset.lng = x.lng; f.dataset.manual = 'pick'; f.dataset.geo = '';
+  $('#placeAc').hidden = true; collFormUi();
+});
+$('#frmColl').addEventListener('focusout', (e) => { if (e.target.name === 'place') setTimeout(() => { $('#placeAc').hidden = true; }, 150); });
+/* ---- ✨ AI settings ---- */
+async function openAi() {
+  $('#dlgAi').showModal(); $('#aiStatus').textContent = tr('Loading…'); $('#aiKey').value = '';
+  try { const j = await api('POST', { action: 'getAi' }); $('#aiStatus').textContent = j.hasKey ? '✅ ' + L('AI is on', 'ה-AI פעיל') + ' (' + j.hint + ')' : L('Not set yet.', 'עוד לא הוגדר.'); }
+  catch (e) { $('#aiStatus').textContent = /Unknown action/i.test(e.message) ? L('Paste the new script and deploy a new version first.', 'קודם הדבק את הסקריפט החדש ופרסם גרסה חדשה.') : e.message; }
+}
+$('#aiSave').addEventListener('click', async () => {
+  const k = $('#aiKey').value.trim(); if (!k) return; $('#aiStatus').textContent = L('Checking the key…', 'בודק את המפתח…');
+  try { const j = await api('POST', { action: 'saveAi', key: k }); $('#aiKey').value = ''; $('#aiStatus').textContent = j.ok !== false && /✓/.test(j.message || '') ? '✅ ' + L('Saved — AI works', 'נשמר — ה-AI עובד') : '⚠️ ' + (j.message || ''); }
+  catch (e) { $('#aiStatus').textContent = e.message; }
+});
+$('#aiRemove').addEventListener('click', async () => { try { await api('POST', { action: 'saveAi', key: '' }); $('#aiStatus').textContent = L('Removed — links are read without AI.', 'הוסר — הקישורים ייקראו בלי AI.'); } catch (e) { toast(e.message); } });
+$('#btnAi').addEventListener('click', openAi);
 /* ---- entry dialog ---- */
 let collEditing = null;
 function openColl(en) {
@@ -585,7 +660,8 @@ function openColl(en) {
   f.elements.title.value = en.title || ''; $('#collCat').value = en.cat && en.cat !== '*' ? en.cat : (collCats[0] || {}).id; f.elements.place.value = en.place || ''; f.elements.by.value = en.by || '';
   f.elements.link.value = en.link || ''; f.elements.notes.value = en.notes || ''; f.elements.for.value = en.for || '';
   f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0;
-  f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = en._pin || ''; f.dataset.img = en.img || '';
+  f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = en._pin || ''; f.dataset.img = en.img || ''; f.dataset.autoTitle = en._auto || ''; f.dataset.geo = en._geo || '';
+  $('#collNote').hidden = true; $('#placeAc').hidden = true; $('#collGeo').classList.remove('warn');
   [...f.elements].forEach(el => { if (el.name || el.id === 'collCat') el.disabled = ro; });
   $('#collSaveBtn').hidden = ro; $('#collDelete').hidden = ro || !en.id; $('#collHere').hidden = ro;
   collFormUi(); $('#dlgColl').showModal();
@@ -602,10 +678,12 @@ function collFormUi() {
   $('#collStars').hidden = !(c.kind === 'try' && f.dataset.status === 'tried');
   if (ro) $('#collStatus').querySelectorAll('button').forEach(b => { b.disabled = true; });
   const l = f.elements.link.value.trim(); $('#collOpen').hidden = !/^https?:\/\//i.test(l);
-  $('#collFill').hidden = ro || !/^https?:\/\//i.test(l) || settings.demo;
+  const hasText = f.elements.notes.value.trim().length >= 15;
+  $('#collFill').hidden = ro || settings.demo || !(/^https?:\/\//i.test(l) || hasText);
+  if (!$('#collFill').disabled) $('#collFill').textContent = $('#collNote').classList.contains('warn') || !/^https?:\/\//i.test(l) ? L('✨ Fill from text', '✨ מלא מהטקסט') : L('✨ Fill from link', '✨ מלא מהקישור');
   $('#collImg').hidden = !f.dataset.img; if (f.dataset.img && $('#collImg').getAttribute('src') !== f.dataset.img) $('#collImg').setAttribute('src', f.dataset.img);
   const has = f.dataset.lat !== '' && f.dataset.lat !== 'null';
-  $('#collGeo').textContent = !c.map ? '' : has ? (f.dataset.manual === 'link' ? L('📍 The location from the link will be pinned', '📍 המיקום מהקישור יסומן במפה') : f.dataset.manual ? L('📍 Your current location will be pinned', '📍 המיקום הנוכחי שלך יסומן במפה') : L('✓ On the map', '✓ מסומן במפה')) :
+  $('#collGeo').textContent = !c.map ? '' : has ? (f.dataset.manual === 'pick' ? L('✓ Chosen from the map — the pin goes exactly there', '✓ נבחר מהמפה — הנעץ יסומן בדיוק שם') : f.dataset.manual === 'link' ? L('📍 Found on the map', '📍 נמצא במפה') + (f.dataset.geo ? ': ' + f.dataset.geo : '') + L(' — not right? type the place and pick from the list', ' — לא נכון? הקלד את המקום ובחר מהרשימה') : f.dataset.manual ? L('📍 Your current location will be pinned', '📍 המיקום הנוכחי שלך יסומן במפה') : L('✓ On the map', '✓ מסומן במפה')) :
     L('The place (or a Google Maps link) puts a pin on the map.', 'המקום (או קישור של Google Maps) ישים נעץ במפה.');
   const fw = $('#collForChips'); fw.innerHTML = [L('Me', 'אני'), L('Neta', 'נטע'), L('The kids', 'הילדים'), L('All of us', 'כולנו')].map(x => `<button type="button" class="chip ${f.elements.for.value === x ? 'on' : ''}" data-for="${esc(x)}" ${ro ? 'disabled' : ''}>${esc(x)}</button>`).join('');
 }
@@ -2375,7 +2453,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 38;
+const APP_VERSION = 39;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

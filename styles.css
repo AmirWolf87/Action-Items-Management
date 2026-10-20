@@ -644,3 +644,18 @@ body.story-open{overflow:hidden}
 @keyframes cbGlow{from{transform:scale(1);opacity:1}to{transform:scale(18);opacity:0}}
 .check.on{animation:cbCheck .45s cubic-bezier(.2,1.6,.4,1)}
 @keyframes cbCheck{0%{transform:scale(.6)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+
+/* place suggestions + link notes */
+.c-place{position:relative}
+.ac-list{position:relative;margin:-6px 0 8px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 24px rgba(16,24,40,.14);overflow:hidden;max-height:260px;overflow-y:auto}
+.ac-list button{display:block;width:100%;text-align:start;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--ink);padding:10px 12px;cursor:pointer}
+.ac-list button:last-child{border-bottom:0}
+.ac-list button:hover,.ac-list button:focus{background:var(--bg)}
+.ac-list b{display:block;font-size:14.5px}
+.ac-list small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+#collGeo.warn{color:var(--amber);font-weight:600}
+.c-note{border-radius:12px;padding:10px 12px;font-size:13.5px;line-height:1.45;margin:2px 0 10px}
+.c-note.ok{background:var(--green-bg);color:var(--green)}
+.c-note.warn{background:var(--amber-bg);color:var(--amber)}
+.c-note small{opacity:.85}
+.ai-steps{padding-inline-start:20px}

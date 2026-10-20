@@ -259,7 +259,10 @@ function doPost(e) {
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
-      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url)));
+      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text })));
+      case 'getAi': { const k = aiKey_(); return json_({ ok: true, hasKey: !!k, hint: k ? k.slice(0, 4) + '…' + k.slice(-4) : '' }); }
+      case 'saveAi': { const k = String(req.key || '').trim(); if (k) PropertiesService.getScriptProperties().setProperty('GEMINI_KEY', k); else PropertiesService.getScriptProperties().deleteProperty('GEMINI_KEY'); return json_(Object.assign({ ok: true, hasKey: !!k }, k ? aiTest_() : {})); }
+      case 'testAi': return json_(Object.assign({ ok: true }, aiTest_()));
       case 'collSave': return withLock_(() => json_({ ok: true, entry: collSave_(req.entry) }));
       case 'collDelete': return withLock_(() => { collDelete_(req.id); return json_({ ok: true }); });
       case 'collCats': return json_({ ok: true, collCats: collSaveCats_(req.cats) });
@@ -1048,77 +1051,205 @@ function captionBits_(cap) {
   if (title.length > 70) title = title.slice(0, 70).replace(/\s+\S*$/, '') + '…';
   return { place: place, title: title, notes: clean.slice(0, 900) };
 }
-function linkInfo_(url) {
-  url = String(url || '').trim(); if (!/^https?:\/\//i.test(url)) throw new Error('Not a link');
+/* what kind of title does this category want? food → "name, city" · trip → trail/spring name · activity → short description */
+function catStyle_(catId, catName) {
+  const n = String(catName || '') + ' ' + String(catId || '');
+  if (/food|מסעד|אוכל|קפה|cafe|restaurant|יקב|\bbar\b|ברים/i.test(n)) return 'food';
+  if (/trip|טיול|מסלול|מעיי|טבע|hike|trail/i.test(n)) return 'trip';
+  if (/activity|פעילו|סדנ|סיור|אטרקצ|הופע|ילדים|activity|tour/i.test(n)) return 'activity';
+  if (/recipe|מתכו|בישול|קינוח/i.test(n)) return 'recipe';
+  if (/drink|קוקטייל|משקא|יין|wine|cocktail/i.test(n)) return 'drink';
+  if (/wish|משאל|מתנ/i.test(n)) return 'wish';
+  return 'other';
+}
+const LI_CITIES_ = ['תל אביב', 'תל-אביב', 'ירושלים', 'חיפה', 'באר שבע', 'אילת', 'נתניה', 'הרצליה', 'רמת גן', 'גבעתיים', 'ראשון לציון', 'פתח תקווה', 'חולון', 'בת ים', 'רעננה', 'כפר סבא', 'הוד השרון', 'מודיעין', 'רחובות', 'נס ציונה', 'אשדוד', 'אשקלון', 'עכו', 'נהריה', 'צפת', 'טבריה', 'נצרת', 'עפולה', 'כרמיאל', 'קריית שמונה', 'ראש פינה', 'זכרון יעקב', 'קיסריה', 'יפו', 'עין כרם', 'מצפה רמון', 'ים המלח', 'רמת הגולן', 'גליל', 'הגליל', 'כנרת', 'קריית טבעון', 'יוקנעם', 'פרדס חנה', 'בנימינה', 'חדרה', 'נווה צדק', 'פלורנטין', 'שוק הכרמל', 'עמק יזרעאל', 'עמק החולה', 'מטולה', 'כפר תבור', 'פוריה', 'גבעת אלה'];
+function cityOf_(text) {
+  const t = String(text || '');
+  return LI_CITIES_.find(c => t.indexOf(c) >= 0) || '';
+}
+/* rule-based titles when there's no AI */
+function ruleTitle_(style, raw) {
+  const cap = String(raw.caption || ''), place = String(raw.place || ''), first = String(raw.title || '');
+  const city = cityOf_(place) || cityOf_(cap);
+  const head = place.split(/[,،|\-–]/)[0].trim();
+  const nameLike = (s) => s && s.length >= 2 && s.length <= 40 && !/\d/.test(s) && !/^(רחוב|רח'|שדרות|שד'|דרך)\s/.test(s);
+  if (style === 'food') {
+    let name = nameLike(head) ? head : '';
+    if (!name) { const m = cap.match(/(?:מסעדת|מסעדה|בית קפה|קפה|בר|ביסטרו|פיצרייה|פיצריה|חומוסייה|חומוסיה|מאפיית|מאפייה|גלידריה)\s+["“']?([^\n,.!?#@"”]{2,28})/); if (m) name = (m[0].split(/\s/)[0] + ' ' + m[1]).trim(); }
+    if (!name) { const at = (cap.match(/@([A-Za-z0-9._]{3,30})/) || [])[1]; if (at && raw.by && '@' + at !== raw.by) name = at.replace(/[._]/g, ' '); }
+    if (!name) name = first;
+    return name ? (city && name.indexOf(city) < 0 ? name + ', ' + city : name) : '';
+  }
+  if (style === 'trip') {
+    const m = cap.match(/((?:מעיין|עין|נחל|מסלול|שביל|תצפית|הר|מערת|מפל|בריכת|גן לאומי|שמורת|יער|חוף)\s+[\p{L}'"״׳ -]{2,24})/u);
+    if (m) return m[1].trim().split(/\s+/).filter(w => !/^(מעיין|קסום|סודי|מדהים|יפה|ליד|עם|של|הכי)$/.test(w) || w === m[1].trim().split(/\s+/)[0]).slice(0, 3).join(' ');
+    return nameLike(head) ? head : first;
+  }
+  if (style === 'activity') {
+    const src = String(raw.capFirst || '') || first || '';
+    const words = src.replace(/[^\p{L}\p{N}\s'"-]/gu, ' ').split(/\s+/).filter(Boolean);
+    let t = words.slice(0, 6).join(' ');
+    const where = cityOf_(cap) || (nameLike(head) ? head : '');
+    if (where && t.indexOf(where) < 0 && words.length <= 4) t += ' ב' + where;
+    return t;
+  }
+  return first || (nameLike(head) ? head : '');
+}
+/* ---- optional AI (Google Gemini, free key) ---- */
+function aiKey_() { return PropertiesService.getScriptProperties().getProperty('GEMINI_KEY') || ''; }
+function aiCall_(parts, tools) {
+  const key = aiKey_(); if (!key) return null;
+  const models = [PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+  for (const model of models.filter((m, i, a) => a.indexOf(m) === i)) {
+    const body = { contents: [{ role: 'user', parts: parts }], generationConfig: { temperature: 0.2 } };
+    if (tools) body.tools = tools; else body.generationConfig.responseMimeType = 'application/json';
+    try {
+      const r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key),
+        { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
+      const code = r.getResponseCode(), txt = r.getContentText();
+      if (code === 404) continue;                                   // model name not available → try the next
+      if (code >= 300) return { error: 'AI ' + code + ': ' + String(txt).slice(0, 160) };
+      const j = JSON.parse(txt), out = (((j.candidates || [])[0] || {}).content || {}).parts || [];
+      const text = out.map(p => p.text || '').join('');
+      const m = text.match(/\{[\s\S]*\}/); if (!m) return { error: 'AI: no JSON' };
+      return JSON.parse(m[0]);
+    } catch (e) { return { error: 'AI: ' + e.message }; }
+  }
+  return { error: 'AI: no model available' };
+}
+function aiExtract_(style, catName, raw, url, blocked) {
+  const rules = {
+    food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence.',
+    trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
+    activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
+    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
+  };
+  const prompt = 'You read a social-media post or web page that someone saved to their "' + catName + '" list. Answer in the language of the post (Hebrew if Hebrew).\n' +
+    rules[style] + '\n' +
+    'place = the most precise location to put a map pin: business/site name + street/area + city if known (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). If only a city or region is known, give that. Empty if unknown.\n' +
+    'city = city / region. notes = 1-3 short lines with the useful facts (what to order, hours, price, tips) — no hashtags.\n' +
+    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""}\n\n' +
+    'URL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 3000);
+  const parts = [{ text: prompt }];
+  const yt = /youtube\.com|youtu\.be/i.test(url);
+  if (yt && String(raw.caption || '').length < 120) parts.push({ file_data: { file_uri: url } });   // let the AI watch a short / under-described video
+  return aiCall_(parts, blocked ? [{ url_context: {} }, { google_search: {} }] : null);
+}
+function linkGather_(url, pasted) {
   let final = url;
-  try {   // short links (vm.tiktok.com, maps.app.goo.gl, instagram share…) → real address
-    for (let i = 0; i < 4; i++) {
+  try {   // short links (vm.tiktok.com, maps.app.goo.gl, fb.watch, instagram share…) → real address
+    for (let i = 0; i < 5; i++) {
       const r = UrlFetchApp.fetch(final, { followRedirects: false, muteHttpExceptions: true, headers: { 'User-Agent': 'facebookexternalhit/1.1' } });
       const h = r.getHeaders(); const loc = h.Location || h.location; if (!loc || r.getResponseCode() < 300 || r.getResponseCode() >= 400) break;
       final = /^https?:/i.test(loc) ? loc : final.replace(/^(https?:\/\/[^/]+).*/, '$1') + loc;
     }
   } catch (e) { /* keep the original */ }
   const host = (final.match(/^https?:\/\/([^/?#]+)/i) || [])[1] || '';
-  const out = { url: final, source: host.replace(/^www\./, ''), title: '', notes: '', place: '', by: '', img: '', lat: null, lng: null };
-  const fill = (o) => { Object.keys(o || {}).forEach(k => { if (o[k] !== undefined && o[k] !== null && o[k] !== '' && (out[k] === '' || out[k] === null)) out[k] = o[k]; }); };
+  const raw = { url: final, source: host.replace(/^www\./, ''), title: '', caption: '', place: '', by: '', img: '', lat: null, lng: null };
+  const fill = (o) => { Object.keys(o || {}).forEach(k => { if (o[k] !== undefined && o[k] !== null && o[k] !== '' && (raw[k] === '' || raw[k] === null)) raw[k] = o[k]; }); };
+  if (pasted) fill({ caption: String(pasted).slice(0, 4000) });
   if (/google\.[a-z.]+\/maps|maps\.google|goo\.gl\/maps|maps\.app/i.test(final)) {
     const u = decodeURIComponent(final);
     const pl = u.match(/\/place\/([^/@?]+)/); if (pl) fill({ title: pl[1].replace(/\+/g, ' '), place: pl[1].replace(/\+/g, ' ') });
     const c = u.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || u.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/); if (c) fill({ lat: Number(c[1]), lng: Number(c[2]) });
-    out.source = 'Google Maps'; out.found = !!out.title; return out;
+    raw.source = 'Google Maps'; raw.maps = true; return raw;
   }
   if (/youtube\.com|youtu\.be/i.test(host)) {
+    raw.source = 'YouTube';
+    const id = (final.match(/(?:v=|youtu\.be\/|shorts\/|embed\/|live\/)([A-Za-z0-9_-]{11})/) || [])[1];
+    if (id) { final = raw.url = 'https://www.youtube.com/watch?v=' + id; }
     const j = lfJson_('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(final));
     if (j) fill({ title: j.title, by: j.author_name, img: j.thumbnail_url });
-    out.source = 'YouTube';
+    if (id) fill({ img: 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg' });
+    const html = lf_(final, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)', 'Accept-Language': 'he,en;q=0.8', 'Cookie': 'CONSENT=YES+1' } });
+    if (html) {
+      const d = html.match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
+      if (d) { try { fill({ caption: JSON.parse('"' + d[1] + '"') }); } catch (e) { /* skip */ } }
+      const m = metaTags_(html); fill({ title: m['og:title'] || '', caption: m['og:description'] || '' });
+    }
   }
   if (/tiktok\.com/i.test(host)) {
+    raw.source = 'TikTok';
     const j = lfJson_('https://www.tiktok.com/oembed?url=' + encodeURIComponent(final));
-    if (j) { const b = captionBits_(j.title); fill({ title: b.title, notes: b.notes, place: b.place, by: j.author_name ? '@' + String(j.author_unique_id || j.author_name).replace(/^@/, '') : '', img: j.thumbnail_url }); }
-    out.source = 'TikTok';
+    if (j) fill({ caption: j.title, title: String(j.title || '').split('\n')[0], by: j.author_name ? '@' + String(j.author_unique_id || j.author_name).replace(/^@/, '') : '', img: j.thumbnail_url });
   }
   if (/instagram\.com/i.test(host)) {
-    out.source = 'Instagram';
+    raw.source = 'Instagram';
     const sc = (final.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/) || [])[1];
-    if (sc) {   // the public embed page carries the caption and the account name
-      const eh = lf_('https://www.instagram.com/p/' + sc + '/embed/captioned/');
-      if (eh) {
+    if (sc) {
+      for (const path of ['/p/' + sc + '/embed/captioned/', '/reel/' + sc + '/embed/captioned/', '/p/' + sc + '/embed/']) {
+        const eh = lf_('https://www.instagram.com' + path); if (!eh) continue;
         const cm = eh.match(/class="Caption"[^>]*>([\s\S]*?)<\/div>/i);
-        if (cm) {
-          let cap = htmlDecode_(cm[1].replace(/<br\s*\/?>/gi, '\n').replace(/<a[^>]*class="CaptionUsername"[^>]*>[\s\S]*?<\/a>/i, '').replace(/<[^>]+>/g, '')).trim();
-          const b = captionBits_(cap); fill({ title: b.title, notes: b.notes, place: b.place });
-        }
+        if (cm) fill({ caption: htmlDecode_(cm[1].replace(/<br\s*\/?>/gi, '\n').replace(/<a[^>]*class="CaptionUsername"[^>]*>[\s\S]*?<\/a>/i, '').replace(/<[^>]+>/g, '')).trim() });
         const um = eh.match(/class="UsernameText"[^>]*>([^<]+)</i) || eh.match(/class="CaptionUsername"[^>]*>([^<]+)</i); if (um) fill({ by: '@' + htmlDecode_(um[1]).trim() });
         const im = eh.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/i); if (im) fill({ img: htmlDecode_(im[1]) });
+        const lm = eh.match(/"location"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/); if (lm) fill({ place: lm[1] });
+        if (raw.caption) break;
       }
     }
   }
-  if (!out.title || !out.notes || !out.place) {   // any site: Open Graph tags + schema.org place data
+  if (!raw.caption || !raw.title) {   // any site: Open Graph + schema.org place data
     const html = lf_(final);
     if (html) {
       const m = metaTags_(html), ld = ldPlace_(html);
-      if (ld.name) fill({ title: ld.name, place: ld.address || ld.name, lat: ld.lat, lng: ld.lng });
+      if (ld.name) fill({ title: ld.name, place: [ld.name, ld.address].filter(Boolean).join(', '), lat: ld.lat, lng: ld.lng });
       let desc = m['og:description'] || m['description'] || m['twitter:description'] || '';
-      // Instagram/Facebook descriptions look like: '123 likes, 4 comments - user on Date: "caption"'
       const q = desc.match(/^[\s\S]*?\b(?:on|ב-?)\s[^:]{3,40}:\s*["“]([\s\S]+)["”]\.?\s*$/); if (q) desc = q[1];
       const um = (m['og:description'] || '').match(/-\s*([A-Za-z0-9._]{2,30})\s+on\s/); if (um) fill({ by: '@' + um[1] });
-      const b = captionBits_(desc);
       let t = (m['og:title'] || m['twitter:title'] || m.title || '').replace(/\s*[|\-–]\s*(Instagram|Facebook|TikTok|YouTube)\b.*$/i, '').replace(/ on Instagram:?.*$/i, '').trim();
-      if (/^(Instagram|Facebook|Login|Log in|TikTok)$/i.test(t)) t = '';
-      fill({ title: b.title || t, notes: b.notes, place: b.place, img: m['og:image'] || m['twitter:image'] || '' });
-      const loc = m['og:locality'] || m['place:location:locality'] || ''; if (loc && !out.place) out.place = loc;
-      if (!out.title && t) out.title = t;
+      if (/^(Instagram|Facebook|Login|Log in|TikTok|YouTube|התחברות)$/i.test(t)) t = '';
+      fill({ caption: desc, title: t, img: m['og:image'] || m['twitter:image'] || '' });
     }
   }
-  // a tagged place like "פיצה ברדק, דיזנגוף 120" names the spot better than the caption's first line
-  if (out.place && out.source !== 'Google Maps') {
-    const head = String(out.place).split(/[,،\-–|]/)[0].trim();
-    if (head && head.length >= 2 && head.length <= 40 && !/\d/.test(head) && !/^(רחוב|רח'|שדרות|שד'|דרך)\s/.test(head)) { out.caption = out.title; out.title = head; }
+  if (!raw.caption && !raw.title) {   // last resort: a public text reader (handles many blocked/JS pages)
+    const t = lf_('https://r.jina.ai/' + final, { headers: { 'Accept': 'text/plain', 'X-Return-Format': 'text' } });
+    if (t && !/<html|<body|login|log in|sign up|התחבר/i.test(t.slice(0, 400))) {
+      const tm = t.match(/^Title:\s*(.+)$/m); fill({ title: tm ? tm[1].replace(/\s*[|\-–]\s*(Instagram|Facebook)\b.*$/i, '').trim() : '' });
+      fill({ caption: t.replace(/^(Title|URL Source|Published Time|Markdown Content):.*$/gm, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2500) });
+    }
+  }
+  const cb = captionBits_(raw.caption); fill({ place: cb.place });
+  raw.blocked = !raw.caption && !raw.title;
+  return raw;
+}
+function linkInfo_(url, opt) {
+  opt = opt || {};
+  url = String(url || '').trim();
+  if (!/^https?:\/\//i.test(url) && !opt.text) throw new Error('Not a link');
+  const raw = /^https?:\/\//i.test(url) ? linkGather_(url, opt.text) : { url: '', source: 'text', title: '', caption: String(opt.text).slice(0, 4000), place: '', by: '', img: '', lat: null, lng: null };
+  if (!raw.place) raw.place = captionBits_(raw.caption).place;
+  const style = catStyle_(opt.cat, opt.catName);
+  const out = { url: raw.url || url, source: raw.source, title: '', notes: captionBits_(raw.caption).notes, place: raw.place, by: raw.by, img: /^https:\/\//i.test(raw.img || '') ? raw.img : '', lat: raw.lat, lng: raw.lng, style: style, ai: false };
+  if (raw.maps) { out.title = raw.title; }
+  else {
+    let ai = null;
+    if (aiKey_() && (raw.caption || raw.title || raw.blocked)) ai = aiExtract_(style, opt.catName || style, raw, raw.url || url, raw.blocked);
+    if (ai && !ai.error) {
+      out.ai = true;
+      out.title = String(ai.title || '').trim();
+      if (ai.place) out.place = String(ai.place).trim();
+      if (ai.notes && (!out.notes || out.notes.length < 20)) out.notes = String(ai.notes).trim();
+      else if (ai.notes) out.summary = String(ai.notes).trim();
+    } else if (ai && ai.error) out.aiError = ai.error;
+    if (!out.title) out.title = ruleTitle_(style, { caption: raw.caption, place: out.place, title: (raw.title || captionBits_(raw.caption).title).replace(/\s+on (Instagram|Facebook|TikTok)\b.*$/i, ''), capFirst: captionBits_(raw.caption).title, by: raw.by });
+  }
+  // a pin for the place (nearest match), so the map works right away
+  if ((out.lat === null || out.lat === undefined) && (out.place || (style === 'food' || style === 'trip' || style === 'activity') && out.title)) {
+    try {
+      const q = out.place || out.title;
+      const res = Maps.newGeocoder().setLanguage('he').setRegion('il').geocode(q);
+      if (res && res.status === 'OK' && res.results.length) { const l = res.results[0].geometry.location; out.lat = l.lat; out.lng = l.lng; out.geoName = res.results[0].formatted_address || ''; }
+    } catch (e) { /* no pin */ }
   }
   if (out.title) out.title = String(out.title).replace(/\s+/g, ' ').trim().slice(0, 120);
-  if (out.img && !/^https:\/\//i.test(out.img)) out.img = '';
+  out.blocked = !!raw.blocked && !out.ai;
   out.found = !!(out.title || out.notes || out.place);
   return out;
+}
+function aiTest_() {
+  const r = aiCall_([{ text: 'Return ONLY this JSON: {"ok":true}' }], null);
+  if (!r) return { ok: false, message: 'No key' };
+  return r.error ? { ok: false, message: r.error } : { ok: true, message: 'AI works ✓' };
 }
 
 /* =====================================================================
