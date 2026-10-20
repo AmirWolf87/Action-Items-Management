@@ -894,7 +894,7 @@ function saveAreas_(req) {
  *  Stored in its own "Collection" tab, separate from the action items.
  * ===================================================================== */
 const COLL_SHEET = 'Collection';
-const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng', 'Image'];
+const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng', 'Image', 'Base'];
 const COLL_DEFAULT_CATS_ = [
   { id: 'food', name: '🍽 מסעדות', kind: 'try', map: true }, { id: 'trip', name: '🧭 טיולים', kind: 'try', map: true },
   { id: 'activity', name: '🎯 פעילויות', kind: 'try', map: true }, { id: 'recipe', name: '🍳 מתכונים', kind: 'try', map: false },
@@ -925,7 +925,7 @@ function collSheet_() {
     sh.getRange(1, 1, 1, COLL_HEAD.length).setValues([COLL_HEAD]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
     sh.setFrozenRows(1);
   }
-  if (sh.getRange(1, 15).getValue() === '') sh.getRange(1, 12, 1, 4).setValues([COLL_HEAD.slice(11)]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
+  if (sh.getRange(1, 16).getValue() === '') sh.getRange(1, 12, 1, 5).setValues([COLL_HEAD.slice(11)]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
   return sh;
 }
 function collRead_() {
@@ -936,7 +936,7 @@ function collRead_() {
   return sh.getRange(2, 1, n, COLL_HEAD.length).getValues().filter(r => r[0] && r[2]).map(r => ({
     id: String(r[0]), cat: String(r[1]), title: String(r[2]), notes: String(r[3]), link: String(r[4]), place: String(r[5]),
     by: String(r[6]), status: String(r[7]) === 'tried' ? 'tried' : 'want', rating: Number(r[8]) || 0, added: d(r[9]), updated: d(r[10]),
-    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]), img: String(r[14] || '') }));
+    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]), img: String(r[14] || ''), base: String(r[15] || '') }));
 }
 function collSave_(e) {
   if (!e || !String(e.title || '').trim()) throw new Error('A title is required');
@@ -945,7 +945,7 @@ function collSave_(e) {
   const out = { id: e.id ? String(e.id) : Utilities.getUuid().slice(0, 12), cat: String(e.cat || '').slice(0, 20), title: String(e.title).trim().slice(0, 200),
     notes: String(e.notes || '').slice(0, 3000), link: /^https?:\/\//i.test(link) ? link.slice(0, 500) : '', place: String(e.place || '').slice(0, 120),
     by: String(e.by || '').slice(0, 60), status: e.status === 'tried' ? 'tried' : 'want', rating: Math.max(0, Math.min(5, Number(e.rating) || 0)), added: e.added || today, updated: today,
-    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '', img: /^https:\/\//i.test(String(e.img || '')) ? String(e.img).slice(0, 1000) : '' };
+    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '', img: /^https:\/\//i.test(String(e.img || '')) ? String(e.img).slice(0, 1000) : '', base: String(e.base || '').slice(0, 30) };
   const n = sh.getLastRow() - 1;
   const ids = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0])) : [];
   const i = ids.indexOf(out.id);
@@ -960,7 +960,7 @@ function collSave_(e) {
     else { const g = collLocate_(out.link, out.place); if (g) { out.lat = g.lat; out.lng = g.lng; out.geo = g.how; } else out.geo = (out.place || out.link) ? 'none' : ''; }
   }
   const row = [out.id, out.cat, out.title, out.notes, out.link, out.place, out.by, out.status, out.rating || '', out.added, out.updated, out.for,
-    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng, out.img];
+    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng, out.img, out.base];
   if (i >= 0) sh.getRange(i + 2, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
   return out;
 }
@@ -1122,13 +1122,13 @@ function aiExtract_(style, catName, raw, url, blocked) {
     food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence.',
     trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
     activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
-    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
+    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit, ONE of: gin, vodka, rum, tequila, whisky, wine, beer, sparkling, liqueur, none (non-alcoholic), other. notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
   };
   const prompt = 'You read a social-media post or web page that someone saved to their "' + catName + '" list. Answer in the language of the post (Hebrew if Hebrew).\n' +
     rules[style] + '\n' +
     'place = the most precise location to put a map pin: business/site name + street/area + city if known (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). If only a city or region is known, give that. Empty if unknown.\n' +
     'city = city / region. notes = 1-3 short lines with the useful facts (what to order, hours, price, tips) — no hashtags.\n' +
-    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""}\n\n' +
+    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":""' : '') + '}\n\n' +
     'URL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 3000);
   const parts = [{ text: prompt }];
   const yt = /youtube\.com|youtu\.be/i.test(url);
@@ -1212,6 +1212,11 @@ function linkGather_(url, pasted) {
   raw.blocked = !raw.caption && !raw.title;
   return raw;
 }
+const DRINK_BASES_ = [['gin', /ג'?ין|גין\b|\bgin\b|טנקריי|הנדריקס|בומביי/i], ['vodka', /וודקה|vodka|אבסולוט|גריי גוס/i], ['rum', /רום|\brum\b|מוחיטו|דאקירי|פינה קולדה|mojito|daiquiri/i],
+  ['tequila', /טקילה|tequila|מרגריטה|margarita|פלומה|מזקל|mezcal/i], ['whisky', /וויסקי|ויסקי|whisk(e)?y|בורבון|bourbon|סקוטש|אולד פאשן|old fashioned/i],
+  ['sparkling', /שמפניה|קאווה|פרוסקו|prosecco|champagne|cava|ספריץ|spritz/i], ['wine', /יין|wine|סנגריה|sangria/i], ['beer', /בירה|beer|ipa\b|לאגר/i],
+  ['liqueur', /ליקר|liqueur|קמפרי|campari|אפרול|aperol|אמרטו|בייליס|קלואה/i], ['none', /ללא אלכוהול|נטול אלכוהול|מוקטייל|mocktail|non.?alcoholic|0%/i]];
+function drinkBase_(text) { const t = String(text || ''); const f = DRINK_BASES_.find(b => b[1].test(t)); return f ? f[0] : ''; }
 function linkInfo_(url, opt) {
   opt = opt || {};
   url = String(url || '').trim();
@@ -1227,12 +1232,14 @@ function linkInfo_(url, opt) {
     if (ai && !ai.error) {
       out.ai = true;
       out.title = String(ai.title || '').trim();
-      if (ai.place) out.place = String(ai.place).trim();
+      if (ai.place && style !== 'drink' && style !== 'recipe') out.place = String(ai.place).trim();
+      if (ai.base) out.base = String(ai.base).trim().toLowerCase();
       if (ai.notes && (!out.notes || out.notes.length < 20)) out.notes = String(ai.notes).trim();
       else if (ai.notes) out.summary = String(ai.notes).trim();
     } else if (ai && ai.error) out.aiError = ai.error;
     if (!out.title) out.title = ruleTitle_(style, { caption: raw.caption, place: out.place, title: (raw.title || captionBits_(raw.caption).title).replace(/\s+on (Instagram|Facebook|TikTok)\b.*$/i, ''), capFirst: captionBits_(raw.caption).title, by: raw.by });
   }
+  if (style === 'drink') { out.base = out.base || drinkBase_(out.title + ' ' + raw.title + ' ' + raw.caption); out.place = ''; }
   // a pin for the place (nearest match), so the map works right away
   if ((out.lat === null || out.lat === undefined) && (out.place || (style === 'food' || style === 'trip' || style === 'activity') && out.title)) {
     try {

@@ -659,3 +659,30 @@ body.story-open{overflow:hidden}
 .c-note.warn{background:var(--amber-bg);color:var(--amber)}
 .c-note small{opacity:.85}
 .ai-steps{padding-inline-start:20px}
+
+/* 🍸 collection table view */
+.c-top{flex-direction:column}
+.c-layout{align-self:flex-start}
+.c-table{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.ct-add{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--bg)}
+.ct-add input{flex:1;background:var(--card)}
+.ct-group h4{margin:0;padding:10px 14px 8px;font-size:13px;letter-spacing:.3px;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+.ct-group h4 i{font-style:normal;background:var(--line);color:var(--ink);border-radius:999px;padding:0 8px;font-size:11.5px}
+.ct-item{border-bottom:1px solid var(--line)}
+.ct-row{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;color:var(--ink);padding:13px 14px;cursor:pointer;text-align:start;font-size:15.5px}
+.ct-row:hover{background:var(--bg)}
+.ct-name{flex:1;min-width:0;font-weight:700;overflow-wrap:anywhere}
+.ct-item.done .ct-name{color:var(--ink)}
+.ct-meta{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}
+.ct-ok{color:#16A34A;font-weight:900}
+.ct-chev{color:var(--muted);transition:transform .2s;font-size:16px}
+.ct-item.open .ct-chev{transform:rotate(180deg)}
+.ct-item.open .ct-row{background:var(--bg)}
+.ct-detail{padding:4px 16px 14px;background:var(--bg);animation:ctOpen .2s ease}
+@keyframes ctOpen{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.ct-img{display:block;width:100%;max-height:200px;object-fit:cover;border-radius:12px;margin:4px 0 10px}
+.ct-notes{white-space:pre-line;font-size:14.5px;line-height:1.6;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.ct-by{font-size:12.5px;color:var(--muted);margin:8px 2px 0}
+.ct-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.c-tools{display:flex;gap:8px;flex-wrap:wrap}
+.c-tools:empty{display:none}

@@ -417,6 +417,17 @@ const catEmoji = (c) => { const m = String(c.name || '').match(/^(\p{Extended_Pi
 const catLabel = (c) => String(c.name || '').replace(/^(\p{Extended_Pictographic}️?(?:‍\p{Extended_Pictographic}️?)*)\s*/u, '');
 const stars = (n) => n ? '★'.repeat(n) + '☆'.repeat(5 - n) : '';
 const collRO = () => isGuest();
+function catStyleC(c) {
+  const n = String((c && c.name) || '') + ' ' + String((c && c.id) || '');
+  if (/drink|קוקטייל|משקא|אלכוהול|יין|wine|cocktail|בר\b/i.test(n)) return 'drink';
+  if (/recipe|מתכו/i.test(n)) return 'recipe';
+  return 'other';
+}
+const C_BASES = [['gin', '🍸', 'Gin', "ג'ין"], ['vodka', '🧊', 'Vodka', 'וודקה'], ['rum', '🍹', 'Rum', 'רום'], ['tequila', '🌵', 'Tequila', 'טקילה'], ['whisky', '🥃', 'Whisky', 'וויסקי'],
+  ['sparkling', '🥂', 'Sparkling', 'מבעבע'], ['wine', '🍷', 'Wine', 'יין'], ['beer', '🍺', 'Beer', 'בירה'], ['liqueur', '🍊', 'Liqueur', 'ליקר'], ['none', '🍋', 'Non-alcoholic', 'ללא אלכוהול'], ['other', '✨', 'Other', 'אחר']];
+const baseOf = (k) => C_BASES.find(b => b[0] === k) || C_BASES[C_BASES.length - 1];
+const collLayout = (c) => (ui.collLayout || {})[c.id] || (catStyleC(c) === 'drink' ? 'table' : 'board');
+let ctOpen = {};
 function statusWords(kind) {
   return kind === 'wish' ? { want: L('🎁 Wish', '🎁 משאלה'), tried: L('🎉 Came true', '🎉 הוגשמה'), fWant: L('Open', 'פתוחות'), fTried: L('Came true', 'הוגשמו') }
     : { want: L('☆ Want to try', '☆ רוצה לנסות'), tried: L('✓ Tried', '✓ ניסינו'), fWant: L('Want to try', 'רוצה לנסות'), fTried: L('Tried', 'ניסינו') };
@@ -438,7 +449,7 @@ function renderCollection() {
   const view = canMap && ui.collView === 'map' ? 'map' : 'board';
   const toggle = canMap ? `<div class="c-view"><button class="${view === 'board' ? 'on' : ''}" data-cview="board">▦ ${L('Board', 'לוח')}</button><button class="${view === 'map' ? 'on' : ''}" data-cview="map">🗺 ${L('Map', 'מפה')}</button></div>` : '';
   let list = coll.filter(x => (allMode ? collCats.some(c => c.id === x.cat) : x.cat === cat.id) && collMatches(x));
-  let html = `<div class="c-top"><div class="c-chips">${chips}</div>${toggle}</div>`;
+  let html = `<div class="c-top"><div class="c-chips">${chips}</div><div class="c-tools">${toggle}<!--LT--></div></div>`;
   if (view === 'map') {
     const mapCats = visCats.filter(c => c.map).map(c => c.id);
     const pins = list.filter(x => mapCats.includes(x.cat) && x.lat !== null && x.lat !== undefined && x.lat !== '');
@@ -449,6 +460,9 @@ function renderCollection() {
     setTimeout(initCollMap, 0);
     return `<div class="c-wrap">${html}</div>`;
   }
+  const layout = !allMode ? collLayout(cat) : 'board';
+  if (!allMode) html = html.replace('<!--LT-->', `<div class="c-view c-layout"><button class="${layout === 'board' ? 'on' : ''}" data-clayout="board">▦ ${L('Cards', 'כרטיסים')}</button><button class="${layout === 'table' ? 'on' : ''}" data-clayout="table">☰ ${L('Table', 'טבלה')}</button></div>`);
+  if (layout === 'table') return `<div class="c-wrap">${html}${collTable(cat, list)}</div>`;
   const f = !allMode && kind !== 'note' ? (ui.collFilter || 'all') : 'all';
   const nTried = list.filter(x => x.status === 'tried').length, nWant = list.length - nTried;
   if (f === 'want') list = list.filter(x => x.status !== 'tried'); if (f === 'tried') list = list.filter(x => x.status === 'tried');
@@ -465,6 +479,33 @@ function renderCollection() {
   html += `<div class="c-board">${addCard}${cards}</div>`;
   if (!list.length && (collRO() || allMode)) html += `<div class="empty"><b>${allMode ? '✨' : catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`;
   return `<div class="c-wrap">${html}</div>`;
+}
+/* ---- 🍸 table view (e.g. drinks): grouped by base, tap a row to open recipe / description / video ---- */
+function collTable(cat, list) {
+  const drink = catStyleC(cat) === 'drink';
+  const groups = {};
+  list.forEach(en => { const k = drink ? (en.base || 'other') : (en.status === 'tried' ? 'tried' : 'want'); (groups[k] = groups[k] || []).push(en); });
+  const order = drink ? C_BASES.map(b => b[0]) : ['want', 'tried'];
+  const head = (k) => drink ? `${baseOf(k)[1]} ${L(baseOf(k)[2], baseOf(k)[3])}` : (k === 'tried' ? statusWords(cat.kind).tried : statusWords(cat.kind).want);
+  const isVideo = (u) => /youtu|tiktok|instagram\.com\/(reel|tv)|facebook\.com\/.*video|fb\.watch/i.test(u || '');
+  const row = (en) => {
+    const open = !!ctOpen[en.id];
+    return `<div class="ct-item ${open ? 'open' : ''} ${en.status === 'tried' ? 'done' : ''}">
+      <button class="ct-row" data-ctr="${esc(en.id)}" aria-expanded="${open}">
+        <span class="ct-name" dir="auto">${esc(en.title)}</span>
+        <span class="ct-meta">${en.rating ? `<span class="c-stars">${stars(en.rating)}</span>` : ''}${en.status === 'tried' && cat.kind !== 'note' ? '<span class="ct-ok">✓</span>' : ''}${en.link ? (isVideo(en.link) ? '<span title="video">▶</span>' : '<span>🔗</span>') : ''}</span>
+        <span class="ct-chev">⌄</span></button>
+      ${open ? `<div class="ct-detail">
+        ${en.img ? `<img class="ct-img" src="${esc(en.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+        ${en.notes ? `<div class="ct-notes" dir="auto">${esc(en.notes)}</div>` : `<p class="hint">${L('No instructions yet — tap Edit to add them.', 'עוד אין הוראות — לחץ עריכה כדי להוסיף.')}</p>`}
+        ${en.by ? `<p class="ct-by">👤 ${esc(en.by)}</p>` : ''}
+        <div class="ct-actions">${en.link ? `<button class="btn ${isVideo(en.link) ? 'primary' : 'ghost'}" data-clink="${esc(en.link)}">${isVideo(en.link) ? L('▶ Watch the video', '▶ לסרטון') : L('🔗 Open link', '🔗 לקישור')}</button>` : ''}
+          ${collRO() ? '' : `<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
+      </div>` : ''}</div>`;
+  };
+  const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(drink ? L('Add a cocktail — name or paste a link…', 'הוסף קוקטייל — שם או הדבק קישור…') : L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
+  const body = order.filter(k => groups[k]).map(k => `<section class="ct-group"><h4>${head(k)} <i>${groups[k].length}</i></h4>${groups[k].sort((a, b) => (b.rating - a.rating) || a.title.localeCompare(b.title)).map(row).join('')}</section>`).join('');
+  return `<div class="c-table">${add}${body || `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`}</div>`;
 }
 function collCard(en) {
   const c = catOf(en.cat), i = catIdx(en.cat), w = statusWords(c.kind), done = en.status === 'tried';
@@ -557,7 +598,7 @@ async function linkInfo(url, cat, text) {
 }
 function collFromInfo(info, base) {
   info = info || {};
-  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '', _auto: info.title || '' };
+  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '', base: info.base || '', _auto: info.title || '' };
   if (info.summary && o.notes.indexOf(info.summary.slice(0, 20)) < 0) o.notes = info.summary + (o.notes ? '\n\n' + o.notes : '');
   if (!o.title) { try { o.title = new URL(base.link).hostname.replace(/^www\./, ''); } catch (e) { o.title = base.link; } }
   if (info.lat !== null && info.lat !== undefined && info.lat !== '') { o.lat = info.lat; o.lng = info.lng; o._pin = 'link'; o._geo = info.geoName || ''; }
@@ -592,6 +633,7 @@ async function collFillFromLink() {
   if (info.title && (!cur || cur === auto || /^[\w.-]+\.(com|co\.il|il|net|org|io)$/i.test(cur))) { f.elements.title.value = info.title; f.dataset.autoTitle = info.title; }
   const set = (k, v) => { if (v && !f.elements[k].value.trim()) f.elements[k].value = v; };
   set('place', info.place); set('by', info.by);
+  if (info.base && !$('#collBase').value) $('#collBase').value = info.base;
   const add = info.summary || info.notes;
   if (add && !f.elements.notes.value.includes(add.slice(0, 30))) f.elements.notes.value = blockedBefore ? (info.summary ? info.summary + '\n\n' : '') + f.elements.notes.value : (f.elements.notes.value.trim() ? f.elements.notes.value.trim() + '\n\n' : '') + add;
   if (info.img && !f.dataset.img) f.dataset.img = info.img;
@@ -659,6 +701,7 @@ function openColl(en) {
   $('#collCat').innerHTML = collCats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
   f.elements.title.value = en.title || ''; $('#collCat').value = en.cat && en.cat !== '*' ? en.cat : (collCats[0] || {}).id; f.elements.place.value = en.place || ''; f.elements.by.value = en.by || '';
   f.elements.link.value = en.link || ''; f.elements.notes.value = en.notes || ''; f.elements.for.value = en.for || '';
+  $('#collBase').innerHTML = `<option value="">${L('— choose —', '— בחר —')}</option>` + C_BASES.map(b => `<option value="${b[0]}">${b[1]} ${esc(L(b[2], b[3]))}</option>`).join(''); $('#collBase').value = en.base || '';
   f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0;
   f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = en._pin || ''; f.dataset.img = en.img || ''; f.dataset.autoTitle = en._auto || ''; f.dataset.geo = en._geo || '';
   $('#collNote').hidden = true; $('#placeAc').hidden = true; $('#collGeo').classList.remove('warn');
@@ -671,6 +714,7 @@ function collFormUi() {
   $('#collTry').hidden = c.kind === 'note';
   $('#collPlaceRow').hidden = !c.map;
   $('#collForRow').hidden = c.kind !== 'wish';
+  $('#collBaseRow').hidden = catStyleC(c) !== 'drink';
   f.elements.by.closest('label').hidden = c.kind === 'wish';
   $('#collStatus').innerHTML = `<button type="button" data-st="want" class="${f.dataset.status !== 'tried' ? 'on' : ''}">${w.want}</button><button type="button" data-st="tried" class="${f.dataset.status === 'tried' ? 'on' : ''}">${w.tried}</button>`;
   const r = Number(f.dataset.rating) || 0;
@@ -717,7 +761,7 @@ $('#frmColl').addEventListener('submit', async (e) => {
   let link = f.elements.link.value.trim(); if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
   const c = catOf($('#collCat').value);
   const en = Object.assign({}, collEditing || {}, { title, cat: c.id, place: c.map ? f.elements.place.value.trim() : '', by: c.kind === 'wish' ? '' : f.elements.by.value.trim(), link, notes: f.elements.notes.value,
-    img: f.dataset.img || '', for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
+    base: catStyleC(c) === 'drink' ? $('#collBase').value : '', img: f.dataset.img || '', for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
     lat: f.dataset.manual ? Number(f.dataset.lat) : (collEditing && f.dataset.lat !== '' ? collEditing.lat : null), lng: f.dataset.manual ? Number(f.dataset.lng) : (collEditing && f.dataset.lat !== '' ? collEditing.lng : null) });
   if (!f.dataset.manual) { delete en.lat; delete en.lng; }
   $('#dlgColl').close(); if (ui.collCat !== '*') ui.collCat = en.cat; await collStore(en);
@@ -1041,6 +1085,8 @@ document.addEventListener('click', (e) => {
   const cf = t.closest('[data-cfilter]');
   if (cf) { ui.collFilter = cf.dataset.cfilter; store.set('ai.ui', ui); render(); return; }
   const ccs = t.closest('[data-ccats]'); if (ccs) { openCollCats(ccs.dataset.ccats === 'new'); return; }
+  const cl2 = t.closest('[data-clayout]'); if (cl2) { ui.collLayout = Object.assign({}, ui.collLayout, { [ui.collCat]: cl2.dataset.clayout }); store.set('ai.ui', ui); render(); return; }
+  const ctr = t.closest('[data-ctr]'); if (ctr) { ctOpen[ctr.dataset.ctr] = !ctOpen[ctr.dataset.ctr]; render(); return; }
   const cv = t.closest('[data-cview]'); if (cv) { ui.collView = cv.dataset.cview; store.set('ai.ui', ui); render(); return; }
   if (t.closest('[data-cnew]')) { openColl({ cat: ui.collCat, status: 'want', title: ($('#collNew') || {}).value || '' }); return; }
   const lk = t.closest('[data-clink]');
@@ -2453,7 +2499,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 39;
+const APP_VERSION = 40;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
