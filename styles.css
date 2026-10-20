@@ -681,7 +681,7 @@ body.story-open{overflow:hidden}
 .ct-detail{padding:4px 16px 14px;background:var(--bg);animation:ctOpen .2s ease}
 @keyframes ctOpen{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .ct-img{display:block;width:100%;max-height:200px;object-fit:cover;border-radius:12px;margin:4px 0 10px}
-.ct-notes{white-space:pre-line;font-size:14.5px;line-height:1.6;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.ct-notes{white-space:pre-line;unicode-bidi:plaintext;text-align:start;font-size:14.5px;line-height:1.6;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .ct-by{font-size:12.5px;color:var(--muted);margin:8px 2px 0}
 .ct-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .c-tools{display:flex;gap:8px;flex-wrap:wrap}
@@ -712,3 +712,25 @@ body.story-open .fab-play,body.story-open .fab{visibility:hidden}
 [dir=ltr] .play-menu{bottom:calc(88px + env(safe-area-inset-bottom));transform-origin:bottom right}
 .play-menu .pm-main .pm-ic{background:var(--accent);color:#fff;font-size:22px;font-weight:700}
 .play-menu .pm-main{margin-bottom:4px;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0}
+
+/* 🍸 drinks table */
+.dt{width:100%;border-collapse:collapse;font-size:14.5px}
+.dt th{text-align:start;font-size:12px;font-weight:800;letter-spacing:.3px;color:var(--muted);background:var(--bg);padding:9px 10px;border-bottom:1px solid var(--line);position:sticky;top:0}
+.dt td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.dt-row{cursor:pointer}
+.dt-row:hover td,.dt-row.open td{background:var(--bg)}
+.dt-row.dt-first:not(:first-child) td{border-top:2px solid var(--line)}
+.dt-base{white-space:nowrap;color:var(--ink);font-weight:700;width:1%}
+.dt-base .dt-bi{margin-inline-end:5px}
+.dt-base.rep .dt-bl{opacity:.38;font-weight:500}
+.dt-base.rep .dt-bi{opacity:.45}
+.dt-name b{overflow-wrap:anywhere}
+.dt-name .c-stars{font-size:12px;margin-top:2px}
+.dt-ing{color:var(--muted);font-size:13.5px;line-height:1.45;overflow-wrap:anywhere}
+.dt-none{opacity:.5}
+.dt-end{white-space:nowrap;width:1%;color:var(--muted);text-align:end}
+.dt-ic{margin-inline-end:6px;font-size:12.5px}
+.dt-row.open .ct-chev{display:inline-block;transform:rotate(180deg)}
+.dt-detail td{padding:0;border-bottom:1px solid var(--line)}
+.dt-detail .ct-detail{padding:4px 12px 14px}
+@media (max-width:420px){.dt{font-size:14px}.dt td,.dt th{padding:10px 7px}.dt-base .dt-bl{display:block;font-size:12px}.dt-base .dt-bi{margin:0}}

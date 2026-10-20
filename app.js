@@ -482,7 +482,8 @@ function renderCollection() {
 }
 /* ---- 🍸 table view (e.g. drinks): grouped by base, tap a row to open recipe / description / video ---- */
 function collTable(cat, list) {
-  const drink = catStyleC(cat) === 'drink';
+  if (catStyleC(cat) === 'drink') return drinkTable(cat, list);
+  const drink = false;
   const groups = {};
   list.forEach(en => { const k = drink ? (en.base || 'other') : (en.status === 'tried' ? 'tried' : 'want'); (groups[k] = groups[k] || []).push(en); });
   const order = drink ? C_BASES.map(b => b[0]) : ['want', 'tried'];
@@ -506,6 +507,35 @@ function collTable(cat, list) {
   const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(drink ? L('Add a cocktail — name or paste a link…', 'הוסף קוקטייל — שם או הדבק קישור…') : L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
   const body = order.filter(k => groups[k]).map(k => `<section class="ct-group"><h4>${head(k)} <i>${groups[k].length}</i></h4>${groups[k].sort((a, b) => (b.rating - a.rating) || a.title.localeCompare(b.title)).map(row).join('')}</section>`).join('');
   return `<div class="c-table">${add}${body || `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`}</div>`;
+}
+/* 🍸 drinks: a real table — Base | Name | Other ingredients — sorted by base, then name (A→Z / א→ת); tap a row to open it */
+const ctIsVideo = (u) => /youtu|tiktok|instagram\.com\/(reel|tv)|facebook\.com\/.*video|fb\.watch/i.test(u || '');
+function drinkTable(cat, list) {
+  const lang = isHe() ? 'he' : 'en';
+  const cmp = (a, b) => String(a).localeCompare(String(b), lang, { sensitivity: 'base', numeric: true });
+  const bLabel = (en) => L(baseOf(en.base || 'other')[2], baseOf(en.base || 'other')[3]);
+  const rows = list.slice().sort((a, b) => cmp(bLabel(a), bLabel(b)) || cmp(a.title, b.title));
+  let prev = null;
+  const body = rows.map(en => {
+    const open = !!ctOpen[en.id], b = baseOf(en.base || 'other'), first = b[0] !== prev; prev = b[0];
+    const tried = en.status === 'tried';
+    const row = `<tr class="dt-row ${first ? 'dt-first' : ''} ${open ? 'open' : ''} ${tried ? 'done' : ''}" data-ctr="${esc(en.id)}" tabindex="0" aria-expanded="${open}">
+      <td class="dt-base ${first ? '' : 'rep'}"><span class="dt-bi">${b[1]}</span><span class="dt-bl">${esc(L(b[2], b[3]))}</span></td>
+      <td class="dt-name" dir="auto"><b>${esc(en.title)}</b>${tried ? ' <span class="ct-ok">✓</span>' : ''}${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}</td>
+      <td class="dt-ing" dir="auto">${en.ing ? esc(en.ing) : '<span class="dt-none">—</span>'}</td>
+      <td class="dt-end">${en.link ? (ctIsVideo(en.link) ? '<span class="dt-ic">▶</span>' : '<span class="dt-ic">🔗</span>') : ''}<span class="ct-chev">⌄</span></td></tr>`;
+    if (!open) return row;
+    return row + `<tr class="dt-detail"><td colspan="4"><div class="ct-detail">
+        ${en.img ? `<img class="ct-img" src="${esc(en.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+        ${en.notes ? `<div class="ct-notes" dir="auto">${esc(en.notes)}</div>` : `<p class="hint">${L('No instructions yet — tap Edit to add them.', 'עוד אין הוראות — לחץ עריכה כדי להוסיף.')}</p>`}
+        ${en.by ? `<p class="ct-by">👤 ${esc(en.by)}</p>` : ''}
+        <div class="ct-actions">${en.link ? `<button class="btn ${ctIsVideo(en.link) ? 'primary' : 'ghost'}" data-clink="${esc(en.link)}">${ctIsVideo(en.link) ? L('▶ Watch the video', '▶ לסרטון') : L('📖 Recipe', '📖 למתכון')}</button>` : ''}
+          ${collRO() ? '' : `<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
+      </div></td></tr>`;
+  }).join('');
+  const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Add a cocktail — name or paste a link…', 'הוסף קוקטייל — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
+  if (!rows.length) return `<div class="c-table">${add}<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div></div>`;
+  return `<div class="c-table">${add}<table class="dt no-i18n"><thead><tr><th>${L('Base', 'בסיס')}</th><th>${L('Name', 'שם')}</th><th>${L('Other ingredients', 'מצרכים נוספים')}</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 function collCard(en) {
   const c = catOf(en.cat), i = catIdx(en.cat), w = statusWords(c.kind), done = en.status === 'tried';
@@ -598,7 +628,7 @@ async function linkInfo(url, cat, text) {
 }
 function collFromInfo(info, base) {
   info = info || {};
-  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '', base: info.base || '', _auto: info.title || '' };
+  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '', base: info.base || '', ing: info.ing || '', _auto: info.title || '' };
   if (info.summary && o.notes.indexOf(info.summary.slice(0, 20)) < 0) o.notes = info.summary + (o.notes ? '\n\n' + o.notes : '');
   if (!o.title) { try { o.title = new URL(base.link).hostname.replace(/^www\./, ''); } catch (e) { o.title = base.link; } }
   if (info.lat !== null && info.lat !== undefined && info.lat !== '') { o.lat = info.lat; o.lng = info.lng; o._pin = 'link'; o._geo = info.geoName || ''; }
@@ -634,6 +664,7 @@ async function collFillFromLink() {
   const set = (k, v) => { if (v && !f.elements[k].value.trim()) f.elements[k].value = v; };
   set('place', info.place); set('by', info.by);
   if (info.base && !$('#collBase').value) $('#collBase').value = info.base;
+  if (info.ing && !$('#collIng').value.trim()) $('#collIng').value = info.ing;
   const add = info.summary || info.notes;
   if (add && !f.elements.notes.value.includes(add.slice(0, 30))) f.elements.notes.value = blockedBefore ? (info.summary ? info.summary + '\n\n' : '') + f.elements.notes.value : (f.elements.notes.value.trim() ? f.elements.notes.value.trim() + '\n\n' : '') + add;
   if (info.img && !f.dataset.img) f.dataset.img = info.img;
@@ -701,7 +732,7 @@ function openColl(en) {
   $('#collCat').innerHTML = collCats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
   f.elements.title.value = en.title || ''; $('#collCat').value = en.cat && en.cat !== '*' ? en.cat : (collCats[0] || {}).id; f.elements.place.value = en.place || ''; f.elements.by.value = en.by || '';
   f.elements.link.value = en.link || ''; f.elements.notes.value = en.notes || ''; f.elements.for.value = en.for || '';
-  $('#collBase').innerHTML = `<option value="">${L('— choose —', '— בחר —')}</option>` + C_BASES.map(b => `<option value="${b[0]}">${b[1]} ${esc(L(b[2], b[3]))}</option>`).join(''); $('#collBase').value = en.base || '';
+  $('#collBase').innerHTML = `<option value="">${L('— choose —', '— בחר —')}</option>` + C_BASES.map(b => `<option value="${b[0]}">${b[1]} ${esc(L(b[2], b[3]))}</option>`).join(''); $('#collBase').value = en.base || ''; $('#collIng').value = en.ing || '';
   f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0;
   f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = en._pin || ''; f.dataset.img = en.img || ''; f.dataset.autoTitle = en._auto || ''; f.dataset.geo = en._geo || '';
   $('#collNote').hidden = true; $('#placeAc').hidden = true; $('#collGeo').classList.remove('warn');
@@ -714,7 +745,7 @@ function collFormUi() {
   $('#collTry').hidden = c.kind === 'note';
   $('#collPlaceRow').hidden = !c.map;
   $('#collForRow').hidden = c.kind !== 'wish';
-  $('#collBaseRow').hidden = catStyleC(c) !== 'drink';
+  $('#collBaseRow').hidden = $('#collIngRow').hidden = catStyleC(c) !== 'drink';
   f.elements.by.closest('label').hidden = c.kind === 'wish';
   $('#collStatus').innerHTML = `<button type="button" data-st="want" class="${f.dataset.status !== 'tried' ? 'on' : ''}">${w.want}</button><button type="button" data-st="tried" class="${f.dataset.status === 'tried' ? 'on' : ''}">${w.tried}</button>`;
   const r = Number(f.dataset.rating) || 0;
@@ -761,7 +792,7 @@ $('#frmColl').addEventListener('submit', async (e) => {
   let link = f.elements.link.value.trim(); if (link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
   const c = catOf($('#collCat').value);
   const en = Object.assign({}, collEditing || {}, { title, cat: c.id, place: c.map ? f.elements.place.value.trim() : '', by: c.kind === 'wish' ? '' : f.elements.by.value.trim(), link, notes: f.elements.notes.value,
-    base: catStyleC(c) === 'drink' ? $('#collBase').value : '', img: f.dataset.img || '', for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
+    base: catStyleC(c) === 'drink' ? $('#collBase').value : '', ing: catStyleC(c) === 'drink' ? $('#collIng').value.trim() : '', img: f.dataset.img || '', for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
     lat: f.dataset.manual ? Number(f.dataset.lat) : (collEditing && f.dataset.lat !== '' ? collEditing.lat : null), lng: f.dataset.manual ? Number(f.dataset.lng) : (collEditing && f.dataset.lat !== '' ? collEditing.lng : null) });
   if (!f.dataset.manual) { delete en.lat; delete en.lng; }
   $('#dlgColl').close(); if (ui.collCat !== '*') ui.collCat = en.cat; await collStore(en);
@@ -2559,7 +2590,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 42;
+const APP_VERSION = 43;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

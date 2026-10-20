@@ -894,7 +894,7 @@ function saveAreas_(req) {
  *  Stored in its own "Collection" tab, separate from the action items.
  * ===================================================================== */
 const COLL_SHEET = 'Collection';
-const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng', 'Image', 'Base'];
+const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng', 'Image', 'Base', 'Ingredients'];
 const COLL_DEFAULT_CATS_ = [
   { id: 'food', name: '🍽 מסעדות', kind: 'try', map: true }, { id: 'trip', name: '🧭 טיולים', kind: 'try', map: true },
   { id: 'activity', name: '🎯 פעילויות', kind: 'try', map: true }, { id: 'recipe', name: '🍳 מתכונים', kind: 'try', map: false },
@@ -925,10 +925,12 @@ function collSheet_() {
     sh.getRange(1, 1, 1, COLL_HEAD.length).setValues([COLL_HEAD]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
     sh.setFrozenRows(1);
   }
-  if (sh.getRange(1, 16).getValue() === '') sh.getRange(1, 12, 1, 5).setValues([COLL_HEAD.slice(11)]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
+  if (sh.getMaxColumns() < COLL_HEAD.length) sh.insertColumnsAfter(sh.getMaxColumns(), COLL_HEAD.length - sh.getMaxColumns());
+  if (sh.getRange(1, COLL_HEAD.length).getValue() === '') sh.getRange(1, 12, 1, COLL_HEAD.length - 11).setValues([COLL_HEAD.slice(11)]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
   return sh;
 }
 function collRead_() {
+  collSeedDrinks_();
   const sh = collSheet_(), n = sh.getLastRow() - 1;
   if (n < 1) return [];
   const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
@@ -936,7 +938,41 @@ function collRead_() {
   return sh.getRange(2, 1, n, COLL_HEAD.length).getValues().filter(r => r[0] && r[2]).map(r => ({
     id: String(r[0]), cat: String(r[1]), title: String(r[2]), notes: String(r[3]), link: String(r[4]), place: String(r[5]),
     by: String(r[6]), status: String(r[7]) === 'tried' ? 'tried' : 'want', rating: Number(r[8]) || 0, added: d(r[9]), updated: d(r[10]),
-    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]), img: String(r[14] || ''), base: String(r[15] || '') }));
+    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]), img: String(r[14] || ''), base: String(r[15] || ''), ing: String(r[16] || '') }));
+}
+/* one-time: put well-known classics (IBA official recipes) into the drinks category, skipping names already there */
+const SEED_DRINKS_ = [
+  ['נגרוני', 'gin', 'קמפרי, ורמוט אדום מתוק', '30 מ״ל ג׳ין\n30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nלמזוג לכוס אולד פאשנד עם קרח ולערבב בעדינות.\nקישוט: חצי פרוסת תפוז.\n— Negroni', 'negroni'],
+  ['פרנץ׳ 75', 'gin', 'מיץ לימון, סירופ סוכר, שמפניה', '30 מ״ל ג׳ין\n15 מ״ל מיץ לימון טרי\n15 מ״ל סירופ סוכר\n60 מ״ל שמפניה\nלנער את הג׳ין, הלימון והסירופ עם קרח ולסנן לכוס שמפניה.\nלהשלים בשמפניה ולערבב בעדינות.\n— French 75', 'french-75'],
+  ['מוסקו מיול', 'vodka', 'ג׳ינג׳ר ביר, מיץ ליים', '45 מ״ל וודקה\n120 מ״ל ג׳ינג׳ר ביר\n10 מ״ל מיץ ליים טרי\nלמזוג לספל נחושת או לכוס עם קרח ולערבב בעדינות.\nקישוט: פרוסת ליים.\n— Moscow Mule', 'moscow-mule'],
+  ['אספרסו מרטיני', 'vodka', 'קלואה, אספרסו, סירופ סוכר', '50 מ״ל וודקה\n30 מ״ל קלואה (ליקר קפה)\n10 מ״ל סירופ סוכר\n1 אספרסו חזק\nלנער היטב עם קרח ולסנן לכוס קוקטייל מצוננת.\nקישוט: 3 פולי קפה.\n— Espresso Martini', 'espresso-martini'],
+  ['קוסמופוליטן', 'vodka', 'קואנטרו, מיץ ליים, מיץ חמוציות', '40 מ״ל וודקה הדרים\n15 מ״ל קואנטרו\n15 מ״ל מיץ ליים טרי\n30 מ״ל מיץ חמוציות\nלנער עם קרח ולסנן לכוס קוקטייל גדולה.\nקישוט: קליפת לימון.\n— Cosmopolitan', 'cosmopolitan'],
+  ['מוחיטו', 'rum', 'נענע, מיץ ליים, סוכר, סודה', '45 מ״ל רום לבן\n20 מ״ל מיץ ליים טרי\n6 ענפי נענע\n2 כפיות סוכר לבן\nסודה\nלכתוש את הנענע עם הסוכר והליים, להוסיף מעט סודה ולמלא בקרח.\nלהוסיף את הרום ולהשלים בסודה.\nקישוט: ענפי נענע ופרוסת ליים.\n— Mojito', 'mojito'],
+  ['דאקירי', 'rum', 'מיץ ליים, סוכר', '60 מ״ל רום לבן\n20 מ״ל מיץ ליים טרי\n2 כפיות בר סוכר דק\nלערבב בשייקר עד שהסוכר נמס, להוסיף קרח, לנער ולסנן לכוס קוקטייל מצוננת.\n— Daiquiri', 'daiquiri'],
+  ['פינה קולדה', 'rum', 'קרם קוקוס, מיץ אננס', '50 מ״ל רום לבן\n30 מ״ל קרם קוקוס\n50 מ״ל מיץ אננס טרי\nלטחון בבלנדר עם קרח ולמזוג לכוס גדולה עם קשים.\nקישוט: פרוסת אננס ודובדבן.\n— Piña Colada', 'pina-colada'],
+  ['מרגריטה', 'tequila', 'טריפל סק, מיץ ליים', '50 מ״ל טקילה (100% אגבה)\n20 מ״ל טריפל סק\n15 מ״ל מיץ ליים טרי\nלנער עם קרח ולסנן לכוס קוקטייל מצוננת.\nאופציונלי: חצי שפת מלח.\n— Margarita', 'margarita'],
+  ['פלומה', 'tequila', 'סודה אשכוליות, מיץ ליים, מלח', '50 מ״ל טקילה (100% אגבה)\n5 מ״ל מיץ ליים טרי\nקורט מלח\n100 מ״ל סודה אשכוליות ורודה\nלמזוג את הטקילה לכוס הייבול ולסחוט ליים, להוסיף קרח ומלח, להשלים בסודה ולערבב.\nקישוט: פרוסת ליים.\n— Paloma', 'paloma'],
+  ['אולד פאשנד', 'whisky', 'קוביית סוכר, אנגוסטורה', '45 מ״ל בורבון או ריי\n1 קוביית סוכר\nכמה טיפות אנגוסטורה ביטרס\nכמה טיפות מים\nלהשרות את הסוכר בביטרס, להוסיף מים ולכתוש עד שנמס.\nלמלא בקרח, להוסיף וויסקי ולערבב בעדינות.\nקישוט: קליפת תפוז ודובדבן.\n— Old Fashioned', 'old-fashioned'],
+  ['וויסקי סאוור', 'whisky', 'מיץ לימון, סירופ סוכר, חלבון (לא חובה)', '45 מ״ל בורבון\n25 מ״ל מיץ לימון טרי\n20 מ״ל סירופ סוכר\nכמה טיפות חלבון ביצה (לא חובה)\nלנער היטב עם קרח ולסנן לכוס, או לכוס אולד פאשנד עם קרח.\nקישוט: חצי פרוסת תפוז ודובדבן.\n— Whiskey Sour', 'whiskey-sour'],
+  ['בולבארדייה', 'whisky', 'קמפרי, ורמוט אדום מתוק', '45 מ״ל בורבון או ריי\n30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nלערבב עם קרח ולסנן לכוס קוקטייל מצוננת.\nקישוט: קליפת תפוז.\n— Boulevardier', 'boulevardier'],
+  ['אפרול שפריץ', 'sparkling', 'אפרול, סודה', '90 מ״ל פרוסקו\n60 מ״ל אפרול\nמעט סודה\nלבנות בכוס יין מלאה קרח ולערבב בעדינות.\nקישוט: פרוסת תפוז.\n— Aperol Spritz', 'spritz'],
+  ['אמריקנו', 'liqueur', 'ורמוט אדום מתוק, סודה', '30 מ״ל קמפרי\n30 מ״ל ורמוט אדום מתוק\nמעט סודה\nלמזוג לכוס אולד פאשנד עם קרח ולערבב.\nקישוט: חצי פרוסת תפוז וקליפת לימון.\n— Americano', 'americano']];
+function collSeedDrinks_() {
+  const P = PropertiesService.getScriptProperties();
+  if (P.getProperty('COLL_SEED_DRINKS') === '1') return;
+  const cat = collCats_().find(c => catStyle_(c.id, c.name) === 'drink');
+  if (!cat) return;
+  P.setProperty('COLL_SEED_DRINKS', '1');   // mark first, so two app opens at once can't add the list twice
+  try {
+    const sh = collSheet_(), n = sh.getLastRow() - 1;
+    const norm = (t) => String(t || '').toLowerCase().replace(/[׳'"`\s\-]/g, '');
+    const have = n > 0 ? sh.getRange(2, 2, n, 4).getValues().filter(r => String(r[0]) === cat.id).map(r => norm(r[1]) + '|' + norm(String(r[2]).split('\n').pop().replace(/^—\s*/, ''))) : [];
+    const exists = (he, en) => have.some(h => h.split('|').some(x => x && (x === norm(he) || x === norm(en))));
+    const today = Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+    const rows = SEED_DRINKS_.filter(d => !exists(d[0], d[3].split('\n').pop().replace(/^—\s*/, ''))).map(d =>
+      [Utilities.getUuid().slice(0, 12), cat.id, d[0], d[3], 'https://iba-world.com/iba-cocktail/' + d[4] + '/', '', 'IBA', 'want', '', today, today, '', '', '', '', d[1], d[2]]);
+    if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  } catch (e) { P.deleteProperty('COLL_SEED_DRINKS'); }
 }
 function collSave_(e) {
   if (!e || !String(e.title || '').trim()) throw new Error('A title is required');
@@ -945,7 +981,7 @@ function collSave_(e) {
   const out = { id: e.id ? String(e.id) : Utilities.getUuid().slice(0, 12), cat: String(e.cat || '').slice(0, 20), title: String(e.title).trim().slice(0, 200),
     notes: String(e.notes || '').slice(0, 3000), link: /^https?:\/\//i.test(link) ? link.slice(0, 500) : '', place: String(e.place || '').slice(0, 120),
     by: String(e.by || '').slice(0, 60), status: e.status === 'tried' ? 'tried' : 'want', rating: Math.max(0, Math.min(5, Number(e.rating) || 0)), added: e.added || today, updated: today,
-    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '', img: /^https:\/\//i.test(String(e.img || '')) ? String(e.img).slice(0, 1000) : '', base: String(e.base || '').slice(0, 30) };
+    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '', img: /^https:\/\//i.test(String(e.img || '')) ? String(e.img).slice(0, 1000) : '', base: String(e.base || '').slice(0, 30), ing: String(e.ing || '').trim().slice(0, 300) };
   const n = sh.getLastRow() - 1;
   const ids = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0])) : [];
   const i = ids.indexOf(out.id);
@@ -960,7 +996,7 @@ function collSave_(e) {
     else { const g = collLocate_(out.link, out.place); if (g) { out.lat = g.lat; out.lng = g.lng; out.geo = g.how; } else out.geo = (out.place || out.link) ? 'none' : ''; }
   }
   const row = [out.id, out.cat, out.title, out.notes, out.link, out.place, out.by, out.status, out.rating || '', out.added, out.updated, out.for,
-    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng, out.img, out.base];
+    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng, out.img, out.base, out.ing];
   if (i >= 0) sh.getRange(i + 2, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
   return out;
 }
@@ -1122,13 +1158,13 @@ function aiExtract_(style, catName, raw, url, blocked) {
     food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence.',
     trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
     activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
-    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit, ONE of: gin, vodka, rum, tequila, whisky, wine, beer, sparkling, liqueur, none (non-alcoholic), other. notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
+    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit, ONE of: gin, vodka, rum, tequila, whisky, wine, beer, sparkling, liqueur, none (non-alcoholic), other. ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
   };
   const prompt = 'You read a social-media post or web page that someone saved to their "' + catName + '" list. Answer in the language of the post (Hebrew if Hebrew).\n' +
     rules[style] + '\n' +
     'place = the most precise location to put a map pin: business/site name + street/area + city if known (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). If only a city or region is known, give that. Empty if unknown.\n' +
     'city = city / region. notes = 1-3 short lines with the useful facts (what to order, hours, price, tips) — no hashtags.\n' +
-    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":""' : '') + '}\n\n' +
+    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":"","ing":""' : '') + '}\n\n' +
     'URL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 3000);
   const parts = [{ text: prompt }];
   const yt = /youtube\.com|youtu\.be/i.test(url);
@@ -1234,6 +1270,7 @@ function linkInfo_(url, opt) {
       out.title = String(ai.title || '').trim();
       if (ai.place && style !== 'drink' && style !== 'recipe') out.place = String(ai.place).trim();
       if (ai.base) out.base = String(ai.base).trim().toLowerCase();
+      if (ai.ing) out.ing = String(ai.ing).trim().slice(0, 300);
       if (ai.notes && (!out.notes || out.notes.length < 20)) out.notes = String(ai.notes).trim();
       else if (ai.notes) out.summary = String(ai.notes).trim();
     } else if (ai && ai.error) out.aiError = ai.error;
