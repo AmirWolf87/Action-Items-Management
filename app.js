@@ -327,6 +327,7 @@ function render() {
     if (ui.tab === 'all' && nd) html += `<button class="nb-link" data-goto="notebook">📒 ${L(`${nd} items without a date are in the Notebook`, `${nd} משימות ללא תאריך נמצאות בפנקס`)} <span>›</span></button>`;
   }
   if (isGuest() && ui.tab === 'focus' && mySugg.length) html = suggHtml() + html;
+  if (ui.tab === 'focus') html = `<button class="story-btn" data-story><span class="sb-play">▶</span><span><b>${L('Summary video', 'סרטון סיכום')}</b><small>${L('What’s urgent, in 30 seconds', 'מה דחוף — ב-30 שניות')}</small></span><span class="sb-film">🎬</span></button>` + html;
   if (!html) html = ui.tab === 'focus'
     ? `<div class="empty"><b>🎉</b>Nothing overdue, due today or this week.<br>Check "All open" for later items.</div>`
     : `<div class="empty"><b>🗂</b>No items here.</div>`;
@@ -915,6 +916,7 @@ document.addEventListener('click', (e) => {
   const wk = t.closest('[data-wk]');
   if (wk) { weekOff = wk.dataset.wk === '0' ? 0 : weekOff + Number(wk.dataset.wk); render(); return; }
   if (t.closest('[data-ics]')) { openIcs(); return; }
+  if (t.closest('[data-story]')) { openStory(); return; }
   if (t.closest('[data-ciopen]')) { openImport(); return; }
   if (t.closest('[data-undo]')) { undo(); return; }
   if (t.closest('[data-redo]')) { redo(); return; }
@@ -1774,7 +1776,153 @@ $('#ciGuide').addEventListener('click', async (e) => {
 });
 $('#ciGuide').addEventListener('change', (e) => { if (e.target.id === 'ciNameIn' && e.target.value.trim()) { store.set('ai.ciName', e.target.value.trim()); toast(L('Saved', 'נשמר')); } });
 $('#btnImport').addEventListener('click', openImport);
+$('#btnStory').addEventListener('click', () => { $('#dlgMenu').close(); openStory(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && $('#dlgImport').open && !settings.demo) ciLoad(); });
+
+/* ---------- 🎬 Summary "video": animated story slides with spoken narration ---------- */
+let story = null;
+function storySlides() {
+  const all = filtered().filter(it => !isClosed(it));
+  const t = today(), late = (it) => Math.max(1, dayDiff(t, parse(it.due)));
+  const over = all.filter(it => horizon(it) === 'Overdue').sort((a, b) => parse(a.due) - parse(b.due));
+  const tod = all.filter(it => horizon(it) === 'Today').sort((a, b) => String(a.time || '99').localeCompare(String(b.time || '99')) || prioRank(a.prio) - prioRank(b.prio));
+  const wk = all.filter(it => horizon(it) === 'This week').sort(sortOpen);
+  const hot = wk.filter(it => /^1/.test(it.prio || '')).concat(wk.filter(it => !/^1/.test(it.prio || ''))).slice(0, 5);
+  const waiting = all.filter(it => it.status === 'Waiting').sort((a, b) => (waitDays(b) || 0) - (waitDays(a) || 0));
+  const doneWk = data.items.filter(it => it.status === 'Done' && parse(it.done) >= weekStart(t)).length;
+  const h = new Date().getHours();
+  const hello = h < 12 ? L('Good morning', 'בוקר טוב') : h < 17 ? L('Good afternoon', 'צהריים טובים') : L('Good evening', 'ערב טוב');
+  const areaTxt = ui.area !== 'All' ? ' · ' + tr(ui.area) : '';
+  const li = (it, extra) => `<li><b dir="auto">${esc(it.item)}</b>${extra ? `<span>${extra}</span>` : ''}</li>`;
+  const names = (arr) => arr.slice(0, 3).map(it => it.item).join(isHe() ? ', ' : ', ');
+  const S = [];
+  S.push({ cls: 'st-intro', html: `<div class="st-emoji">🎬</div><h1>${hello}</h1><p class="st-date">${esc(t.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' }))}${esc(areaTxt)}</p>
+      <div class="st-kpis"><div class="r"><b data-count="${over.length}">0</b><span>${tr('Overdue')}</span></div><div class="a"><b data-count="${tod.length}">0</b><span>${tr('Today')}</span></div><div class="g"><b data-count="${wk.length}">0</b><span>${tr('This week')}</span></div></div>`,
+    say: L(`${hello}. You have ${over.length} overdue, ${tod.length} for today, and ${wk.length} more this week.`, `${hello}. יש לך ${over.length} משימות באיחור, ${tod.length} להיום, ועוד ${wk.length} השבוע.`) });
+  if (over.length) S.push({ cls: 'st-red', html: `<div class="st-emoji">⏰</div><h2>${L(`${over.length} overdue`, `${over.length} באיחור`)}</h2><ul>${over.slice(0, 5).map(it => li(it, L(`${late(it)}d late`, `באיחור ${late(it)} ימ׳`))).join('')}</ul>${over.length > 5 ? `<p class="st-more">${L(`+${over.length - 5} more`, `ועוד ${over.length - 5}`)}</p>` : ''}`,
+    say: L(`Overdue: ${names(over)}.`, `באיחור: ${names(over)}.`) });
+  if (tod.length) S.push({ cls: 'st-amber', html: `<div class="st-emoji">📌</div><h2>${L(`Today · ${tod.length}`, `היום · ${tod.length}`)}</h2><ul>${tod.slice(0, 6).map(it => li(it, it.time ? '🕒 ' + esc(it.time) : '')).join('')}</ul>`,
+    say: L(`For today: ${tod.slice(0, 3).map(it => (it.time ? 'at ' + it.time + ', ' : '') + it.item).join('; ')}.`, `להיום: ${tod.slice(0, 3).map(it => (it.time ? 'ב-' + it.time + ', ' : '') + it.item).join('; ')}.`) });
+  if (hot.length) S.push({ cls: 'st-blue', html: `<div class="st-emoji">🔥</div><h2>${L('Coming up this week', 'השבוע')}</h2><ul>${hot.map(it => li(it, esc(fmt(it.due, true)) + (/^1/.test(it.prio || '') ? ' · ❗' : ''))).join('')}</ul>`,
+    say: L(`Later this week: ${names(hot)}.`, `בהמשך השבוע: ${names(hot)}.`) });
+  if (waiting.length) S.push({ cls: 'st-purple', html: `<div class="st-emoji">⏳</div><h2>${L('Waiting on others', 'ממתין לאחרים')}</h2><ul>${waiting.slice(0, 5).map(it => li(it, (it.focal && it.focal !== 'Me' ? '👤 ' + esc(it.focal) + ' · ' : '') + L(`${waitDays(it) || 0}d`, `${waitDays(it) || 0} ימ׳`))).join('')}</ul>`,
+    say: L(`Waiting on others: ${waiting.length}. Maybe time for a reminder.`, `${waiting.length} משימות ממתינות לאחרים. אולי הזמן לתזכורת.`) });
+  S.push({ cls: 'st-green', mood: doneWk ? null : ['hi', ['Zero is just the starting point 💪', 'אפס זו רק נקודת ההתחלה 💪']], html: `<div class="st-emoji">🏆</div><h2>${L('Done this week', 'הושלמו השבוע')}</h2><div class="st-big" data-count="${doneWk}">0</div><p>${doneWk ? L('Great job — keep going!', 'כל הכבוד — ממשיכים!') : L('Let’s get the first one done today.', 'בוא נסגור היום את הראשונה.')}</p>`,
+    say: doneWk ? L(`You finished ${doneWk} this week. Great job!`, `סגרת השבוע ${doneWk} משימות. כל הכבוד!`) : L('Let’s get the first one done today.', 'בוא נסגור היום את הראשונה.') });
+  const first = over[0] || tod[0] || hot[0];
+  S.push({ cls: 'st-outro', html: `<div class="st-emoji">🚀</div><h2>${L('Start with', 'מתחילים עם')}</h2>${first ? `<div class="st-first" dir="auto">${esc(first.item)}</div>` : `<p>${L('Nothing urgent — enjoy the day!', 'אין שום דבר דחוף — יום נעים!')}</p>`}
+      <button class="btn primary st-go" data-st-go>${L('Open Focus', 'לפוקוס')}</button>`,
+    say: first ? L(`Start with: ${first.item}. Good luck!`, `מתחילים עם: ${first.item}. בהצלחה!`) : L('Nothing urgent. Enjoy the day!', 'אין שום דבר דחוף. יום נעים!') });
+  return S;
+}
+const ST_MOOD = {
+  'st-intro': ['hi', ['Let’s see what’s waiting for us 😎', 'יאללה, בוא נראה מה מחכה לנו 😎']],
+  'st-red': ['panic', ['Uh-oh… this is starting to smell 😬', 'אוי אוי אוי… זה מתחיל להריח 😬']],
+  'st-amber': ['coffee', ['Coffee in hand? Let’s go! ☕', 'קפה ביד? יאללה! ☕']],
+  'st-blue': ['think', ['Planning is half the work. The other half… is also work.', 'תכנון זה חצי מהעבודה. החצי השני… גם עבודה.']],
+  'st-purple': ['peek', ['Someone owes you an answer 👀', 'מישהו חייב לך תשובה 👀']],
+  'st-green': ['party', ['Who’s the king? You’re the king! 👑', 'מי מלך? אתה מלך! 👑']],
+  'st-outro': ['rocket', ['3… 2… 1… liftoff!', '3… 2… 1… המראה!']]
+};
+function mascotSvg() {
+  return `<svg class="mc-svg" viewBox="0 0 120 130" aria-hidden="true">
+    <g class="mc-extra mc-rocket"><path d="M48 112 L60 128 L72 112 Z" fill="#F97316"/><path d="M53 112 L60 122 L67 112 Z" fill="#FDE047"/></g>
+    <g class="mc-body"><ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc,#FBBF24)"/><ellipse cx="46" cy="50" rx="14" ry="8" fill="rgba(255,255,255,.35)"/>
+      <ellipse class="mc-cheek" cx="30" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/><ellipse class="mc-cheek" cx="90" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/>
+      <g class="mc-eyes"><circle cx="44" cy="62" r="11" fill="#fff"/><circle cx="76" cy="62" r="11" fill="#fff"/>
+        <circle class="mc-pupil" cx="46" cy="64" r="5" fill="#1F2937"/><circle class="mc-pupil" cx="78" cy="64" r="5" fill="#1F2937"/>
+        <rect class="mc-lid" x="32" y="50" width="56" height="0" fill="var(--mc,#FBBF24)"/></g>
+      <path class="mc-mouth m-smile" d="M44 84 Q60 98 76 84" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path class="mc-mouth m-wavy" d="M42 88 q6-6 12 0 t12 0 t12 0" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <ellipse class="mc-mouth m-o" cx="60" cy="88" rx="7" ry="9" fill="#1F2937"/>
+      <path class="mc-mouth m-grin" d="M40 82 Q60 104 80 82 Z" fill="#1F2937"/>
+      <g class="mc-extra mc-shades"><rect x="28" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="64" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="54" y="58" width="12" height="4" fill="#111827"/></g>
+      <g class="mc-extra mc-crown"><path d="M36 28 L44 12 L52 26 L60 8 L68 26 L76 12 L84 28 Z" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/></g>
+      <g class="mc-extra mc-sweat"><path d="M98 40 q6 10 0 14 q-6-4 0-14z" fill="#7DD3FC"/><path d="M18 46 q5 8 0 11 q-5-3 0-11z" fill="#7DD3FC"/></g>
+      <g class="mc-extra mc-glass"><circle cx="76" cy="62" r="15" fill="none" stroke="#1F2937" stroke-width="4"/><path d="M87 73 L100 88" stroke="#1F2937" stroke-width="6" stroke-linecap="round"/></g>
+    </g>
+    <g class="mc-extra mc-cup"><rect x="92" y="78" width="20" height="22" rx="4" fill="#fff" stroke="#78350F" stroke-width="3"/><path d="M112 84 q8 0 8 7 q0 6-8 6" fill="none" stroke="#78350F" stroke-width="3"/>
+      <path class="mc-steam" d="M98 72 q-4-6 0-10 q4-4 0-10 M106 72 q-4-6 0-10 q4-4 0-10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".8"/></g>
+    <g class="mc-extra mc-hand"><circle cx="16" cy="70" r="9" fill="var(--mc,#FBBF24)" stroke="rgba(0,0,0,.15)"/></g>
+  </svg>`;
+}
+function confetti(host) {
+  const cols = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FFFFFF'];
+  const box = document.createElement('div'); box.className = 'st-confetti';
+  for (let k = 0; k < 60; k++) { const c = document.createElement('i'); c.style.left = Math.random() * 100 + '%'; c.style.background = cols[k % cols.length];
+    c.style.animationDelay = (Math.random() * 1.2) + 's'; c.style.animationDuration = (2.2 + Math.random() * 1.8) + 's'; c.style.transform = `rotate(${Math.random() * 360}deg)`;
+    if (k % 3 === 0) c.style.borderRadius = '50%'; box.appendChild(c); }
+  host.appendChild(box);
+}
+function openStory() {
+  const slides = storySlides();
+  const el = document.createElement('div'); el.className = 'story'; el.setAttribute('role', 'dialog');
+  el.innerHTML = `<div class="st-bars">${slides.map(() => '<i><b></b></i>').join('')}</div>
+    <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><button class="st-snd" data-st-snd aria-label="sound"></button></div>
+    <div class="st-stage"></div>
+    <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap">${mascotSvg()}</div></div>
+    <div class="st-tap st-prev"></div><div class="st-tap st-next"></div>`;
+  document.body.appendChild(el); document.body.classList.add('story-open');
+  story = { el, slides, i: -1, muted: !!store.get('ai.storyMute', false), timer: null, t0: 0, dur: 0, paused: false, left: 0 };
+  el.querySelector('[data-st-snd]').textContent = story.muted ? '🔇' : '🔊';
+  el.addEventListener('click', storyClick);
+  el.addEventListener('pointerdown', () => storyPause(true)); el.addEventListener('pointerup', () => storyPause(false));
+  document.addEventListener('keydown', storyKey);
+  storyGo(0);
+}
+function storySpeak(text, done) {
+  try { speechSynthesis.cancel(); } catch (e) { /* none */ }
+  if (story.muted || !window.speechSynthesis) { done(null); return; }
+  const u = new SpeechSynthesisUtterance(text); u.lang = isHe() ? 'he-IL' : 'en-US'; u.rate = 1.02;
+  const v = speechSynthesis.getVoices().find(x => x.lang && x.lang.toLowerCase().startsWith(isHe() ? 'he' : 'en')); if (v) u.voice = v;
+  let fired = false; const fin = () => { if (!fired) { fired = true; done(true); } };
+  u.onend = fin; u.onerror = () => { if (!fired) { fired = true; done(null); } };
+  speechSynthesis.speak(u);
+}
+function storyGo(i) {
+  const s = story; if (!s) return;
+  if (i < 0) i = 0; if (i >= s.slides.length) { storyClose(); return; }
+  clearTimeout(s.timer); s.i = i;
+  const sl = s.slides[i];
+  s.el.className = 'story ' + sl.cls;
+  const stage = s.el.querySelector('.st-stage'); stage.innerHTML = `<div class="st-slide">${sl.html}</div>`;
+  stage.querySelectorAll('li').forEach((x, k) => { x.style.animationDelay = (0.25 + k * 0.18) + 's'; });
+  const md = sl.mood || ST_MOOD[sl.cls] || ['hi', ['', '']], mc = s.el.querySelector('.st-mascot');
+  mc.className = 'st-mascot mood-' + md[0]; void mc.offsetWidth; mc.classList.add('mc-in');
+  mc.querySelector('.mc-bubble').textContent = L(md[1][0], md[1][1]);
+  s.el.querySelectorAll('.st-confetti').forEach(c => c.remove()); if (md[0] === 'party') confetti(s.el);
+  stage.querySelectorAll('[data-count]').forEach(b => { const n = Number(b.dataset.count) || 0, t0 = performance.now(); const step = (t) => { const p = Math.min(1, (t - t0) / 900); b.textContent = Math.round(n * (1 - Math.pow(1 - p, 3))); if (p < 1 && story) requestAnimationFrame(step); }; requestAnimationFrame(step); });
+  s.el.querySelectorAll('.st-bars i').forEach((bar, k) => { const b = bar.firstChild; b.style.transition = 'none'; b.style.width = k < i ? '100%' : '0%'; });
+  const minDur = 4500 + (sl.html.match(/<li>/g) || []).length * 700;
+  const start = (ms) => {
+    const b = s.el.querySelectorAll('.st-bars i')[i].firstChild;
+    requestAnimationFrame(() => { b.style.transition = `width ${ms}ms linear`; b.style.width = '100%'; });
+    s.t0 = Date.now(); s.dur = ms; s.timer = setTimeout(() => storyGo(i + 1), ms);
+  };
+  if (s.muted || !window.speechSynthesis) start(minDur);
+  else { const t0 = Date.now(); let started = false;
+    const safety = setTimeout(() => { if (!started) { started = true; start(minDur); } }, 9000);   // if the voice never ends
+    storySpeak(sl.say, (ok) => { if (story !== s || s.i !== i || started) return; started = true; clearTimeout(safety); const spent = Date.now() - t0; start(Math.max(1200, minDur - spent, 900)); }); }
+}
+function storyPause(p) {
+  const s = story; if (!s || s.paused === p) return; s.paused = p;
+  const b = s.el.querySelectorAll('.st-bars i')[s.i]; if (!b) return; const bar = b.firstChild;
+  if (p) { clearTimeout(s.timer); s.left = Math.max(300, s.dur - (Date.now() - s.t0)); const w = getComputedStyle(bar).width; bar.style.transition = 'none'; bar.style.width = w; try { speechSynthesis.pause(); } catch (e) { /* none */ } }
+  else { try { speechSynthesis.resume(); } catch (e) { /* none */ } s.t0 = Date.now(); s.dur = s.left; requestAnimationFrame(() => { bar.style.transition = `width ${s.left}ms linear`; bar.style.width = '100%'; }); s.timer = setTimeout(() => storyGo(s.i + 1), s.left); }
+}
+function storyClick(e) {
+  const s = story; if (!s) return;
+  if (e.target.closest('[data-st-x]')) { storyClose(); return; }
+  if (e.target.closest('[data-st-snd]')) { s.muted = !s.muted; store.set('ai.storyMute', s.muted); e.target.textContent = s.muted ? '🔇' : '🔊'; if (s.muted) { try { speechSynthesis.cancel(); } catch (x) { /* none */ } } else storyGo(s.i); return; }
+  if (e.target.closest('[data-st-go]')) { storyClose(); ui.tab = 'focus'; store.set('ai.ui', ui); render(); return; }
+  const fwd = e.target.closest('.st-next'), back = e.target.closest('.st-prev');
+  if (fwd) storyGo(s.i + 1); else if (back) storyGo(s.i - 1);
+}
+function storyKey(e) { if (!story) return; if (e.key === 'Escape') storyClose(); if (e.key === 'ArrowLeft') storyGo(story.i + (isHe() ? 1 : -1)); if (e.key === 'ArrowRight') storyGo(story.i + (isHe() ? -1 : 1)); }
+function storyClose() {
+  if (!story) return; clearTimeout(story.timer); try { speechSynthesis.cancel(); } catch (e) { /* none */ }
+  story.el.remove(); story = null; document.body.classList.remove('story-open'); document.removeEventListener('keydown', storyKey);
+}
 
 /* ---------- statistics ---------- */
 async function openStats() {
@@ -2194,7 +2342,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 35;
+const APP_VERSION = 37;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
