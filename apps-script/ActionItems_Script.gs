@@ -628,7 +628,9 @@ function notifyTick() {
     if (!r.on || r.days.indexOf(dow) < 0) return;
     const m = Number(r.time.slice(0, 2)) * 60 + Number(r.time.slice(3));
     if (nowMin < m || nowMin >= m + 30 || sent[r.id] === day) return;      // 30-min window, once a day
-    try { sendRule_(r, false, cfg); sent[r.id] = day; changed = true; } catch (e) { console.error(e); }
+    sent[r.id] = day; changed = true;                                       // one attempt per day — even if the push fails (no repeats every 5 min)
+    p.setProperty('NOTIFY_SENT', JSON.stringify(sent));
+    try { sendRule_(r, false, cfg); } catch (e) { console.error(e); }
   });
   if (changed) p.setProperty('NOTIFY_SENT', JSON.stringify(sent));
 }
