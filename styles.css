@@ -849,3 +849,5 @@ body.story-open .fab-play,body.story-open .fab{visibility:hidden}
 .st-mascot.talking .mc-brows{animation:mcBrowTalk .5s ease-in-out infinite alternate}
 @keyframes mcBrowTalk{to{transform:translateY(-2px)}}
 .st-snd-sp{width:40px}
+#areaChips .chip{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#areaChips .chip.multi{box-shadow:inset 0 0 0 2px var(--accent)}

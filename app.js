@@ -306,10 +306,27 @@ function card(it) {
     </div>${isClosed(it) ? '' : `<button class="snooze" data-snooze="${it.row}" title="${L('Defer to tomorrow', 'דחה למחר')}" aria-label="${L('Defer to tomorrow', 'דחה למחר')}">⏭<span class="snz-t"> ${L('Tomorrow', 'מחר')}</span></button>`}</div>`;
 }
 
+/* area filter: one area, several (long-press a tab to add it), or all */
+function areaSel() {
+  const multi = (ui.areas || []).filter(a => data.areas.includes(a));
+  if (multi.length > 1) return multi;
+  return ui.area === 'All' || !data.areas.includes(ui.area) ? null : [ui.area];
+}
+const areaOk = (a) => { const sel = areaSel(); return !sel || sel.includes(a); };
+const areaSelLabel = () => { const sel = areaSel(); return sel ? sel.map(a => tr(a)).join(' + ') : L('All areas', 'כל התחומים'); };
+function pickArea(a, add) {
+  if (!add || a === 'All') { ui.area = a; ui.areas = []; }
+  else {
+    let set = (areaSel() || []).slice();
+    set = set.includes(a) ? set.filter(x => x !== a) : set.concat(a);
+    if (!set.length) { ui.area = 'All'; ui.areas = []; } else if (set.length === 1) { ui.area = set[0]; ui.areas = []; } else { ui.areas = set; ui.area = set[0]; }
+  }
+  store.set('ai.ui', ui); render();
+}
 function filtered() {
   const q = search.trim().toLowerCase();
   return data.items.filter(it =>
-    (ui.area === 'All' || it.area === ui.area) &&
+    areaOk(it.area) &&
     (!q || [it.item, it.topic, it.com, it.focal].join(' ').toLowerCase().includes(q)));
 }
 
@@ -332,7 +349,7 @@ function render() {
   ].map(([l, n, c, tab]) => `<button class="kpi ${c}" data-goto="${tab}"><b>${n}</b><span>${l}</span></button>`).join('');
 
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#areaChips').innerHTML = ORDER_BTN() + ['All'].concat(data.areas).map(a => `<button class="chip ${ui.area === a ? 'on' : ''}" data-area="${esc(a)}">${esc(a)}</button>`).join('');
+  $('#areaChips').innerHTML = ORDER_BTN() + ['All'].concat(data.areas).map(a => { const sel = areaSel(), on = sel ? sel.includes(a) : a === 'All'; return `<button class="chip ${on ? 'on' : ''} ${on && sel && sel.length > 1 ? 'multi' : ''}" data-area="${esc(a)}">${on && sel && sel.length > 1 ? '✓ ' : ''}${esc(a)}</button>`; }).join('');
 
   const items = filtered();
   let html = '';
@@ -1163,8 +1180,18 @@ document.addEventListener('click', (e) => {
   const tab = t.closest('[data-tab]') || t.closest('[data-goto]');
   if (tab) { ui.tab = tab.dataset.tab || tab.dataset.goto; store.set('ai.ui', ui); render(); return; }
   const ch = t.closest('[data-area]');
-  if (ch) { ui.area = ch.dataset.area; store.set('ai.ui', ui); render(); }
+  if (ch) {
+    if (areaLong && Date.now() - areaLong < 700) { areaLong = 0; return; }   // the click right after a long-press
+    const a = ch.dataset.area; pickArea(a, e.ctrlKey || e.metaKey || e.shiftKey);
+    if (a !== 'All' && !store.get('ai.multiHint', false)) { store.set('ai.multiHint', true); toast(L('Tip: long-press another area to see several together', 'טיפ: לחיצה ארוכה על תחום נוסף מציגה כמה תחומים יחד')); }
+  }
 });
+let areaLong = 0, areaHold = null;
+$('#areaChips').addEventListener('pointerdown', (e) => { const ch = e.target.closest('[data-area]'); if (!ch) return; clearTimeout(areaHold);
+  areaHold = setTimeout(() => { areaLong = Date.now(); pickArea(ch.dataset.area, true); try { navigator.vibrate && navigator.vibrate(15); } catch (x) { /* none */ } }, 450); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('#areaChips').addEventListener(ev, () => clearTimeout(areaHold)));
+$('#areaChips').addEventListener('scroll', () => clearTimeout(areaHold), { passive: true });
+$('#areaChips').addEventListener('contextmenu', (e) => { if (e.target.closest('[data-area]')) e.preventDefault(); });
 $('#search').addEventListener('input', (e) => { search = e.target.value; render(); });
 $('#fab').addEventListener('click', () => isGuest() ? openSuggest() : (ui.tab === 'notebook' && ui.nbBook === 'coll') ? openColl({ cat: ui.collCat, status: 'want' }) : openEdit(null));
 $('#btnSettings').addEventListener('click', openSettings);
@@ -1999,10 +2026,10 @@ function storySlides(area) {
   const wk = all.filter(it => horizon(it) === 'This week').sort(sortOpen);
   const hot = wk.filter(it => /^1/.test(it.prio || '')).concat(wk.filter(it => !/^1/.test(it.prio || ''))).slice(0, 5);
   const waiting = all.filter(it => it.status === 'Waiting').sort((a, b) => (waitDays(b) || 0) - (waitDays(a) || 0));
-  const doneWk = data.items.filter(it => it.status === 'Done' && parse(it.done) >= weekStart(t) && (!area ? (ui.area === 'All' || it.area === ui.area) : it.area === area)).length;
+  const doneWk = data.items.filter(it => it.status === 'Done' && parse(it.done) >= weekStart(t) && (!area ? areaOk(it.area) : it.area === area)).length;
   const h = new Date().getHours();
   const hello = h < 12 ? L('Good morning', 'בוקר טוב') : h < 17 ? L('Good afternoon', 'צהריים טובים') : L('Good evening', 'ערב טוב');
-  const areaTxt = (area || ui.area) !== 'All' ? ' · ' + tr(area || ui.area) : '';
+  const areaTxt = area ? ' · ' + tr(area) : areaSel() ? ' · ' + areaSelLabel() : '';
   const li = (it, extra) => `<li><b dir="auto">${esc(it.item)}</b>${extra ? `<span>${extra}</span>` : ''}</li>`;
   const names = (arr) => arr.slice(0, 3).map(it => it.item).join(isHe() ? ', ' : ', ');
   const S = [];
@@ -2431,8 +2458,8 @@ function renderPlayMenu() {
     items.push(['new', '＋', L('New action item', 'משימה חדשה'), L('With date, area, priority…', 'עם תאריך, תחום, עדיפות…')]);
   }
   if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
-  qaAreas().forEach(a => { const n = urgent(a); items.push(['story:' + a, AREA_EMOJI[a] || '🎬', L(`What’s urgent · ${a}`, `מה דחוף · ${tr(a)}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); });
-  items.push(['story:', '🎬', L('Everything urgent', 'כל מה שדחוף'), L('All areas', 'כל התחומים')]);
+  { const n = data.items.filter(it => areaOk(it.area) && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;   // the video follows the area(s) on screen
+    items.push(['story:', '🎬', L(`What’s urgent · ${areaSelLabel()}`, `מה דחוף · ${areaSelLabel()}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); }
   if (!isGuest()) {
     items.push(['clip', '📋', L('Link → Collection', 'קישור לאוסף'), L('Paste the link you just copied', 'מדביק את הקישור שהעתקת עכשיו')]);
     items.push(['report', '✉️', L('Weekly report', 'דוח שבועי'), L('Ready to send', 'מוכן לשליחה')]);
@@ -2592,6 +2619,7 @@ function applyList(j) {
   mySugg = j.mySuggestions || [];
   data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report, areaHints: j.areaHints || {} };
   if (!data.areas.includes(ui.area) && ui.area !== 'All') ui.area = 'All';
+  ui.areas = (ui.areas || []).filter(a => data.areas.includes(a));
   if (isGuest() && (ui.tab === 'waiting')) ui.tab = 'focus';
   if (!settings.demo && remembered()) store.set('ai.cache', data);
 }
@@ -2892,7 +2920,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 54;
+const APP_VERSION = 55;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
