@@ -848,3 +848,4 @@ body.story-open .fab-play,body.story-open .fab{visibility:hidden}
 .mc-wrap.act-tickle .mc-brows{transform:translateY(-4px)}
 .st-mascot.talking .mc-brows{animation:mcBrowTalk .5s ease-in-out infinite alternate}
 @keyframes mcBrowTalk{to{transform:translateY(-2px)}}
+.st-snd-sp{width:40px}
