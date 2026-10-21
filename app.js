@@ -2190,39 +2190,68 @@ ST_CAST.push(
     torso: '<path d="M30 160 Q32 116 60 112 Q88 116 90 160 Z" fill="#F8FAFC"/><path d="M60 112 L52 160 M60 112 L68 160" stroke="#CBD5E1" stroke-width="2"/><path d="M44 116 Q40 138 52 144 Q60 148 58 138" stroke="#334155" stroke-width="2.5" fill="none"/><circle cx="58" cy="137" r="4" fill="#94A3B8" stroke="#2A1A12" stroke-width="1.5"/><rect x="70" y="124" width="12" height="10" rx="1" fill="#E2E8F0" stroke="#2A1A12" stroke-width="1.2"/><path d="M76 126 v6 M73 129 h6" stroke="#DC2626" stroke-width="2"/>' }
 );
 /* which characters fit which area (matched by name, Hebrew or English) */
-const ST_AREA_CAST = [
-  [/work|עבוד|משרד|job/i, ['robot', 'owl', 'fox', 'astro']],
-  [/home|בית|house|משק/i, ['cat', 'bear', 'chef']],
-  [/m\.?sc|תואר|לימוד|study|studies|univers|אוניבר/i, ['owl', 'wizard', 'alien']],
-  [/reserve|מילואים|צבא|army|idf/i, ['soldier', 'dino']],
-  [/family|משפח|kids|ילדים/i, ['bear', 'penguin', 'octo', 'unicorn']],
-  [/financ|money|כספ|כסף|פיננס|bank|בנק/i, ['pirate', 'robot']],
-  [/health|בריאות|רפוא|doctor|sport|ספורט/i, ['doctor', 'penguin']],
-  [/personal|אישי|myself/i, ['blob', 'unicorn', 'ghost', 'monster']]
+/* every character can appear in every area — but it dresses for the area(s) of the video */
+const ST_OUTFITS = [
+  { re: /work|עבוד|משרד|job/i, id: 'work', label: ['in a suit', 'בחליפה'],
+    torso: '<path d="M33 116 Q60 108 87 116 L88 160 L32 160 Z" fill="#1E3A8A"/><path d="M48 112 L60 130 L72 112 Z" fill="#fff" stroke="#2A1A12" stroke-width="1.6"/><path d="M57 118 h6 l-1 5 h-4 z" fill="#DC2626" stroke="#2A1A12" stroke-width="1.4"/><path d="M58 123 h4 l3 24 l-5 6 l-5-6 z" fill="#DC2626" stroke="#2A1A12" stroke-width="1.4"/><path d="M48 112 L54 140 M72 112 L66 140" stroke="#172554" stroke-width="2.5"/><circle cx="60" cy="152" r="1.6" fill="#FDE047"/>',
+    item: '<g class="mc-prop"><rect x="2" y="158" width="30" height="20" rx="3" fill="#92400E" stroke="#2A1A12" stroke-width="2.2"/><path d="M11 158 v-4 h12 v4" fill="none" stroke="#2A1A12" stroke-width="2.2"/><path d="M2 166 h30" stroke="#2A1A12" stroke-width="1.6"/><rect x="15" y="164" width="4" height="4" fill="#FDE047" stroke="#2A1A12" stroke-width="1"/></g>',
+    lines: { coffee: [['Suit, tie, coffee — meeting mode 👔', 'חליפה, עניבה, קפה — מצב ישיבות 👔']], rocket: [['Briefcase packed. To the office! 💼', 'התיק ארוז. למשרד! 💼']] } },
+  { re: /home|בית|house|משק/i, id: 'home', label: ['in an apron', 'עם סינר'],
+    hat: '<g class="mc-hat"><path d="M18 40 Q20 20 60 18 Q100 20 102 40 Q96 30 60 30 Q24 30 18 40 Z" fill="#F472B6"/><circle cx="60" cy="16" r="5" fill="#F9A8D4"/><path d="M56 30 l-4 4 M64 30 l4 4" stroke="#2A1A12" stroke-width="1.5"/></g>',
+    torso: '<path d="M40 116 h40 l4 44 h-48 z" fill="#93C5FD"/><path d="M40 116 Q36 110 32 116 M80 116 Q84 110 88 116" stroke="#2A1A12" stroke-width="1.8" fill="none"/><rect x="50" y="134" width="20" height="12" rx="2" fill="#BFDBFE" stroke="#2A1A12" stroke-width="1.5"/><path d="M44 124 h32" stroke="#fff" stroke-width="2" stroke-dasharray="3 3"/>',
+    item: '<g class="mc-prop"><path d="M18 156 L10 128" stroke="#92400E" stroke-width="3.5" stroke-linecap="round"/><path d="M10 128 q-10-6-8-16 q6 2 8 8 q0-10 6-14 q2 10-2 16 q8-4 12 0 q-6 6-16 6z" fill="#FDE68A" stroke="#2A1A12" stroke-width="1.6"/></g>',
+    lines: { coffee: [['Coffee, then laundry. Maybe 🧺', 'קפה, ואז כביסה. אולי 🧺']], rocket: [['House won’t clean itself 🧹', 'הבית לא ינקה את עצמו 🧹']] } },
+  { re: /m\.?sc|תואר|לימוד|study|studies|univers|אוניבר/i, id: 'study', label: ['in a graduation cap', 'עם כובע סיום'],
+    hat: '<g class="mc-hat"><path d="M24 22 L60 8 L96 22 L60 36 Z" fill="#111827"/><path d="M40 28 v10 q20 8 40 0 v-10" fill="#1F2937"/><g class="mc-tassel"><path d="M60 22 L88 26 L90 44" stroke="#FDE047" stroke-width="2.5" fill="none"/><path d="M86 44 h8 l-1 8 h-6 z" fill="#FDE047"/></g></g>',
+    torso: '<path d="M38 114 Q60 128 82 114 L80 122 Q60 136 40 122 Z" fill="#B91C1C"/>',
+    item: '<g class="mc-prop"><path d="M2 150 l16-6 l16 6 v20 l-16-6 l-16 6 z" fill="#2563EB" stroke="#2A1A12" stroke-width="2"/><path d="M18 144 v20" stroke="#2A1A12" stroke-width="2"/><path d="M5 154 l10-3 M5 159 l10-3 M21 151 l10 3" stroke="#fff" stroke-width="1.2"/></g>',
+    lines: { think: [['Thesis deadline is closer than it looks 📚', 'ההגשה של התזה קרובה ממה שנראה 📚']], coffee: [['Coffee + library = science ☕📚', 'קפה + ספרייה = מדע ☕📚']] } },
+  { re: /reserve|מילואים|צבא|army|idf/i, id: 'army', label: ['in uniform', 'במדים'],
+    hat: '<g class="mc-hat"><path d="M16 46 Q16 8 60 8 Q104 8 104 46 Q60 36 16 46 Z" fill="#556B2F"/><path d="M24 34 Q60 22 96 34 M30 22 Q60 12 90 22 M40 14 L36 44 M60 10 L60 40 M80 14 L84 44" stroke="#3F4F24" stroke-width="2" fill="none"/></g>',
+    torso: '<path d="M32 116 Q60 108 88 116 L88 160 L32 160 Z" fill="#556B2F"/><rect x="38" y="124" width="16" height="12" rx="2" fill="#4D5D33" stroke="#2A1A12" stroke-width="1.5"/><rect x="66" y="124" width="16" height="12" rx="2" fill="#4D5D33" stroke="#2A1A12" stroke-width="1.5"/><path d="M60 112 V160" stroke="#3F4F24" stroke-width="2"/>',
+    item: '<g class="mc-prop"><rect x="6" y="152" width="18" height="24" rx="8" fill="#4D5D33" stroke="#2A1A12" stroke-width="2"/><rect x="11" y="146" width="8" height="7" rx="2" fill="#1F2937"/></g>',
+    lines: { panic: [['In the army we call this “a situation” 😬', 'בצבא קוראים לזה "סיטואציה" 😬']], rocket: [['Gear up and move out! 🪖', 'מתארגנים ויוצאים! 🪖']] } },
+  { re: /family|משפח|kids|ילדים/i, id: 'family', label: ['in a family T-shirt', 'בחולצת משפחה'],
+    torso: '<path d="M32 116 Q60 108 88 116 L86 160 L34 160 Z" fill="#FDE68A"/><path d="M60 146 q-14-10-10-18 q4-6 10 0 q6-6 10 0 q4 8-10 18z" fill="#EF4444" stroke="#2A1A12" stroke-width="1.6"/>',
+    item: '<g class="mc-prop"><path d="M18 156 Q10 120 22 92" stroke="#2A1A12" stroke-width="1.2" fill="none"/><path d="M22 92 q-12-2-12-16 q0-14 12-14 q12 0 12 14 q0 14-12 16z" fill="#F472B6" stroke="#2A1A12" stroke-width="2"/><path d="M16 72 q2-4 6-4" stroke="#fff" stroke-width="2" fill="none"/></g>',
+    lines: { coffee: [['Breakfast for everyone, then tasks 🥞', 'ארוחת בוקר לכולם, ואז משימות 🥞']], party: [['Family high-five! 🙌', 'כיף משפחתי! 🙌']] } },
+  { re: /financ|money|כספ|כסף|פיננס|bank|בנק/i, id: 'money', label: ['with a money bag', 'עם שק כסף'],
+    hat: '<g class="mc-hat"><path d="M20 40 Q60 22 100 40 L100 44 Q60 32 20 44 Z" fill="#16A34A"/><path d="M30 42 Q60 58 92 42 Q60 50 30 42 Z" fill="rgba(22,163,74,.55)" stroke="#2A1A12" stroke-width="1.6"/></g>',
+    torso: '<path d="M36 116 h48 l2 44 h-52 z" fill="#475569"/><path d="M52 114 l8 6 l8-6 l-2 8 h-12 z" fill="#111827"/><circle cx="56" cy="134" r="1.8" fill="#FDE047"/><circle cx="56" cy="144" r="1.8" fill="#FDE047"/><circle cx="56" cy="154" r="1.8" fill="#FDE047"/>',
+    item: '<g class="mc-prop"><path d="M8 150 q-10 6-10 18 q0 12 20 12 q20 0 20-12 q0-12-10-18 z" fill="#CA8A04" stroke="#2A1A12" stroke-width="2"/><path d="M10 150 l-2-6 h20 l-2 6" fill="#A16207" stroke="#2A1A12" stroke-width="1.6"/><text x="18" y="172" font-size="13" font-weight="900" text-anchor="middle" fill="#2A1A12">₪</text></g>',
+    lines: { think: [['Budget check: on track… mostly 📊', 'בדיקת תקציב: בתוכנית… פחות או יותר 📊']], party: [['Profit! 💰', 'רווח! 💰']] } },
+  { re: /health|בריאות|רפוא|doctor|sport|ספורט/i, id: 'sport', label: ['in sportswear', 'בבגדי ספורט'],
+    hat: '<g class="mc-hat"><path d="M18 46 Q60 30 102 46 L102 54 Q60 38 18 54 Z" fill="#EF4444" stroke="#2A1A12" stroke-width="2"/><path d="M30 46 Q60 36 90 46" stroke="#fff" stroke-width="2" fill="none"/></g>',
+    torso: '<path d="M34 116 Q60 108 86 116 L84 160 L36 160 Z" fill="#22C55E"/><text x="60" y="146" font-size="18" font-weight="900" text-anchor="middle" fill="#fff" stroke="#2A1A12" stroke-width=".8">1</text><path d="M34 120 l6 2 M86 120 l-6 2" stroke="#fff" stroke-width="2"/>',
+    item: '<g class="mc-prop"><rect x="4" y="152" width="28" height="5" rx="2" fill="#475569" stroke="#2A1A12" stroke-width="1.5"/><rect x="0" y="145" width="8" height="19" rx="2" fill="#1F2937" stroke="#2A1A12" stroke-width="1.5"/><rect x="28" y="145" width="8" height="19" rx="2" fill="#1F2937" stroke="#2A1A12" stroke-width="1.5"/></g>',
+    lines: { coffee: [['Protein shake instead of coffee 💪', 'שייק חלבון במקום קפה 💪']], rocket: [['Warm-up done. Go! 🏃', 'חימום נגמר. רוץ! 🏃']] } },
+  { re: /personal|אישי|myself/i, id: 'chill', label: ['in a hoodie', 'בקפוצ׳ון'],
+    hat: '<g class="mc-hat"><path d="M18 64 Q18 18 60 18 Q102 18 102 64" stroke="#2A1A12" stroke-width="5" fill="none"/><rect x="10" y="56" width="14" height="24" rx="6" fill="#8B5CF6" stroke="#2A1A12" stroke-width="2"/><rect x="96" y="56" width="14" height="24" rx="6" fill="#8B5CF6" stroke="#2A1A12" stroke-width="2"/></g>',
+    torso: '<path d="M32 116 Q60 108 88 116 L86 160 L34 160 Z" fill="#A78BFA"/><path d="M46 140 h28 l-3 12 h-22 z" fill="#8B5CF6" stroke="#2A1A12" stroke-width="1.5"/><path d="M54 114 v12 M66 114 v12" stroke="#fff" stroke-width="2"/>',
+    item: '<g class="mc-prop"><path d="M10 160 l8 22 l8-22 z" fill="#F59E0B" stroke="#2A1A12" stroke-width="1.8"/><circle cx="18" cy="152" r="9" fill="#F9A8D4" stroke="#2A1A12" stroke-width="2"/><circle cx="14" cy="146" r="2" fill="#fff"/></g>',
+    lines: { coffee: [['Me-time: coffee and a good playlist 🎧', 'זמן לעצמי: קפה ופלייליסט טוב 🎧']] } }
 ];
-function stCastFor(areas) {
-  if (!areas || !areas.length) return ST_CAST;
-  const ids = new Set(); areas.forEach(a => ST_AREA_CAST.forEach(([re, list]) => { if (re.test(a) || re.test(tr(a))) list.forEach(x => ids.add(x)); }));
-  const fit = ST_CAST.filter(c => ids.has(c.id));
-  return fit.length ? fit : ST_CAST;
+function stOutfit(areas) {
+  const fit = ST_OUTFITS.filter(o => (areas || []).some(a => o.re.test(a) || o.re.test(tr(a))));
+  return fit.length ? fit[Math.floor(Math.random() * fit.length)] : null;
 }
 /* pick something not used last time */
 function stPick(pool, avoid) { const fresh = pool.filter(x => avoid.indexOf(x[1]) < 0); const from = fresh.length ? fresh : pool; return from[Math.floor(Math.random() * from.length)]; }
 function stCast(slides, areas) {
   let last = {}; try { last = store.get('ai.storyLast', {}) || {}; } catch (e) { last = {}; }
-  const pool = stCastFor(areas);
+  const pool = ST_CAST, outfit = stOutfit(areas);
   const others = pool.filter(c => c.id !== last.ch && (last.chs || []).slice(-Math.min(3, pool.length - 1)).indexOf(c.id) < 0);
   const from = others.length ? others : pool.filter(c => c.id !== last.ch).length ? pool.filter(c => c.id !== last.ch) : pool;
   const ch = from[Math.floor(Math.random() * from.length)];
   const used = last.lines || [], now = [];
   const lines = slides.map(sl => {
     const md = sl.mood || ST_MOOD[sl.cls] || ['hi', 'intro'];
-    const own = (ch.lines && ch.lines[md[1]]) || [];
+    const own = ((ch.lines && ch.lines[md[1]]) || []).concat((outfit && outfit.lines && outfit.lines[md[1]]) || []);
     const pool = md[1] === 'intro' ? ch.hi : (own.length && Math.random() < 0.55 ? own : (ST_LINES[md[1]] || [['', '']]).concat(own));
     const pick = stPick(pool, used.concat(now)); now.push(pick[1]); return [md[0], pick];
   });
   store.set('ai.storyLast', { ch: ch.id, chs: (last.chs || []).concat(ch.id).slice(-6), lines: now });
-  return { ch, lines };
+  return { ch, lines, outfit };
 }
 function confetti(host) {
   const cols = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FFFFFF'];
@@ -2242,8 +2271,9 @@ function inked(svg, w) {
     return `<${tag}${attrs.replace(/\sstroke(-width)?="[^"]*"/g, '')} stroke="${INK}" stroke-width="${w || 2.6}" stroke-linejoin="round"/>`;
   });
 }
-function mascotSvg(ch) {
+function mascotSvg(ch, outfit) {
   ch = ch || ST_CAST[0];
+  if (outfit) ch = Object.assign({}, ch, { hat: outfit.hat || ch.hat, itemL: outfit.item || ch.itemL, dress: outfit.torso || '' });
   const G = 'mcg' + (++mcSeq), limb = ch.limb || 'var(--mc)';
   const onlyMc = (svg) => (String(svg || '').match(/<(ellipse|path|rect|circle)[^>]*fill="var\(--mc\)"[^>]*\/>/g) || []).join('');
   const plain = (svg, fill) => onlyMc(svg).replace(/fill="var\(--mc\)"/g, `fill="${fill}"`).replace(/\s(stroke|stroke-width|class)="[^"]*"/g, '');
@@ -2271,7 +2301,7 @@ function mascotSvg(ch) {
     <path class="mc-shadow" d="M30 192 q8-6 30-6 q24 0 30 6 q-6 5-30 5 q-24 0-30-5z" fill="${INK}" opacity=".22"/>
     <g class="mc-all" filter="url(#${G}b)">
       <g class="mc-extra mc-rocket"><path d="M38 188 L46 200 L54 188 Z M66 188 L74 200 L82 188 Z" fill="#F97316" stroke="${INK}" stroke-width="1.6"/><path d="M42 188 L46 195 L50 188 Z M70 188 L74 195 L78 188 Z" fill="#FDE047"/></g>
-      ${inked(ch.tail || '')}${wings}${legs}${arm('L')}${inked(torso)}${arm('R')}
+      ${inked(ch.tail || '')}${wings}${legs}${arm('L')}${inked(torso)}${ch.dress ? `<g class="mc-dress">${inked(ch.dress, 2.2)}</g>` : ''}${arm('R')}
       <g class="mc-head">${inked(ch.back)}${inked(ch.body, 3)}${ch.front}
         <rect x="0" y="0" width="120" height="200" fill="url(#${G}x)" mask="url(#${G}m)"/><rect x="0" y="0" width="120" height="200" fill="url(#${G}y)" mask="url(#${G}n)"/>
         <path d="M30 46 Q36 30 54 26" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" opacity=".55"/><path d="M28 56 Q29 52 31 49" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".45"/>
@@ -2370,10 +2400,10 @@ function openStory(area) {
   const catsHtml = (areas || []).length ? areas.map(a => `<span>${AREA_EMOJI[a] || '📁'} ${esc(tr(a))}</span>`).join('') : `<span>🗂 ${esc(L('All areas', 'כל התחומים'))}</span>`;
   const el = document.createElement('div'); el.className = 'story'; el.setAttribute('role', 'dialog');
   el.innerHTML = `<div class="st-bg"><i></i><i></i><i></i></div><div class="st-bars">${slides.map(() => '<i><b></b></i>').join('')}</div>
-    <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><span class="st-name">${esc(L(cast.ch.name[0], cast.ch.name[1]))}</span><button class="st-snd" data-st-snd aria-label="sound"></button></div>
+    <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><span class="st-name">${esc(L(cast.ch.name[0], cast.ch.name[1]))}${cast.outfit ? ' · ' + esc(L(cast.outfit.label[0], cast.outfit.label[1])) : ''}</span><button class="st-snd" data-st-snd aria-label="sound"></button></div>
     <div class="st-cats" dir="auto"><small>${esc(L('This video covers', 'הסרטון על'))}:</small>${catsHtml}</div>
     <div class="st-stage"></div>
-    <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap">${mascotSvg(cast.ch)}</div></div>
+    <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap">${mascotSvg(cast.ch, cast.outfit)}</div></div>
     <p class="st-hint" hidden></p>
     <div class="st-tap st-prev"></div><div class="st-tap st-next"></div>`;
   document.body.appendChild(el); document.body.classList.add('story-open');
@@ -2958,7 +2988,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 56;
+const APP_VERSION = 57;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

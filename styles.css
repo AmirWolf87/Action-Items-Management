@@ -854,3 +854,5 @@ body.story-open .fab-play,body.story-open .fab{visibility:hidden}
 .st-cats{position:relative;z-index:3;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin-top:10px;font-size:13.5px;font-weight:700}
 .st-cats small{opacity:.85;font-weight:600;font-size:12.5px}
 .st-cats span{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);padding:4px 10px;border-radius:999px;backdrop-filter:blur(6px)}
+.mc-tassel{transform-origin:60px 22px;animation:mcTassel 1.6s ease-in-out infinite alternate}
+@keyframes mcTassel{from{transform:rotate(-6deg)}to{transform:rotate(8deg)}}
