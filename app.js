@@ -2051,29 +2051,29 @@ const ST_LINES = {
 };
 /* the cast — a different funny character every time the video plays */
 const ST_CAST = [
-  { id: 'blob', c: '#FBBF24', name: ['Sunny', 'שמשון'], hi: [['Hi, I’m Sunny! Let’s see what’s waiting 😎', 'היי, אני שמשון! בוא נראה מה מחכה לנו 😎']],
+  { id: 'blob', voice: [1.15, 1.02], c: '#FBBF24', name: ['Sunny', 'שמשון'], hi: [['Hi, I’m Sunny! Let’s see what’s waiting 😎', 'היי, אני שמשון! בוא נראה מה מחכה לנו 😎']],
     back: '', front: '<ellipse cx="46" cy="50" rx="14" ry="8" fill="rgba(255,255,255,.35)"/>', body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)"/>' },
-  { id: 'cat', c: '#FDBA74', name: ['Mitzi', 'מיצי'], hi: [['Meow. I checked your tasks… and your fridge 🐟', 'מיאו. אני מיצי. בדקתי את המשימות שלך… וגם את המקרר 🐟']],
+  { id: 'cat', voice: [1.7, 1.05], shoe: '#FDBA74', c: '#FDBA74', name: ['Mitzi', 'מיצי'], hi: [['Meow. I checked your tasks… and your fridge 🐟', 'מיאו. אני מיצי. בדקתי את המשימות שלך… וגם את המקרר 🐟']],
     back: '<path d="M22 46 L28 6 L54 30 Z" fill="var(--mc)"/><path d="M98 46 L92 6 L66 30 Z" fill="var(--mc)"/><path d="M29 36 L32 16 L46 30 Z" fill="#F9A8D4"/><path d="M91 36 L88 16 L74 30 Z" fill="#F9A8D4"/>',
     body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)"/>', front: '<g stroke="#7C2D12" stroke-width="2" stroke-linecap="round" opacity=".55"><path d="M24 78 L6 74 M24 84 L6 88 M96 78 L114 74 M96 84 L114 88"/></g><path d="M56 76 L64 76 L60 81 Z" fill="#F472B6"/>' },
-  { id: 'robot', c: '#CBD5E1', name: ['Robotoast', 'רובוטוסט'], hi: [['Beep boop. I am Robotoast. Scanning tasks… 🤖', 'ביפ בופ. אני רובוטוסט. סורק משימות… 🤖']],
+  { id: 'robot', voice: [0.55, 0.92], shoe: '#475569', torso: '<rect x="32" y="112" width="56" height="46" rx="10" fill="var(--mc)" stroke="#94A3B8" stroke-width="3"/><rect x="44" y="122" width="32" height="18" rx="4" fill="#0F172A"/><circle class="mc-blink" cx="52" cy="131" r="3" fill="#34D399"/><circle cx="60" cy="131" r="3" fill="#60A5FA"/><circle cx="68" cy="131" r="3" fill="#F87171"/>', c: '#CBD5E1', name: ['Robotoast', 'רובוטוסט'], hi: [['Beep boop. I am Robotoast. Scanning tasks… 🤖', 'ביפ בופ. אני רובוטוסט. סורק משימות… 🤖']],
     back: '<path d="M60 26 V10" stroke="#64748B" stroke-width="4"/><circle class="mc-blink" cx="60" cy="8" r="6" fill="#F87171"/><rect x="6" y="56" width="10" height="22" rx="3" fill="#94A3B8"/><rect x="104" y="56" width="10" height="22" rx="3" fill="#94A3B8"/>',
     body: '<rect x="14" y="26" width="92" height="82" rx="16" fill="var(--mc)" stroke="#94A3B8" stroke-width="3"/>', front: '<circle cx="24" cy="36" r="3" fill="#94A3B8"/><circle cx="96" cy="36" r="3" fill="#94A3B8"/><circle cx="24" cy="98" r="3" fill="#94A3B8"/><circle cx="96" cy="98" r="3" fill="#94A3B8"/>' },
-  { id: 'ghost', c: '#F1F5F9', name: ['Boo', 'בובו'], hi: [['Boo! I’m the ghost of tasks not yet done 👻', 'בּוּ! אני בובו, רוח המשימות שעוד לא נסגרו 👻']],
+  { id: 'ghost', voice: [1.35, 0.85], noLegs: true, torso: '<path d="M34 112 L34 176 q6.5 10 13 0 q6.5 10 13 0 q6.5 10 13 0 q6.5 10 13 0 L86 112 Z" fill="var(--mc)" stroke="#CBD5E1" stroke-width="2"/>', c: '#F1F5F9', name: ['Boo', 'בובו'], hi: [['Boo! I’m the ghost of tasks not yet done 👻', 'בּוּ! אני בובו, רוח המשימות שעוד לא נסגרו 👻']],
     back: '', body: '<path d="M16 66 Q16 22 60 22 Q104 22 104 66 L104 108 q-11 10 -22 0 q-11 10 -22 0 q-11 10 -22 0 q-11 10 -22 0 Z" fill="var(--mc)" stroke="#CBD5E1" stroke-width="2"/>', front: '' },
-  { id: 'alien', c: '#86EFAC', name: ['Zorg', 'זורג'], hi: [['Greetings, human. I came from space to inspect your list 👽', 'שלום בן אנוש. באתי מהחלל לבדוק את הרשימה שלך 👽']],
+  { id: 'alien', voice: [1.9, 1.15], c: '#86EFAC', name: ['Zorg', 'זורג'], hi: [['Greetings, human. I came from space to inspect your list 👽', 'שלום בן אנוש. באתי מהחלל לבדוק את הרשימה שלך 👽']],
     back: '<path d="M44 28 L34 6 M76 28 L86 6" stroke="#16A34A" stroke-width="4" stroke-linecap="round"/><circle cx="34" cy="6" r="6" fill="#FDE047"/><circle cx="86" cy="6" r="6" fill="#FDE047"/>',
     body: '<ellipse cx="60" cy="68" rx="46" ry="40" fill="var(--mc)"/>', front: '<ellipse cx="44" cy="44" rx="12" ry="6" fill="rgba(255,255,255,.4)"/>' },
-  { id: 'monster', c: '#C4B5FD', name: ['Grrr', 'גרררר'], hi: [['Grrr! I eat tasks for breakfast 😋', 'גררר! אני אוכל משימות לארוחת בוקר 😋']],
+  { id: 'monster', voice: [0.45, 0.9], c: '#C4B5FD', name: ['Grrr', 'גרררר'], hi: [['Grrr! I eat tasks for breakfast 😋', 'גררר! אני אוכל משימות לארוחת בוקר 😋']],
     back: '<path d="M30 34 Q18 14 26 4 Q32 18 44 26 Z" fill="#FDE68A"/><path d="M90 34 Q102 14 94 4 Q88 18 76 26 Z" fill="#FDE68A"/>',
     body: '<ellipse cx="60" cy="66" rx="45" ry="42" fill="var(--mc)"/>', front: '<circle cx="28" cy="50" r="5" fill="rgba(0,0,0,.12)"/><circle cx="94" cy="96" r="6" fill="rgba(0,0,0,.12)"/><circle cx="86" cy="40" r="3.5" fill="rgba(0,0,0,.12)"/>' },
-  { id: 'bear', c: '#D6A77A', name: ['Teddy', 'דובי'], hi: [['I’m Teddy. Just woke up from hibernation — what did I miss? 🐻', 'אני דובי. בדיוק התעוררתי משנת חורף — מה פספסתי? 🐻']],
+  { id: 'bear', voice: [0.7, 0.92], shoe: '#8B5E3C', c: '#D6A77A', name: ['Teddy', 'דובי'], hi: [['I’m Teddy. Just woke up from hibernation — what did I miss? 🐻', 'אני דובי. בדיוק התעוררתי משנת חורף — מה פספסתי? 🐻']],
     back: '<circle cx="24" cy="30" r="14" fill="var(--mc)"/><circle cx="96" cy="30" r="14" fill="var(--mc)"/><circle cx="24" cy="30" r="7" fill="#F5D0A9"/><circle cx="96" cy="30" r="7" fill="#F5D0A9"/>',
     body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)"/>', front: '<ellipse cx="60" cy="86" rx="22" ry="16" fill="#F5D0A9"/><ellipse cx="60" cy="77" rx="6" ry="4" fill="#3F2A1D"/>' },
-  { id: 'penguin', c: '#334155', name: ['Pingo', 'פינגו'], hi: [['Pingo here! Sliding you straight to business 🐧', 'פינגו כאן! מחליק לך ישר לעניינים 🐧']],
+  { id: 'penguin', voice: [1.5, 1.15], shoe: '#FB923C', torso: '<ellipse cx="60" cy="138" rx="30" ry="27" fill="var(--mc)"/><ellipse cx="60" cy="142" rx="21" ry="21" fill="#F8FAFC"/>', c: '#334155', name: ['Pingo', 'פינגו'], hi: [['Pingo here! Sliding you straight to business 🐧', 'פינגו כאן! מחליק לך ישר לעניינים 🐧']],
     back: '<ellipse cx="14" cy="80" rx="8" ry="18" fill="#1E293B" transform="rotate(20 14 80)"/><ellipse cx="106" cy="80" rx="8" ry="18" fill="#1E293B" transform="rotate(-20 106 80)"/>',
     body: '<ellipse cx="60" cy="66" rx="44" ry="44" fill="var(--mc)"/><ellipse cx="60" cy="74" rx="32" ry="32" fill="#F8FAFC"/>', front: '<path d="M53 74 L67 74 L60 80 Z" fill="#FB923C"/>' },
-  { id: 'dino', c: '#4ADE80', name: ['Dino-Danny', 'דינו־דני'], hi: [['Roarrr! I’m Dino-Danny. I remember tasks from the Jurassic 🦖', 'רוארר! אני דינו־דני, ואני זוכר משימות עוד מתקופת היורה 🦖']],
+  { id: 'dino', voice: [0.6, 0.95], shoe: '#16A34A', c: '#4ADE80', name: ['Dino-Danny', 'דינו־דני'], hi: [['Roarrr! I’m Dino-Danny. I remember tasks from the Jurassic 🦖', 'רוארר! אני דינו־דני, ואני זוכר משימות עוד מתקופת היורה 🦖']],
     back: '<path d="M30 34 L36 14 L44 30 L52 10 L60 28 L68 10 L76 30 L84 14 L90 34 Z" fill="#16A34A"/>',
     body: '<ellipse cx="60" cy="68" rx="46" ry="40" fill="var(--mc)"/>', front: '<circle cx="30" cy="90" r="4" fill="#22C55E"/><circle cx="92" cy="50" r="5" fill="#22C55E"/><circle cx="88" cy="98" r="3" fill="#22C55E"/>' }
 ];
@@ -2092,29 +2092,6 @@ function stCast(slides) {
   store.set('ai.storyLast', { ch: ch.id, chs: (last.chs || []).concat(ch.id).slice(-6), lines: now });
   return { ch, lines };
 }
-function mascotSvg(ch) {
-  ch = ch || ST_CAST[0];
-  return `<svg class="mc-svg mc-${ch.id}" viewBox="0 0 120 130" aria-hidden="true" style="--mc:${ch.c}">
-    <g class="mc-extra mc-rocket"><path d="M48 112 L60 128 L72 112 Z" fill="#F97316"/><path d="M53 112 L60 122 L67 112 Z" fill="#FDE047"/></g>
-    <g class="mc-body">${ch.back}${ch.body}${ch.front}
-      <ellipse class="mc-cheek" cx="30" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/><ellipse class="mc-cheek" cx="90" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/>
-      <g class="mc-eyes"><circle cx="44" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/><circle cx="76" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/>
-        <circle class="mc-pupil" cx="46" cy="64" r="5" fill="#1F2937"/><circle class="mc-pupil" cx="78" cy="64" r="5" fill="#1F2937"/>
-        <rect class="mc-lid" x="32" y="50" width="56" height="0" fill="var(--mc)"/></g>
-      <path class="mc-mouth m-smile" d="M44 86 Q60 100 76 86" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <path class="mc-mouth m-wavy" d="M42 90 q6-6 12 0 t12 0 t12 0" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <ellipse class="mc-mouth m-o" cx="60" cy="90" rx="7" ry="9" fill="#1F2937"/>
-      <path class="mc-mouth m-grin" d="M40 84 Q60 106 80 84 Z" fill="#1F2937"/>
-      <g class="mc-extra mc-shades"><rect x="28" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="64" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="54" y="58" width="12" height="4" fill="#111827"/></g>
-      <g class="mc-extra mc-crown"><path d="M36 22 L44 6 L52 20 L60 2 L68 20 L76 6 L84 22 Z" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/></g>
-      <g class="mc-extra mc-sweat"><path d="M98 40 q6 10 0 14 q-6-4 0-14z" fill="#7DD3FC"/><path d="M18 46 q5 8 0 11 q-5-3 0-11z" fill="#7DD3FC"/></g>
-      <g class="mc-extra mc-glass"><circle cx="76" cy="62" r="15" fill="none" stroke="#1F2937" stroke-width="4"/><path d="M87 73 L100 88" stroke="#1F2937" stroke-width="6" stroke-linecap="round"/></g>
-    </g>
-    <g class="mc-extra mc-cup"><rect x="92" y="78" width="20" height="22" rx="4" fill="#fff" stroke="#78350F" stroke-width="3"/><path d="M112 84 q8 0 8 7 q0 6-8 6" fill="none" stroke="#78350F" stroke-width="3"/>
-      <path class="mc-steam" d="M98 72 q-4-6 0-10 q4-4 0-10 M106 72 q-4-6 0-10 q4-4 0-10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".8"/></g>
-    <g class="mc-extra mc-hand"><circle cx="16" cy="70" r="9" fill="var(--mc)" stroke="rgba(0,0,0,.15)"/></g>
-  </svg>`;
-}
 function confetti(host) {
   const cols = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FFFFFF'];
   const box = document.createElement('div'); box.className = 'st-confetti';
@@ -2123,75 +2100,187 @@ function confetti(host) {
     if (k % 3 === 0) c.style.borderRadius = '50%'; box.appendChild(c); }
   host.appendChild(box);
 }
+function mascotSvg(ch) {
+  ch = ch || ST_CAST[0];
+  const shade = 'rgba(0,0,0,.14)';
+  const legs = ch.noLegs ? '' : `<g class="mc-leg mc-legL"><rect x="43" y="150" width="12" height="32" rx="6" fill="var(--mc)" stroke="${shade}"/><ellipse cx="46" cy="184" rx="11" ry="6" fill="${ch.shoe || '#1F2937'}"/></g>
+      <g class="mc-leg mc-legR"><rect x="65" y="150" width="12" height="32" rx="6" fill="var(--mc)" stroke="${shade}"/><ellipse cx="74" cy="184" rx="11" ry="6" fill="${ch.shoe || '#1F2937'}"/></g>`;
+  const torso = ch.torso || `<ellipse cx="60" cy="138" rx="28" ry="25" fill="var(--mc)" stroke="${shade}"/><ellipse cx="60" cy="143" rx="17" ry="15" fill="rgba(255,255,255,.3)"/>`;
+  const arm = (side) => { const L = side === 'L', sx = L ? 37 : 83, hx = L ? 18 : 102;
+    return `<g class="mc-arm mc-arm${side}"><path d="M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154" stroke="var(--mc)" stroke-width="11" fill="none" stroke-linecap="round"/><path d="M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154" stroke="${shade}" stroke-width="11" fill="none" stroke-linecap="round" opacity=".35" stroke-dasharray="0 0"/>
+      <circle cx="${hx}" cy="156" r="7.5" fill="var(--mc)" stroke="${shade}"/>${L ? '' : `<g class="mc-extra mc-cup"><rect x="${hx - 8}" y="138" width="16" height="18" rx="3" fill="#fff" stroke="#78350F" stroke-width="2.5"/><path d="M${hx + 8} 143 q6 0 6 5 q0 5-6 5" fill="none" stroke="#78350F" stroke-width="2.5"/>
+      <path class="mc-steam" d="M${hx - 3} 134 q-3-5 0-8 q3-3 0-8 M${hx + 3} 134 q-3-5 0-8 q3-3 0-8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></g>`}</g>`; };
+  return `<svg class="mc-svg mc-${ch.id}" viewBox="0 0 120 200" aria-hidden="true" style="--mc:${ch.c}">
+    <ellipse class="mc-shadow" cx="60" cy="192" rx="32" ry="5" fill="rgba(0,0,0,.28)"/>
+    <g class="mc-all">
+      <g class="mc-extra mc-rocket"><path d="M38 188 L46 200 L54 188 Z" fill="#F97316"/><path d="M66 188 L74 200 L82 188 Z" fill="#F97316"/><path d="M42 188 L46 195 L50 188 Z M70 188 L74 195 L78 188 Z" fill="#FDE047"/></g>
+      ${legs}${arm('L')}${torso}${arm('R')}
+      <g class="mc-head">${ch.back}${ch.body}${ch.front}
+        <ellipse class="mc-cheek" cx="30" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/><ellipse class="mc-cheek" cx="90" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/>
+        <g class="mc-eyes"><circle cx="44" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/><circle cx="76" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/>
+          <g class="mc-pupils"><circle class="mc-pupil" cx="46" cy="64" r="5" fill="#1F2937"/><circle class="mc-pupil" cx="78" cy="64" r="5" fill="#1F2937"/><circle cx="47.5" cy="62" r="1.6" fill="#fff"/><circle cx="79.5" cy="62" r="1.6" fill="#fff"/></g>
+          <rect class="mc-lid" x="32" y="50" width="56" height="0" fill="var(--mc)"/></g>
+        <path class="mc-mouth m-smile" d="M44 86 Q60 100 76 86" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path class="mc-mouth m-wavy" d="M42 90 q6-6 12 0 t12 0 t12 0" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <ellipse class="mc-mouth m-o" cx="60" cy="90" rx="7" ry="9" fill="#1F2937"/>
+        <path class="mc-mouth m-grin" d="M40 84 Q60 106 80 84 Z" fill="#1F2937"/>
+        <g class="mc-talk"><ellipse cx="60" cy="90" rx="10" ry="8" fill="#1F2937"/><ellipse cx="60" cy="94" rx="6" ry="3.5" fill="#F87171"/></g>
+        <g class="mc-extra mc-shades"><rect x="28" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="64" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="54" y="58" width="12" height="4" fill="#111827"/><path d="M32 57 L40 57" stroke="#fff" stroke-width="2" opacity=".6"/></g>
+        <g class="mc-extra mc-crown"><path d="M36 22 L44 6 L52 20 L60 2 L68 20 L76 6 L84 22 Z" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/><circle cx="60" cy="14" r="3" fill="#F87171"/></g>
+        <g class="mc-extra mc-sweat"><path d="M98 40 q6 10 0 14 q-6-4 0-14z" fill="#7DD3FC"/><path d="M18 46 q5 8 0 11 q-5-3 0-11z" fill="#7DD3FC"/></g>
+        <g class="mc-extra mc-glass"><circle cx="76" cy="62" r="15" fill="rgba(186,230,253,.25)" stroke="#1F2937" stroke-width="4"/><path d="M87 73 L100 88" stroke="#1F2937" stroke-width="6" stroke-linecap="round"/></g>
+      </g>
+    </g>
+  </svg>`;
+}
+
+/* ---- 🔊 sound for the video: soft music, sound effects, character voices (Web Audio + the phone's speech) ---- */
+const stSnd = {
+  ctx: null, master: null, music: null, beat: 0, next: 0, loop: null,
+  init() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* older iOS */ }   // play even when the phone is on silent (iOS 17+)
+    if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.gain.value = 0.9; this.master.connect(this.ctx.destination);
+      this.music = this.ctx.createGain(); this.music.gain.value = 0.05; this.music.connect(this.master); }
+    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    // a silent blip unlocks audio on iOS (must happen inside the tap)
+    const b = this.ctx.createBuffer(1, 1, 22050), s = this.ctx.createBufferSource(); s.buffer = b; s.connect(this.ctx.destination); s.start(0);
+  },
+  tone(f, t, d, type, vol, to) { const c = this.ctx; if (!c) return; const o = c.createOscillator(), g = c.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(f, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.2, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(this.master); o.start(t); o.stop(t + d + 0.05); },
+  noise(t, d, f1, f2, vol) { const c = this.ctx; if (!c) return; const n = c.createBuffer(1, Math.ceil(c.sampleRate * d), c.sampleRate), a = n.getChannelData(0); for (let k = 0; k < a.length; k++) a[k] = Math.random() * 2 - 1;
+    const s = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain(); s.buffer = n; bp.type = 'bandpass'; bp.Q.value = 1.2; bp.frequency.setValueAtTime(f1, t); bp.frequency.exponentialRampToValueAtTime(f2, t + d);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.25, t + d * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + d); s.connect(bp); bp.connect(g); g.connect(this.master); s.start(t); },
+  fx(name, delay) {
+    if (!this.ctx || (story && story.muted)) return; const t = this.ctx.currentTime + (delay || 0);
+    if (name === 'whoosh') this.noise(t, 0.35, 300, 2400, 0.22);
+    else if (name === 'pop') this.tone(520 + Math.random() * 200, t, 0.09, 'sine', 0.16, 900);
+    else if (name === 'boing') { this.tone(180, t, 0.35, 'triangle', 0.25, 520); this.tone(520, t + 0.18, 0.25, 'triangle', 0.15, 260); }
+    else if (name === 'uhoh') { this.tone(440, t, 0.22, 'square', 0.08); this.tone(330, t + 0.25, 0.4, 'square', 0.08); }
+    else if (name === 'slurp') { this.noise(t, 0.25, 800, 300, 0.18); this.noise(t + 0.3, 0.3, 900, 250, 0.15); }
+    else if (name === 'hmm') { this.tone(220, t, 0.5, 'sine', 0.12, 260); }
+    else if (name === 'peek') { this.tone(880, t, 0.08, 'sine', 0.12); this.tone(660, t + 0.12, 0.08, 'sine', 0.12); this.tone(880, t + 0.24, 0.1, 'sine', 0.12); }
+    else if (name === 'fanfare') [523, 659, 784, 1047].forEach((f, k) => { this.tone(f, t + k * 0.12, k === 3 ? 0.6 : 0.16, 'triangle', 0.18); this.tone(f / 2, t + k * 0.12, 0.2, 'sine', 0.08); });
+    else if (name === 'launch') { this.noise(t, 2.2, 200, 3000, 0.25); this.tone(120, t, 2, 'sawtooth', 0.05, 900); }
+    else if (name === 'tick') this.tone(1200, t, 0.03, 'square', 0.04);
+  },
+  startMusic() {
+    if (!this.ctx || this.loop) return;
+    const prog = [[261.6, 329.6, 392], [220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7]], step = 0.22;
+    this.next = this.ctx.currentTime + 0.1; this.beat = 0;
+    this.loop = setInterval(() => {
+      if (!this.ctx || !story || story.muted) return;
+      while (this.next < this.ctx.currentTime + 0.4) {
+        const ch = prog[Math.floor(this.beat / 8) % 4], n = this.beat % 8, t = this.next, f = ch[[0, 1, 2, 1, 2, 1, 0, 2][n]] * (n === 4 ? 2 : 1);
+        const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'triangle'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + step * 0.95);
+        o.connect(g); g.connect(this.music); o.start(t); o.stop(t + step);
+        if (n % 4 === 0) { const b = this.ctx.createOscillator(), bg = this.ctx.createGain(); b.type = 'sine'; b.frequency.value = ch[0] / 2; bg.gain.setValueAtTime(0.0001, t); bg.gain.exponentialRampToValueAtTime(0.7, t + 0.02); bg.gain.exponentialRampToValueAtTime(0.0001, t + step * 3.5); b.connect(bg); bg.connect(this.music); b.start(t); b.stop(t + step * 4); }
+        this.beat++; this.next += step;
+      }
+    }, 100);
+  },
+  duck(on) { if (this.music) this.music.gain.setTargetAtTime(on ? 0.018 : 0.05, this.ctx.currentTime, 0.15); },
+  stop() { clearInterval(this.loop); this.loop = null; if (this.ctx) this.ctx.suspend().catch(() => {}); }
+};
+const ST_FX = { 'st-intro': 'boing', 'st-red': 'uhoh', 'st-amber': 'slurp', 'st-blue': 'hmm', 'st-purple': 'peek', 'st-green': 'fanfare', 'st-outro': 'launch' };
+
 function openStory(area) {
+  if (story) storyClose();
   const slides = storySlides(typeof area === 'string' ? area : null);
   const cast = stCast(slides);
   const el = document.createElement('div'); el.className = 'story'; el.setAttribute('role', 'dialog');
-  el.innerHTML = `<div class="st-bars">${slides.map(() => '<i><b></b></i>').join('')}</div>
-    <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><button class="st-snd" data-st-snd aria-label="sound"></button></div>
+  el.innerHTML = `<div class="st-bg"><i></i><i></i><i></i></div><div class="st-bars">${slides.map(() => '<i><b></b></i>').join('')}</div>
+    <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><span class="st-name">${esc(L(cast.ch.name[0], cast.ch.name[1]))}</span><button class="st-snd" data-st-snd aria-label="sound"></button></div>
     <div class="st-stage"></div>
-    <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap" title="${esc(L(cast.ch.name[0], cast.ch.name[1]))}">${mascotSvg(cast.ch)}</div></div>
+    <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap">${mascotSvg(cast.ch)}</div></div>
+    <p class="st-hint" hidden></p>
     <div class="st-tap st-prev"></div><div class="st-tap st-next"></div>`;
   document.body.appendChild(el); document.body.classList.add('story-open');
-  story = { el, slides, cast, i: -1, muted: !!store.get('ai.storyMute', false), timer: null, t0: 0, dur: 0, paused: false, left: 0 };
+  story = { el, slides, cast, i: -1, tok: 0, muted: !!store.get('ai.storyMute', false), timer: null, safety: null, phase: '', t0: 0, dur: 0, paused: false, left: 0, hold: null };
   el.querySelector('[data-st-snd]').textContent = story.muted ? '🔇' : '🔊';
   el.addEventListener('click', storyClick);
-  el.addEventListener('pointerdown', () => storyPause(true)); el.addEventListener('pointerup', () => storyPause(false));
+  // hold to pause (a quick tap only moves between slides)
+  el.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; clearTimeout(story && story.hold); if (story) story.hold = setTimeout(() => storyPause(true), 220); });
+  const up = () => { if (!story) return; clearTimeout(story.hold); if (story.paused) { story.justResumed = true; storyPause(false); } };
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   document.addEventListener('keydown', storyKey);
+  stSnd.init(); if (!story.muted) stSnd.startMusic();
   storyGo(0);
 }
-function storySpeak(text, done) {
-  try { speechSynthesis.cancel(); } catch (e) { /* none */ }
-  if (story.muted || !window.speechSynthesis) { done(null); return; }
-  const u = new SpeechSynthesisUtterance(text); u.lang = isHe() ? 'he-IL' : 'en-US'; u.rate = 1.02;
-  const v = speechSynthesis.getVoices().find(x => x.lang && x.lang.toLowerCase().startsWith(isHe() ? 'he' : 'en')); if (v) u.voice = v;
-  let fired = false; const fin = () => { if (!fired) { fired = true; done(true); } };
-  u.onend = fin; u.onerror = () => { if (!fired) { fired = true; done(null); } };
+function stVoice() {
+  const want = isHe() ? 'he' : 'en', vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  return vs.find(x => x.lang && x.lang.toLowerCase().startsWith(want) && /premium|enhanced|siri/i.test(x.name)) || vs.find(x => x.lang && x.lang.toLowerCase().startsWith(want)) || null;
+}
+function storySpeak(text, tok, done) {
+  const s = story;
+  if (s.muted || !window.speechSynthesis || !text) { done(false); return; }
+  try { if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel(); } catch (e) { /* none */ }
+  const u = new SpeechSynthesisUtterance(text); u.lang = isHe() ? 'he-IL' : 'en-US';
+  const v = stVoice(); if (v) u.voice = v;
+  const vc = s.cast.ch.voice || [1, 1]; u.pitch = vc[0]; u.rate = vc[1];
+  const mc = s.el.querySelector('.st-mascot');
+  let fired = false; const fin = (ok) => { if (fired) return; fired = true; mc.classList.remove('talking'); stSnd.duck(false); if (story === s && s.tok === tok) done(ok); };
+  u.onstart = () => { if (story === s && s.tok === tok) { mc.classList.add('talking'); stSnd.duck(true); } };
+  u.onboundary = () => { if (story !== s || s.tok !== tok) return; mc.classList.remove('flap'); void mc.offsetWidth; mc.classList.add('flap'); };
+  u.onend = () => fin(true); u.onerror = (e) => { if (e && e.error === 'interrupted' || e && e.error === 'canceled') { fired = true; mc.classList.remove('talking'); return; } fin(false); };
   speechSynthesis.speak(u);
+  // no voice at all after a moment → tell the user once
+  setTimeout(() => { if (story === s && s.tok === tok && !fired && !speechSynthesis.speaking && !speechSynthesis.pending) { const h = s.el.querySelector('.st-hint'); h.hidden = false;
+    h.textContent = L('🔈 No narration from this device — check that the phone isn’t on silent and the volume is up.', '🔈 אין קריינות מהמכשיר — בדוק שהטלפון לא על שקט ושהעוצמה למעלה.'); } }, 1800);
 }
 function storyGo(i) {
   const s = story; if (!s) return;
   if (i < 0) i = 0; if (i >= s.slides.length) { storyClose(); return; }
-  clearTimeout(s.timer); s.i = i;
+  clearTimeout(s.timer); clearTimeout(s.safety); s.tok++; const tok = s.tok; s.paused = false; s.phase = 'speak';
+  const dir = i >= s.i ? 1 : -1; s.i = i;
   const sl = s.slides[i];
   s.el.className = 'story ' + sl.cls;
-  const stage = s.el.querySelector('.st-stage'); stage.innerHTML = `<div class="st-slide">${sl.html}</div>`;
-  stage.querySelectorAll('li').forEach((x, k) => { x.style.animationDelay = (0.25 + k * 0.18) + 's'; });
+  const stage = s.el.querySelector('.st-stage'); stage.innerHTML = `<div class="st-slide ${dir < 0 ? 'back' : ''}">${sl.html}</div>`;
+  const lis = stage.querySelectorAll('li'); lis.forEach((x, k) => { x.style.animationDelay = (0.35 + k * 0.22) + 's'; stSnd.fx('pop', 0.35 + k * 0.22); });
   const md = s.cast.lines[i], mc = s.el.querySelector('.st-mascot');
-  mc.className = 'st-mascot mood-' + md[0]; void mc.offsetWidth; mc.classList.add('mc-in');
+  mc.className = 'st-mascot mood-' + md[0] + (i === 0 ? ' walk-in' : ''); void mc.offsetWidth; mc.classList.add('mc-in');
+  if (lis.length) mc.classList.add('look');
   mc.querySelector('.mc-bubble').textContent = L(md[1][0], md[1][1]);
   s.el.querySelectorAll('.st-confetti').forEach(c => c.remove()); if (md[0] === 'party') confetti(s.el);
-  stage.querySelectorAll('[data-count]').forEach(b => { const n = Number(b.dataset.count) || 0, t0 = performance.now(); const step = (t) => { const p = Math.min(1, (t - t0) / 900); b.textContent = Math.round(n * (1 - Math.pow(1 - p, 3))); if (p < 1 && story) requestAnimationFrame(step); }; requestAnimationFrame(step); });
+  stSnd.fx(i === 0 ? 'boing' : 'whoosh'); if (i > 0 && ST_FX[sl.cls]) stSnd.fx(ST_FX[sl.cls], 0.35);
+  stage.querySelectorAll('[data-count]').forEach(b => { const n = Number(b.dataset.count) || 0, t0 = performance.now(); let last = 0; const step = (t) => { if (!story || story.tok !== tok) return; const p = Math.min(1, (t - t0) / 900), v = Math.round(n * (1 - Math.pow(1 - p, 3))); if (v !== last) { last = v; stSnd.fx('tick'); } b.textContent = v; if (p < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); });
   s.el.querySelectorAll('.st-bars i').forEach((bar, k) => { const b = bar.firstChild; b.style.transition = 'none'; b.style.width = k < i ? '100%' : '0%'; });
-  const minDur = 4500 + (sl.html.match(/<li>/g) || []).length * 700;
+  const minDur = 5200 + lis.length * 900;
   const start = (ms) => {
-    const b = s.el.querySelectorAll('.st-bars i')[i].firstChild;
+    if (!story || story.tok !== tok) return;
+    s.phase = 'run'; const b = s.el.querySelectorAll('.st-bars i')[i].firstChild;
     requestAnimationFrame(() => { b.style.transition = `width ${ms}ms linear`; b.style.width = '100%'; });
-    s.t0 = Date.now(); s.dur = ms; s.timer = setTimeout(() => storyGo(i + 1), ms);
+    s.t0 = Date.now(); s.dur = ms; if (!s.paused) s.timer = setTimeout(() => { if (story && story.tok === tok) storyGo(i + 1); }, ms); else s.left = ms;
   };
-  if (s.muted || !window.speechSynthesis) start(minDur);
-  else { const t0 = Date.now(); let started = false;
-    const safety = setTimeout(() => { if (!started) { started = true; start(minDur); } }, 9000);   // if the voice never ends
-    storySpeak(sl.say, (ok) => { if (story !== s || s.i !== i || started) return; started = true; clearTimeout(safety); const spent = Date.now() - t0; start(Math.max(1200, minDur - spent, 900)); }); }
+  const t0 = Date.now();
+  // the bubble line first, then the summary — in the character's voice
+  const text = L(md[1][0], md[1][1]).replace(/[\u{1F000}-\u{1FAFF}☀-➿️]/gu, '') + '. ' + sl.say;
+  if (s.muted || !window.speechSynthesis) { start(minDur); return; }
+  s.safety = setTimeout(() => { if (story && story.tok === tok && s.phase === 'speak' && !s.paused) { try { speechSynthesis.cancel(); } catch (e) { /* none */ } start(Math.max(1500, minDur - (Date.now() - t0))); } }, 20000);
+  storySpeak(text, tok, () => { clearTimeout(s.safety); if (s.phase !== 'speak') return; start(Math.max(1500, minDur - (Date.now() - t0))); });
 }
 function storyPause(p) {
   const s = story; if (!s || s.paused === p) return; s.paused = p;
-  const b = s.el.querySelectorAll('.st-bars i')[s.i]; if (!b) return; const bar = b.firstChild;
-  if (p) { clearTimeout(s.timer); s.left = Math.max(300, s.dur - (Date.now() - s.t0)); const w = getComputedStyle(bar).width; bar.style.transition = 'none'; bar.style.width = w; try { speechSynthesis.pause(); } catch (e) { /* none */ } }
-  else { try { speechSynthesis.resume(); } catch (e) { /* none */ } s.t0 = Date.now(); s.dur = s.left; requestAnimationFrame(() => { bar.style.transition = `width ${s.left}ms linear`; bar.style.width = '100%'; }); s.timer = setTimeout(() => storyGo(s.i + 1), s.left); }
+  s.el.classList.toggle('paused', p);
+  if (s.phase === 'speak') { try { p ? speechSynthesis.pause() : speechSynthesis.resume(); } catch (e) { /* none */ } return; }
+  const bi = s.el.querySelectorAll('.st-bars i')[s.i]; if (!bi) return; const bar = bi.firstChild, tok = s.tok, i = s.i;
+  if (p) { clearTimeout(s.timer); s.left = Math.max(300, s.dur - (Date.now() - s.t0)); const w = getComputedStyle(bar).width; bar.style.transition = 'none'; bar.style.width = w; }
+  else { s.t0 = Date.now(); s.dur = s.left; requestAnimationFrame(() => { bar.style.transition = `width ${s.left}ms linear`; bar.style.width = '100%'; }); s.timer = setTimeout(() => { if (story && story.tok === tok) storyGo(i + 1); }, s.left); }
 }
 function storyClick(e) {
   const s = story; if (!s) return;
+  if (s.justResumed) { s.justResumed = false; return; }        // the end of a long press is not a tap
   if (e.target.closest('[data-st-x]')) { storyClose(); return; }
-  if (e.target.closest('[data-st-snd]')) { s.muted = !s.muted; store.set('ai.storyMute', s.muted); e.target.textContent = s.muted ? '🔇' : '🔊'; if (s.muted) { try { speechSynthesis.cancel(); } catch (x) { /* none */ } } else storyGo(s.i); return; }
+  if (e.target.closest('[data-st-snd]')) { s.muted = !s.muted; store.set('ai.storyMute', s.muted); e.target.textContent = s.muted ? '🔇' : '🔊';
+    if (s.muted) { try { speechSynthesis.cancel(); } catch (x) { /* none */ } stSnd.stop(); } else { stSnd.init(); stSnd.startMusic(); } storyGo(s.i); return; }
   if (e.target.closest('[data-st-go]')) { storyClose(); ui.tab = 'focus'; store.set('ai.ui', ui); render(); return; }
   const fwd = e.target.closest('.st-next'), back = e.target.closest('.st-prev');
   if (fwd) storyGo(s.i + 1); else if (back) storyGo(s.i - 1);
 }
 function storyKey(e) { if (!story) return; if (e.key === 'Escape') storyClose(); if (e.key === 'ArrowLeft') storyGo(story.i + (isHe() ? 1 : -1)); if (e.key === 'ArrowRight') storyGo(story.i + (isHe() ? -1 : 1)); }
 function storyClose() {
-  if (!story) return; clearTimeout(story.timer); try { speechSynthesis.cancel(); } catch (e) { /* none */ }
-  story.el.remove(); story = null; document.body.classList.remove('story-open'); document.removeEventListener('keydown', storyKey);
+  if (!story) return; clearTimeout(story.timer); clearTimeout(story.safety); clearTimeout(story.hold); story.tok++;
+  try { speechSynthesis.cancel(); } catch (e) { /* none */ }
+  stSnd.stop(); story.el.remove(); story = null; document.body.classList.remove('story-open'); document.removeEventListener('keydown', storyKey);
 }
 
 /* ---------- ▶ quick-actions button (bottom right) ---------- */
@@ -2672,7 +2761,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 48;
+const APP_VERSION = 49;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

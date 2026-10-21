@@ -539,11 +539,11 @@ body.story-open{overflow:hidden}
 .story.st-purple{background:linear-gradient(160deg,#4C1D95,#A855F7)}
 .story.st-green{background:linear-gradient(160deg,#14532D,#22C55E)}
 .story.st-outro{background:radial-gradient(circle at 70% 80%,#DB2777,#1E1B4B 70%)}
-.st-bars{display:flex;gap:4px;direction:ltr}
+.st-bars{display:flex;gap:4px;direction:ltr;position:relative;z-index:3}
 [dir=rtl] .st-bars{direction:rtl}
 .st-bars i{flex:1;height:3px;border-radius:3px;background:rgba(255,255,255,.3);overflow:hidden}
 .st-bars b{display:block;height:100%;width:0;background:#fff}
-.st-top{display:flex;justify-content:space-between;margin-top:10px;position:relative;z-index:3}
+.st-top{display:flex;justify-content:space-between;align-items:center;margin-top:10px;position:relative;z-index:3}
 .st-top button{border:0;background:rgba(255,255,255,.18);color:#fff;width:40px;height:40px;border-radius:50%;font-size:18px;cursor:pointer}
 .st-stage{flex:1;display:flex;align-items:center;justify-content:center;position:relative;z-index:1;pointer-events:none}
 .st-slide{width:min(520px,100%);text-align:center;animation:stIn .5s cubic-bezier(.2,.8,.2,1)}
@@ -574,62 +574,108 @@ body.story-open{overflow:hidden}
 .st-prev{inset-inline-start:0}.st-next{inset-inline-end:0}
 @media (prefers-reduced-motion: reduce){.st-slide,.story li,.st-emoji{animation:none;opacity:1}}
 
-/* 🎬 funny mascot */
-.st-mascot{position:relative;z-index:1;display:flex;align-items:flex-end;gap:8px;justify-content:center;margin-top:6px;pointer-events:none;--mc:#FBBF24}
-.mc-wrap{width:96px;height:104px;flex:0 0 auto}
+/* 🎬 full-body animated characters */
+.st-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.st-bg i{position:absolute;width:55vmax;height:55vmax;border-radius:50%;filter:blur(40px);opacity:.35;background:radial-gradient(circle,rgba(255,255,255,.55),transparent 65%);animation:stBlob 14s ease-in-out infinite alternate}
+.st-bg i:nth-child(1){top:-20vmax;left:-15vmax}
+.st-bg i:nth-child(2){bottom:-25vmax;right:-20vmax;animation-duration:18s;animation-delay:-6s}
+.st-bg i:nth-child(3){top:30%;left:40%;width:30vmax;height:30vmax;animation-duration:11s;animation-delay:-3s}
+@keyframes stBlob{from{transform:translate(0,0) scale(1)}to{transform:translate(8vmax,6vmax) scale(1.25)}}
+.st-name{align-self:center;font-weight:800;font-size:14px;background:rgba(255,255,255,.18);padding:6px 12px;border-radius:999px}
+.st-slide.back{animation-name:stInBack}
+@keyframes stInBack{from{opacity:0;transform:translateY(-24px) scale(.97)}to{opacity:1;transform:none}}
+.story.paused .st-slide,.story.paused .mc-svg *{animation-play-state:paused!important}
+.st-hint{position:relative;z-index:3;margin:6px auto 0;font-size:12.5px;background:rgba(0,0,0,.35);padding:6px 12px;border-radius:12px;text-align:center;max-width:420px}
+.st-mascot{position:relative;z-index:1;display:flex;align-items:flex-end;gap:8px;justify-content:center;margin-top:6px;pointer-events:none}
+.mc-wrap{width:104px;height:174px;flex:0 0 auto}
 .mc-svg{width:100%;height:100%;overflow:visible}
-.mc-bubble{max-width:62%;background:#fff;color:#1F2937;font-weight:700;font-size:14.5px;line-height:1.35;padding:10px 13px;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.25);position:relative;margin-bottom:46px;opacity:0}
+.mc-bubble{max-width:62%;background:#fff;color:#1F2937;font-weight:700;font-size:14.5px;line-height:1.35;padding:10px 13px;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.25);position:relative;margin-bottom:96px;opacity:0}
 .mc-bubble::after{content:"";position:absolute;bottom:-8px;inset-inline-end:14px;border:9px solid transparent;border-top-color:#fff;border-bottom:0}
 .st-mascot.mc-in .mc-bubble{animation:mcBubble .4s .5s cubic-bezier(.2,1.6,.4,1) forwards}
 @keyframes mcBubble{from{opacity:0;transform:scale(.5) translateY(10px)}to{opacity:1;transform:none}}
-.st-mascot.mc-in .mc-wrap{animation:mcEnter .6s cubic-bezier(.2,1.6,.4,1)}
-@keyframes mcEnter{from{transform:translateY(80px) scale(.6)}to{transform:none}}
-.mc-mouth,.mc-extra{display:none}
-.mc-body{transform-origin:60px 108px;animation:mcIdle 2.2s ease-in-out infinite}
-@keyframes mcIdle{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.97) translateY(2px)}}
-.mc-lid{animation:mcBlink 3.6s infinite}
-@keyframes mcBlink{0%,92%,100%{height:0}95%{height:24px}}
+.st-mascot.mc-in .mc-wrap{animation:mcHop .55s cubic-bezier(.2,1.4,.4,1)}
+@keyframes mcHop{0%{transform:translateY(0) scale(1,1)}25%{transform:translateY(4px) scale(1.08,.9)}55%{transform:translateY(-26px) scale(.95,1.06)}80%{transform:translateY(0) scale(1.06,.94)}100%{transform:none}}
+.st-mascot.walk-in .mc-wrap{animation:mcWalkIn 1.4s cubic-bezier(.3,.9,.4,1)}
+@keyframes mcWalkIn{from{transform:translateX(-70vw)}to{transform:none}}
+[dir=rtl] .st-mascot.walk-in .mc-wrap{animation-name:mcWalkInR}
+@keyframes mcWalkInR{from{transform:translateX(70vw)}to{transform:none}}
+.st-mascot.walk-in .mc-legL{animation:mcStep .28s ease-in-out 5 alternate}
+.st-mascot.walk-in .mc-legR{animation:mcStep .28s ease-in-out 5 alternate-reverse}
+@keyframes mcStep{from{transform:rotate(-16deg)}to{transform:rotate(16deg)}}
+.mc-legL{transform-origin:49px 150px}.mc-legR{transform-origin:71px 150px}
+.mc-armL{transform-origin:37px 126px}.mc-armR{transform-origin:83px 126px}
+.mc-arm{transition:transform .45s cubic-bezier(.3,1.5,.5,1)}
+.mc-all{transform-origin:60px 188px;animation:mcIdle 2.4s ease-in-out infinite}
+@keyframes mcIdle{0%,100%{transform:scale(1,1)}50%{transform:scale(1.025,.975)}}
+.mc-head{transform-origin:60px 110px;animation:mcNod 3.2s ease-in-out infinite}
+@keyframes mcNod{0%,100%{transform:rotate(0)}30%{transform:rotate(-4deg)}70%{transform:rotate(3deg)}}
+.mc-armL{animation:mcSwayL 2.4s ease-in-out infinite}.mc-armR{animation:mcSwayR 2.4s ease-in-out infinite}
+@keyframes mcSwayL{0%,100%{transform:rotate(4deg)}50%{transform:rotate(-6deg)}}
+@keyframes mcSwayR{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(6deg)}}
+.mc-shadow{transform-origin:60px 192px;animation:mcShadow 2.4s ease-in-out infinite}
+@keyframes mcShadow{50%{transform:scaleX(1.06)}}
+.mc-mouth,.mc-extra,.mc-talk{display:none}
+.mc-lid{animation:mcBlink 3.8s infinite}
+@keyframes mcBlink{0%,93%,100%{height:0}96%{height:24px}}
+.mc-pupils{transition:transform .4s ease}
+.st-mascot.look .mc-pupils{transform:translate(-2px,-4px)}
+/* talking: lip-sync while the voice speaks */
+.st-mascot.talking .mc-mouth{display:none!important}
+.st-mascot.talking .mc-talk{display:block;transform-origin:60px 90px;animation:mcTalk .16s ease-in-out infinite alternate}
+.st-mascot.talking.flap .mc-talk{animation:mcFlap .2s ease-out}
+@keyframes mcTalk{from{transform:scale(1,.25)}to{transform:scale(1,1)}}
+@keyframes mcFlap{0%{transform:scale(1,.2)}50%{transform:scale(1.05,1.1)}100%{transform:scale(1,.4)}}
+.st-mascot.talking .mc-head{animation:mcTalkNod .5s ease-in-out infinite alternate}
+@keyframes mcTalkNod{from{transform:rotate(-2deg)}to{transform:rotate(2deg) translateY(1px)}}
+/* moods = poses */
 .mood-hi .m-smile,.mood-coffee .m-smile,.mood-think .m-smile{display:block}
-.mood-hi .mc-hand{display:block;transform-origin:16px 70px;animation:mcWave .5s ease-in-out infinite alternate}
-@keyframes mcWave{from{transform:rotate(-25deg) translate(0,-6px)}to{transform:rotate(25deg) translate(0,-14px)}}
-.mood-panic{--mc:#FCA5A5}
+.mood-hi .mc-armR{animation:mcWave .45s ease-in-out infinite alternate}
+@keyframes mcWave{from{transform:rotate(-95deg)}to{transform:rotate(-135deg)}}
 .mood-panic .m-wavy,.mood-panic .mc-sweat{display:block}
-.mood-panic .mc-body{animation:mcShake .18s linear infinite}
+.mood-panic .mc-armL{animation:none;transform:rotate(128deg)}
+.mood-panic .mc-armR{animation:none;transform:rotate(-128deg)}
+.mood-panic .mc-all{animation:mcShake .16s linear infinite}
 @keyframes mcShake{0%,100%{transform:translateX(0) rotate(0)}25%{transform:translateX(-3px) rotate(-2deg)}75%{transform:translateX(3px) rotate(2deg)}}
-.mood-panic .mc-pupil{transform:scale(.6);transform-origin:center;transform-box:fill-box}
-.mood-panic .mc-sweat{animation:mcDrip 1s ease-in infinite}
+.mood-panic .mc-pupil{transform:scale(.55);transform-origin:center;transform-box:fill-box}
+.mood-panic .mc-sweat{animation:mcDrip .9s ease-in infinite}
 @keyframes mcDrip{from{transform:translateY(0);opacity:1}to{transform:translateY(16px);opacity:0}}
-.mood-coffee{--mc:#FCD34D}
-.mood-coffee .mc-cup{display:block;animation:mcSip 1.6s ease-in-out infinite;transform-origin:100px 100px}
-@keyframes mcSip{0%,60%,100%{transform:rotate(0)}75%{transform:rotate(-18deg) translate(-6px,-6px)}}
+.mood-panic .mc-legL{animation:mcStep .14s linear infinite alternate}.mood-panic .mc-legR{animation:mcStep .14s linear infinite alternate-reverse}
+.mood-coffee .mc-cup{display:block}
+.mood-coffee .mc-armR{animation:mcSip 2.2s ease-in-out infinite}
+@keyframes mcSip{0%,55%,100%{transform:rotate(-40deg)}72%,85%{transform:rotate(-95deg)}}
 .mc-steam{animation:mcSteam 1.4s ease-in-out infinite}
 @keyframes mcSteam{0%{opacity:0;transform:translateY(4px)}50%{opacity:.9}100%{opacity:0;transform:translateY(-6px)}}
-.mood-think{--mc:#93C5FD}
-.mood-think .mc-glass{display:block;animation:mcScan 2s ease-in-out infinite}
+.mood-think .mc-glass{display:block;animation:mcScan 2.2s ease-in-out infinite}
 @keyframes mcScan{0%,100%{transform:translateX(0)}50%{transform:translateX(-26px)}}
-.mood-think .mc-pupil{animation:mcLook 2s ease-in-out infinite}
-@keyframes mcLook{0%,100%{transform:translateX(3px)}50%{transform:translateX(-4px)}}
-.mood-peek{--mc:#C4B5FD}
+.mood-think .mc-armR{animation:mcScanArm 2.2s ease-in-out infinite}
+@keyframes mcScanArm{0%,100%{transform:rotate(-112deg)}50%{transform:rotate(-135deg)}}
+.mood-think .mc-armL{animation:none;transform:rotate(-30deg)}
 .mood-peek .m-o{display:block}
-.mood-peek .mc-pupil{animation:mcSide 1.2s ease-in-out infinite alternate}
+.mood-peek .mc-pupils{animation:mcSide 1.1s ease-in-out infinite alternate}
 @keyframes mcSide{from{transform:translateX(-5px)}to{transform:translateX(5px)}}
-.mood-peek .mc-body{animation:mcPeek 2.4s ease-in-out infinite}
-@keyframes mcPeek{0%,100%{transform:rotate(0)}30%{transform:rotate(-12deg) translateX(-6px)}60%{transform:rotate(10deg) translateX(6px)}}
-.mood-party{--mc:#86EFAC}
+.mood-peek .mc-armL{animation:none;transform:rotate(112deg)}
+.mood-peek .mc-all{animation:mcPeek 2.4s ease-in-out infinite}
+@keyframes mcPeek{0%,100%{transform:rotate(0)}30%{transform:rotate(-9deg) translateX(-6px)}60%{transform:rotate(8deg) translateX(6px)}}
 .mood-party .m-grin,.mood-party .mc-shades,.mood-party .mc-crown{display:block}
-.mood-party .mc-body{animation:mcDance .45s ease-in-out infinite alternate}
-@keyframes mcDance{from{transform:rotate(-10deg) translateY(0)}to{transform:rotate(10deg) translateY(-12px)}}
-.mood-rocket{--mc:#F9A8D4}
+.mood-party .mc-all{animation:mcJump .5s cubic-bezier(.3,.7,.4,1) infinite alternate}
+@keyframes mcJump{from{transform:translateY(0) rotate(-6deg)}to{transform:translateY(-22px) rotate(6deg)}}
+.mood-party .mc-armL{animation:mcPumpL .25s ease-in-out infinite alternate}.mood-party .mc-armR{animation:mcPumpR .25s ease-in-out infinite alternate}
+@keyframes mcPumpL{from{transform:rotate(95deg)}to{transform:rotate(128deg)}}
+@keyframes mcPumpR{from{transform:rotate(-128deg)}to{transform:rotate(-95deg)}}
+.mood-party .mc-legL{animation:mcStep .25s ease-in-out infinite alternate}.mood-party .mc-legR{animation:mcStep .25s ease-in-out infinite alternate-reverse}
+.mood-party .mc-shadow{animation:mcShadowJump .5s cubic-bezier(.3,.7,.4,1) infinite alternate}
+@keyframes mcShadowJump{to{transform:scale(.7);opacity:.5}}
 .mood-rocket .m-grin,.mood-rocket .mc-rocket{display:block}
-.mood-rocket .mc-svg{animation:mcLaunch 2.6s 1s cubic-bezier(.6,0,.9,.4) forwards}
-@keyframes mcLaunch{0%{transform:translateY(0)}20%{transform:translateY(6px)}100%{transform:translateY(-120vh) rotate(-8deg)}}
-.mc-rocket{animation:mcFlame .12s linear infinite alternate;transform-origin:60px 112px}
-@keyframes mcFlame{from{transform:scaleY(.8)}to{transform:scaleY(1.25)}}
+.mood-rocket .mc-armL{animation:none;transform:rotate(122deg)}.mood-rocket .mc-armR{animation:none;transform:rotate(-122deg)}
+.mood-rocket .mc-svg{animation:mcLaunch 2.8s 1.4s cubic-bezier(.6,0,.9,.4) forwards}
+@keyframes mcLaunch{0%{transform:translateY(0)}15%{transform:translateY(8px) scale(1.05,.92)}100%{transform:translateY(-130vh) rotate(-6deg)}}
+.mc-rocket{animation:mcFlame .1s linear infinite alternate;transform-origin:60px 188px}
+@keyframes mcFlame{from{transform:scaleY(.75)}to{transform:scaleY(1.3)}}
 .st-confetti{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 .st-confetti i{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;animation:cfFall linear forwards}
 @keyframes cfFall{to{top:105%;transform:rotate(720deg) translateX(40px)}}
-@media (max-height:700px){.mc-wrap{width:72px;height:78px}.mc-bubble{margin-bottom:30px;font-size:13px}}
-@media (prefers-reduced-motion: reduce){.mc-body,.mc-svg,.mc-hand,.mc-cup,.st-confetti i{animation:none!important}}
+@media (max-height:740px){.mc-wrap{width:80px;height:134px}.mc-bubble{margin-bottom:70px;font-size:13px}}
+@media (prefers-reduced-motion: reduce){.mc-all,.mc-head,.mc-arm,.mc-leg,.mc-svg,.st-bg i,.st-confetti i{animation:none!important}}
 
 /* 🎉 completion celebration — a background layer that never blocks taps */
 .celebrate{position:fixed;inset:0;pointer-events:none;z-index:90;overflow:hidden}
