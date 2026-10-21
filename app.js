@@ -39,6 +39,7 @@ const EMPTY = () => ({ items: [], areas: Object.keys(AREA_C), people: ['Me'], re
 let data = (store.get('ai.pw', null) && store.get('ai.cache', null)) || EMPTY();
 let search = '';
 let role = 'owner', me = { name: '', canSuggest: false }, pending = [], mySugg = [], pwReq = [];
+let myDay = { date: '', rows: [] }, focusRemote = null;
 const isGuest = () => role === 'guest';
 let weekOff = 0;
 
@@ -185,10 +186,10 @@ async function remove(row, track = true) {
 }
 
 /* ---------- complete / reopen ---------- */
-async function toggleDone(it) {
+async function toggleDone(it, opt) {
   const copy = Object.assign({}, it), at = Object.assign({}, lastTap);   // where the item was tapped (before any question box)
   if (isClosed(it)) { copy.status = 'In progress'; copy.done = ''; await save(copy); return; }
-  const h = await askHours(it);
+  const h = opt && opt.hours !== undefined ? opt.hours : await askHours(it);
   if (h === null) return;                                   // closed the box = cancel
   if (h !== '') copy.acthrs = String(h);
   const nd = nextDue(it);
@@ -289,8 +290,8 @@ function dueLabel(it) {
   const txt = n < 0 ? L(`${-n}d late`, `באיחור ${-n} ימ׳`) : n === 0 ? L('Today', 'היום') : n === 1 ? L('Tomorrow', 'מחר') : L(`in ${n}d`, `בעוד ${n} ימ׳`);
   return `<span class="due ${cls}">${txt}</span><span>${fmt(it.due, true)}</span>`;
 }
-function card(it) {
-  const h = horizon(it), closed = isClosed(it);
+function card(it, opt) {
+  const h = horizon(it), closed = isClosed(it), mine = opt && opt.mine;
   const cls = closed ? 'closed' : h === 'Overdue' ? 'overdue' : h === 'Today' ? 'today' : '';
   const hi = /^1/.test(it.prio || '') && !closed ? `<span class="c-hi">${L('High', 'גבוהה')}</span>` : '';
   const area = it.area ? `<span class="c-area" style="--a:${areaColor(it.area)[1]}"><i></i>${esc(tr(it.area))}</span>` : '';
@@ -311,14 +312,14 @@ function card(it) {
   const cal = it.cal && !isGuest() ? `<span class="cal-ic" title="${esc(L('In iPhone calendar: ', 'ביומן האייפון: ') + it.cal)}">📅</span>` : '';
   const sep = (arr) => arr.filter(Boolean).join('<span class="dot" aria-hidden="true">·</span>');
   const owner = !isGuest();
-  return `<div class="card ${cls}" data-row="${it.row}">
+  return `<div class="card ${cls} ${mine ? 'mine' : ''}" data-row="${it.row}">
     ${owner ? `<button class="check ${closed ? 'on' : ''}" data-check="${it.row}" aria-label="${esc(closed ? L('Mark as not done', 'סמן כלא בוצע') : L('Mark done', 'סמן כבוצע'))}"><span class="ring">${closed ? '✓' : ''}</span></button>` : '<span class="check-sp"></span>'}
     <div class="body">
       <div class="title"><bdi>${esc(it.item)}</bdi></div>
       ${area || hi ? `<div class="meta m1">${area}${hi}</div>` : ''}
       ${when || st || who || wait || rec || cl || priv || cal ? `<div class="meta m2">${sep([when ? `<span class="c-when">${when}</span>` : '', st, who, wait, rec, cl, priv, cal])}</div>` : ''}
       ${it.com ? `<div class="note" dir="auto">${esc(it.com)}</div>` : ''}
-    </div>${owner && !closed ? `<button class="c-more" data-cmenu="${it.row}" aria-label="${esc(L('More actions', 'פעולות נוספות'))}" aria-haspopup="menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>` : ''}</div>`;
+    </div>${mine && owner ? `<button class="c-more c-unday" data-dayrm="${it.row}" aria-label="${esc(L('Remove from My day', 'הסר משלי להיום'))}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}${owner && !closed ? `<button class="c-more" data-cmenu="${it.row}" aria-label="${esc(L('More actions', 'פעולות נוספות'))}" aria-haspopup="menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>` : ''}</div>`;
 }
 
 /* area filter: one area, several (long-press a tab to add it), or all */
@@ -396,8 +397,18 @@ function render() {
     html = group('Waiting on others', items.filter(it => it.status === 'Waiting').sort(sortOpen), '');
   } else {
     const hs = ui.tab === 'focus' ? ['Overdue', 'Today', 'This week'] : HORIZONS.filter(h => h !== 'No date');
-    const openF = items.filter(it => !isClosed(it)).sort(sortOpen);
-    html = hs.map(h => group(h, openF.filter(it => horizon(it) === h), h.toLowerCase().replace(' ', ''), { collapsible: true, key: ui.tab + ':' + h })).join('');
+    const mineRows = ui.tab === 'focus' && !isGuest() ? dayRows() : [];
+    const openF = items.filter(it => !isClosed(it) && !mineRows.includes(it.row)).sort(sortOpen);
+    const od = openF.filter(it => horizon(it) === 'Overdue');
+    html = hs.map(h => {
+      if (ui.tab === 'focus' && h === 'Overdue' && od.length > 2 && !grpIsOpen('focus:OverdueList')) {   // many late ones: a summary instead of the whole list
+        const oldest = od[0], late = dayDiff(today(), parse(oldest.due));
+        return `<section class="od-box" data-h="Overdue"><div class="od-top"><b>⏰ ${L(`${od.length} overdue tasks`, `${od.length} משימות באיחור`)}</b><span>${L(`oldest: ${late} days`, `הוותיקה: ${late} ימים`)}</span></div>
+          <div class="od-act">${isGuest() ? '' : `<button class="btn primary" data-triage>${L(`Go through ${od.length}`, `לעבור על ${od.length}`)}</button>`}<button class="btn ghost" data-grp="focus:OverdueList">${L('Show the list', 'הצג רשימה')}</button></div></section>`;
+      }
+      return group(h, openF.filter(it => horizon(it) === h), h.toLowerCase().replace(' ', ''), { collapsible: true, key: ui.tab + ':' + h });
+    }).join('');
+    if (ui.tab === 'focus') html = myDayHtml() + html;
     if (ui.tab === 'focus') {
       const urgent = openF.filter(it => ['Overdue', 'Today'].includes(horizon(it))).length, wk = openF.filter(it => horizon(it) === 'This week').length;
       if (!urgent) html = `<div class="empty calm"><b>🌤</b><strong>${L('Nothing late or due today', 'אין משהו באיחור או להיום')}</strong>${wk ? `<button class="btn ghost" data-jump="This week">${L(`Show this week (${wk})`, `הצג את השבוע (${wk})`)}</button>` : `<span>${L('Enjoy — or add something with ＋ below.', 'תהנה — או הוסף משהו עם ＋ למטה.')}</span>`}</div>` + html;
@@ -441,7 +452,7 @@ function renderTaskNotebook() {
     return `<li class="nb-line ${done ? 'done' : ''}" data-row="${it.row}">
       <button class="nb-check" data-nbcheck="${it.row}" aria-label="${done ? L('Mark as not done', 'סמן כלא בוצע') : L('Mark as done', 'סמן כבוצע')}">${done ? '✓' : ''}</button>
       <span class="nb-text" dir="auto">${hi ? '<b class="nb-hi">!</b> ' : ''}${esc(it.item)}${sub ? `<small>${sub}</small>` : ''}</span>
-      ${it.private ? '<span class="private-ic">🔒</span>' : ''}</li>`;
+      ${it.private ? '<span class="private-ic">🔒</span>' : ''}${!isGuest() && !done ? `<button class="nb-day ${inDay(it.row) ? 'on' : ''}" data-dayadd="${it.row}" aria-label="${esc(inDay(it.row) ? L('Remove from My day', 'הסר משלי להיום') : L('Add to My day', 'הוסף לשלי להיום'))}" aria-pressed="${inDay(it.row)}">☀</button>` : ''}</li>`;
   };
   const openN = list.filter(it => !isClosed(it)).length;
   return `<div class="nb-wrap">
@@ -926,7 +937,7 @@ $('#list').addEventListener('keydown', (e) => {
   if (e.target.id === 'collNew' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const v = e.target.value; e.target.value = ''; collQuickAdd(v); }
 });
 let grpOpen = (() => { try { return JSON.parse(sessionStorage.getItem('ai.grp') || '{}'); } catch (e) { return {}; } })();
-const GRP_CLOSED = { 'focus:This week': 1, 'all:Next week': 0 };   // collapsed unless opened in this session
+const GRP_CLOSED = { 'focus:This week': 1, 'all:Next week': 0, 'focus:OverdueList': 1 };   // collapsed unless opened in this session
 function grpIsOpen(key) { return key in grpOpen ? grpOpen[key] : !GRP_CLOSED[key]; }
 function setGrp(key, v) { grpOpen[key] = v; try { sessionStorage.setItem('ai.grp', JSON.stringify(grpOpen)); } catch (e) { /* none */ } }
 function group(title, arr, cls, opt) {
@@ -1163,12 +1174,111 @@ $('#repCopy').addEventListener('click', async () => {
   }
 });
 
+/* ---------- ☀ My day: up to 3 tasks chosen for today (intentions — due dates are not touched) ---------- */
+const todayIso = () => iso(today());
+const dayRows = () => myDay.date === todayIso() ? myDay.rows.filter(r => data.items.some(it => it.row === r)) : [];
+const inDay = (row) => dayRows().includes(Number(row));
+async function saveDay(next) {
+  const prev = myDay; myDay = { date: next.date, rows: next.rows.slice(0, 3) }; render();
+  try { const j = await api('POST', { action: 'setDay', day: myDay }); if (j && j.myDay) myDay = j.myDay; }
+  catch (e) { myDay = prev; render(); toast(L('Couldn’t save “My day”: ', 'לא נשמר "שלי להיום": ') + e.message); }
+}
+function toggleDay(row) {
+  row = Number(row); const rows = dayRows();
+  if (rows.includes(row)) { saveDay({ date: todayIso(), rows: rows.filter(r => r !== row) }); toast(L('Removed from My day', 'הוסר משלי להיום')); return true; }
+  if (rows.length >= 3) { toast(L('My day already has 3 — remove one first', 'כבר בחרת 3 להיום — הסר אחת קודם')); return false; }
+  saveDay({ date: todayIso(), rows: rows.concat(row) }); toast(L('☀ Added to My day', '☀ נוסף לשלי להיום')); return true;
+}
+function myDayHtml() {
+  if (isGuest()) return '';
+  // yesterday's picks that weren't finished: ask whether to keep going with them
+  if (myDay.date && myDay.date !== todayIso()) {
+    const left = myDay.rows.map(r => data.items.find(it => it.row === r)).filter(it => it && !isClosed(it));
+    if (left.length) return `<section class="myday carry"><div class="md-head"><b>☀ ${L('Still on from ' + fmt(myDay.date, true) + ':', 'נשארו מ' + fmt(myDay.date, true) + ':')}</b></div>
+      <ul class="md-left">${left.map(it => `<li><bdi>${esc(it.item)}</bdi></li>`).join('')}</ul>
+      <div class="md-act"><button class="btn primary" data-daycarry="keep">${L('Keep them for today', 'להמשיך איתן היום')}</button><button class="btn ghost" data-daycarry="fresh">${L('Start fresh', 'להתחיל מחדש')}</button></div></section>`;
+  }
+  const items = dayRows().map(r => data.items.find(it => it.row === r)).filter(Boolean);
+  if (!items.length) return `<div class="myday empty-day">☀ <b>${L('My day', 'שלי להיום')}</b> · ${L('pick up to 3 tasks from ⋯ to work on today', 'בחר עד 3 משימות דרך ⋯ לעבודה היום')}</div>`;
+  const done = items.filter(isClosed).length;
+  return `<section class="group myday"><h3><span>☀ ${L('My day', 'שלי להיום')}</span> <span class="n">${done}/${items.length}</span></h3>${items.map(it => card(it, { mine: true })).join('')}</section>`;
+}
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('[data-daycarry]'); if (!c) return;
+  const keep = c.dataset.daycarry === 'keep';
+  const left = myDay.rows.filter(r => { const it = data.items.find(x => x.row === r); return it && !isClosed(it); });
+  saveDay({ date: todayIso(), rows: keep ? left : [] });
+});
+
+/* ---------- ⏰ go through overdue tasks, one at a time ---------- */
+let tri = null;
+function openTriage() {
+  const list = data.items.filter(it => areaOk(it.area) && !isClosed(it) && horizon(it) === 'Overdue').sort((a, b) => parse(a.due) - parse(b.due));
+  if (!list.length) { toast(L('Nothing overdue 🎉', 'אין משימות באיחור 🎉')); return; }
+  tri = { rows: list.map(it => it.row), i: 0, mode: '', stats: { today: 0, date: 0, nb: 0, done: 0, cancel: 0, skip: 0 } };
+  $('#dlgTriage').showModal(); triRender();
+}
+function triRender() {
+  const box = $('#triBody'), n = tri.rows.length;
+  if (tri.i >= n) {
+    const st = tri.stats, parts = [[st.today, L('for today', 'להיום')], [st.date, L('rescheduled', 'קיבלו תאריך חדש')], [st.nb, L('to the Notebook', 'עברו לפנקס')], [st.done, L('done', 'הושלמו')], [st.cancel, L('cancelled', 'בוטלו')], [st.skip, L('skipped', 'דולגו')]].filter(x => x[0]);
+    box.innerHTML = `<div class="tri-end"><b>✅ ${L('All reviewed', 'עברת על הכול')}</b><p>${parts.map(([k, l]) => `${k} ${l}`).join(' · ') || ''}</p><button class="btn primary" data-close>${L('Close', 'סגירה')}</button></div>`;
+    return;
+  }
+  const it = data.items.find(x => x.row === tri.rows[tri.i]);
+  if (!it || isClosed(it) || horizon(it) !== 'Overdue') { tri.i++; triRender(); return; }
+  const late = dayDiff(today(), parse(it.due)), rec = it.rec && it.rec !== 'None';
+  const full = dayRows().length >= 3 && !inDay(it.row);
+  let extra = '';
+  if (tri.mode === 'date') extra = `<div class="tri-sub"><label>${L('New date', 'תאריך חדש')}<input type="date" id="triDate" value="${iso(addDays(today(), 1))}"></label>
+      <div class="tri-chips"><button data-tdate="1">${L('Tomorrow', 'מחר')}</button><button data-tdate="sun">${L('Next week', 'שבוע הבא')}</button><button data-tdate="7">+7</button></div>
+      ${rec ? `<p class="hint">${L(`Repeats ${tr(it.rec)} — later occurrences will follow the new date.`, `חוזרת ${tr(it.rec)} — המופעים הבאים יחושבו מהתאריך החדש.`)}</p>` : ''}
+      <div class="tri-row"><button class="btn primary" data-tri="dateok">${L('Save date', 'שמור תאריך')}</button><button class="btn ghost" data-tri="back">${L('Back', 'חזרה')}</button></div></div>`;
+  else if (tri.mode === 'done' || tri.mode === 'cancel') extra = `<div class="tri-sub"><p><b>${L('This task repeats', 'המשימה חוזרת')} (${esc(tr(it.rec))}).</b> ${tri.mode === 'done' ? L('Mark…', 'לסמן כהושלמה…') : L('Cancel…', 'לבטל…')}</p>
+      <div class="tri-row"><button class="btn primary" data-tri="${tri.mode}-one">${L('Just this occurrence', 'רק את המופע הזה')}</button><button class="btn ghost" data-tri="${tri.mode}-all">${L('The whole series', 'את כל הסדרה')}</button><button class="btn ghost" data-tri="back">${L('Back', 'חזרה')}</button></div></div>`;
+  else if (tri.mode === 'nb') extra = `<div class="tri-sub"><p>${L(`This task repeats (${tr(it.rec)}). Moving it to the Notebook stops the repeats.`, `המשימה חוזרת (${tr(it.rec)}). העברה לפנקס תפסיק את החזרתיות.`)}</p>
+      <div class="tri-row"><button class="btn primary" data-tri="nb-ok">${L('Move anyway', 'להעביר בכל זאת')}</button><button class="btn ghost" data-tri="back">${L('Back', 'חזרה')}</button></div></div>`;
+  box.innerHTML = `<div class="tri-prog"><span dir="ltr">${tri.i + 1} / ${n}</span><i style="width:${Math.round(tri.i / n * 100)}%"></i></div>
+    <div class="tri-card"><div class="tri-title"><bdi>${esc(it.item)}</bdi></div>
+      <div class="tri-meta"><span class="c-area" style="--a:${areaColor(it.area)[1]}"><i></i>${esc(tr(it.area))}</span>${/^1/.test(it.prio || '') ? `<span class="c-hi">${L('High', 'גבוהה')}</span>` : ''}<span class="c-late">${late === 1 ? L('1 day late', 'באיחור יום') : L(`${late} days late`, `באיחור ${late} ימים`)}</span><span>${fmt(it.due, true)}</span>${rec ? `<span>↻ ${esc(tr(it.rec))}</span>` : ''}</div>
+      ${it.com ? `<div class="tri-note" dir="auto">${esc(it.com)}</div>` : ''}</div>
+    ${extra || `<div class="tri-actions">
+      <button data-tri="today" ${full ? 'aria-disabled="true" class="dis"' : ''}><span>☀</span>${inDay(it.row) ? L('Already in My day', 'כבר בשלי להיום') : L('Work on it today', 'לעבוד עליה היום')}<small>${full ? L('My day is full (3)', 'שלי להיום מלא (3)') : L('due date stays', 'התאריך לא משתנה')}</small></button>
+      <button data-tri="date"><span>📅</span>${L('New date', 'תאריך חדש')}</button>
+      <button data-tri="nb"><span>📒</span>${L('To the Notebook', 'לפנקס, בלי תאריך')}</button>
+      <button data-tri="done"><span>✓</span>${L('Done', 'הושלמה')}</button>
+      <button data-tri="cancel"><span>✕</span>${L('Cancel it', 'ביטול המשימה')}</button>
+      <button data-tri="skip"><span>⏭</span>${L('Skip for now', 'דלג כרגע')}</button></div>`}`;
+}
+async function triAct(k) {
+  const it = data.items.find(x => x.row === tri.rows[tri.i]); if (!it) return;
+  const rec = it.rec && it.rec !== 'None', next = () => { tri.mode = ''; tri.i++; triRender(); };
+  const undoT = (msg) => toast(msg, { label: L('↶ Undo', '↶ ביטול'), fn: async () => { await undo(); if (tri) { tri.i = Math.max(0, tri.i - 1); triRender(); } } });
+  if (k === 'back') { tri.mode = ''; triRender(); return; }
+  if (k === 'skip') { tri.stats.skip++; next(); return; }
+  if (k === 'today') { if (inDay(it.row)) { next(); return; } if (dayRows().length >= 3) { toast(L('My day already has 3 — remove one first', 'כבר בחרת 3 להיום — הסר אחת קודם')); return; } toggleDay(it.row); tri.stats.today++; next(); return; }
+  if (k === 'date' || (k === 'done' && rec) || (k === 'cancel' && rec) || (k === 'nb' && rec)) { tri.mode = k; triRender(); return; }
+  if (k === 'dateok') { const v = $('#triDate').value; if (!v) return; if (await save(Object.assign({}, it, { due: v }))) { tri.stats.date++; undoT(L(`Moved to ${fmt(v, true)}`, `הועבר ל-${fmt(v, true)}`)); next(); } return; }
+  if (k === 'nb' || k === 'nb-ok') { if (await save(Object.assign({}, it, { due: '', time: '', rec: 'None' }))) { tri.stats.nb++; undoT(L('Moved to the Notebook', 'הועבר לפנקס')); next(); } return; }
+  if (k === 'done' || k === 'done-one') { $('#dlgTriage').close(); await toggleDone(it); tri.stats.done++; tri.mode = ''; tri.i++; $('#dlgTriage').showModal(); triRender(); return; }
+  if (k === 'done-all') { celebrate(); if (await save(Object.assign({}, it, { status: 'Done', done: todayIso(), rec: 'None' }))) { tri.stats.done++; undoT(L('Series completed', 'הסדרה הושלמה')); next(); } return; }
+  if (k === 'cancel') { if (await save(Object.assign({}, it, { status: 'Cancelled' }))) { tri.stats.cancel++; undoT(L('Cancelled', 'בוטלה')); next(); } return; }
+  if (k === 'cancel-one') { const nd = nextDue(it); if (nd && await save(Object.assign({}, it, { due: iso(nd) }))) { tri.stats.cancel++; undoT(L(`Skipped this one — next on ${fmt(iso(nd), true)}`, `המופע בוטל — הבא ב-${fmt(iso(nd), true)}`)); next(); } return; }
+  if (k === 'cancel-all') { if (await save(Object.assign({}, it, { status: 'Cancelled' }))) { tri.stats.cancel++; undoT(L('Series cancelled', 'הסדרה בוטלה')); next(); } return; }
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-triage]')) { openTriage(); return; }
+  const b = e.target.closest('#dlgTriage [data-tri]'); if (b) { if (b.getAttribute('aria-disabled') === 'true') { toast(L('My day already has 3 — remove one first', 'כבר בחרת 3 להיום — הסר אחת קודם')); return; } triAct(b.dataset.tri); return; }
+  const td = e.target.closest('#dlgTriage [data-tdate]'); if (td) { const v = td.dataset.tdate; $('#triDate').value = iso(v === 'sun' ? addDays(weekStart(today()), 7) : addDays(today(), Number(v))); }
+});
+$('#dlgTriage').addEventListener('close', () => { tri = null; render(); });
+
 /* ---------- card ⋯ menu, More tab, search, area picker, quick-entry sheet ---------- */
 function openCardMenu(btn) {
   const m = $('#cardMenu'), row = btn.dataset.cmenu, r = btn.getBoundingClientRect();
   if (!m.hidden && m.dataset.row === row) { closeCardMenu(); return; }
   m.dataset.row = row;
-  m.innerHTML = [['done', '✓', L('Mark done', 'סמן כבוצע')], ['defer', '⏭', L('Defer to tomorrow', 'דחייה למחר')], ['edit', '✎', L('Edit', 'עריכה')]]
+  m.innerHTML = [['focus', '▶', L('Start focus', 'מתחילים פוקוס')], ['day', '☀', inDay(row) ? L('Remove from My day', 'הסר משלי להיום') : L('Add to My day', 'הוסף לשלי להיום')], ['done', '✓', L('Mark done', 'סמן כבוצע')], ['defer', '⏭', L('Defer to tomorrow', 'דחייה למחר')], ['edit', '✎', L('Edit', 'עריכה')]]
     .map(([k, ic, l]) => `<button role="menuitem" data-cact="${k}" data-row="${row}"><span aria-hidden="true">${ic}</span>${l}</button>`).join('');
   m.hidden = false; btn.setAttribute('aria-expanded', 'true');
   const w = m.offsetWidth, h = m.offsetHeight;
@@ -1214,6 +1324,166 @@ $('#qaFull').addEventListener('click', () => { const v = $('#qa').value.trim(); 
 // keep the sheet above the iPhone keyboard
 if (window.visualViewport) { const kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) + 'px'); visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb); }
 
+/* =====================================================================
+   ⏱ Focus time — a quiet screen to work on one task.
+   Time is computed from timestamps (start, paused total, pause start) saved on the device,
+   so it survives locking the phone, switching apps or reloading. One active session across devices.
+   ===================================================================== */
+const DEV = (() => { let d = store.get('ai.dev', ''); if (!d) { d = Math.random().toString(36).slice(2, 10); store.set('ai.dev', d); } return d; })();
+let fs = store.get('ai.focus', null), fsTick = null, fsSetup = null;
+const fsNow = () => Date.now();
+const fsElapsed = (f) => !f ? 0 : Math.max(0, (f.endAt || fsNow()) - f.start - (f.paused || 0) - (f.pauseAt ? (f.endAt || fsNow()) - f.pauseAt : 0));
+const fsSave = () => store.set('ai.focus', fs);
+const mmss = (ms, sec = true) => { const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s2 = t % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + (sec ? ':' + String(s2).padStart(2, '0') : (h ? '' : L(' min', ' דק׳'))); };
+const fmtMin = (m) => m >= 60 ? L(`${Math.floor(m / 60)} h ${m % 60} min`, `${Math.floor(m / 60)} ש׳ ${m % 60} דק׳`) : L(`${m} min`, `${m} דקות`);
+function openFocusSetup(it) {
+  if (isGuest() || !it) return;
+  if (fs && !fs.endAt) { if (fs.row === it.row) { showFocus(); return; } toast(L('Another focus session is running — finish it first', 'יש מקטע פוקוס פעיל — סיים אותו קודם')); showFocus(); return; }
+  fsSetup = { it, plan: store.get('ai.focusPlan', 25), intro: store.get('ai.focusIntro', true), sound: store.get('ai.focusSound', true) };
+  fsSetupRender(); $('#dlgFocusSetup').showModal();
+}
+function fsSetupRender() {
+  const f = fsSetup, other = focusRemote && focusRemote.device !== DEV && Date.now() - Number(focusRemote.beat || focusRemote.start || 0) < 12 * 3600e3 ? focusRemote : null;
+  const opt = (v, l) => `<button type="button" class="fs-opt ${f.plan === v ? 'on' : ''}" data-fsplan="${v}" aria-pressed="${f.plan === v}">${l}</button>`;
+  $('#fsBody').innerHTML = `<div class="fs-task"><bdi>${esc(f.it.item)}</bdi></div>
+    <div class="fs-label">${L('How long?', 'לכמה זמן?')}</div>
+    <div class="fs-opts">${opt(25, L('25 min', '25 דק׳'))}${opt(45, L('45 min', '45 דק׳'))}${opt(-1, L('Custom', 'אחר'))}${opt(0, L('Open-ended', 'בלי הגבלה'))}</div>
+    ${f.plan === -1 || ![25, 45, 0].includes(f.plan) ? `<label class="fs-custom">${L('Minutes', 'דקות')}<input type="number" id="fsMin" min="5" max="240" step="5" inputmode="numeric" value="${f.plan > 0 ? f.plan : 60}"></label>` : ''}
+    <label class="remember"><input type="checkbox" id="fsIntro" ${f.intro ? 'checked' : ''}> ${L('Short intro with the character', 'פתיח קצר עם הדמות')}</label>
+    <label class="remember"><input type="checkbox" id="fsSound" ${f.sound ? 'checked' : ''}> ${L('Intro sound', 'צליל בפתיח')}</label>
+    ${other ? `<p class="fs-warn">⚠ ${L(`A session is running on another device: “${esc(other.item)}”. Starting here will end it there.`, `יש מקטע פעיל במכשיר אחר: "${esc(other.item)}". התחלה כאן תסיים אותו שם.`)}</p>` : ''}
+    <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary fs-go" id="fsGo">▶ ${L('Start focus', 'מתחילים פוקוס')}</button></div>`;
+}
+document.addEventListener('click', (e) => {
+  const p = e.target.closest('[data-fsplan]'); if (p && fsSetup) { fsSetup.plan = Number(p.dataset.fsplan); fsSetupRender(); return; }
+  if (e.target.closest('#fsGo')) fsStart();
+});
+async function fsStart() {
+  const f = fsSetup; if (!f) return;
+  let plan = f.plan; if (plan === -1 || ![25, 45, 0].includes(plan)) plan = Math.max(5, Math.min(240, Number(($('#fsMin') || {}).value) || 60));
+  f.intro = $('#fsIntro').checked; f.sound = $('#fsSound').checked;
+  store.set('ai.focusPlan', [25, 45, 0].includes(plan) ? plan : -1); store.set('ai.focusIntro', f.intro); store.set('ai.focusSound', f.sound);
+  fs = { id: DEV + '-' + Date.now(), row: f.it.row, item: f.it.item, device: DEV, start: fsNow(), plan, paused: 0, pauseAt: 0, endAt: 0, planAck: false, clock: store.get('ai.focusClock', 'full'), min: false };
+  fsSave(); $('#dlgFocusSetup').close();
+  fsSync(true);
+  showFocus(f.intro, f.sound);
+}
+async function fsSync(force) {
+  if (!fs || settings.demo) return;
+  try { const j = await api('POST', { action: 'focusStart', session: { id: fs.id, row: fs.row, item: fs.item, device: DEV, start: fs.start, plan: fs.plan, paused: fs.paused, pauseAt: fs.pauseAt }, force: !!force });
+    if (j && j.busy && !force) toast(L('A session is active on another device', 'יש מקטע פעיל במכשיר אחר')); else if (j && j.focus) focusRemote = j.focus; } catch (e) { /* offline — the device copy is the truth */ }
+}
+function showFocus(intro, sound) {
+  if (!fs) return;
+  fs.min = false; fsSave();
+  const m = $('#focusMode'); m.hidden = false; document.body.classList.add('focus-open');
+  $('#fmTitle').innerHTML = `<bdi>${esc(fs.item)}</bdi>`;
+  fsRender();
+  clearInterval(fsTick); fsTick = setInterval(fsRender, 1000);
+  if (intro && !matchMedia('(prefers-reduced-motion: reduce)').matches) fsIntro(sound);
+}
+function fsIntro(sound) {
+  const box = $('#fmIntro'), img = $('#fmIntroImg'), bub = $('#fmBubble');
+  box.hidden = false; box.className = 'fm-intro'; bub.classList.remove('show'); $('#focusMode').classList.add('intro');
+  img.src = 'assets/focus/focus_intro.webp?t=' + Date.now();          // restart the animation (plays once)
+  let au = null;
+  if (sound) { try { au = new Audio('assets/focus/focus_intro.m4a'); au.volume = 0.8; au.play().catch(() => {}); } catch (e) { au = null; } }
+  $('#fmMute').textContent = sound ? '🔊' : '🔇';
+  $('#fmMute').onclick = () => { if (au) { au.muted = !au.muted; $('#fmMute').textContent = au.muted ? '🔇' : '🔊'; store.set('ai.focusSound', !au.muted); } };
+  const end = () => { clearTimeout(t1); clearTimeout(t2); if (au) au.pause(); box.classList.add('out'); $('#focusMode').classList.remove('intro'); setTimeout(() => { box.hidden = true; img.removeAttribute('src'); }, 450); };
+  $('#fmSkip').onclick = end;
+  const t1 = setTimeout(() => bub.classList.add('show'), 1650);
+  const t2 = setTimeout(end, 3600);
+}
+function fsRender() {
+  if (!fs) return;
+  const el = fsElapsed(fs), paused = !!fs.pauseAt, it = data.items.find(x => x.row === fs.row);
+  const hideSec = fs.clock === 'nosec', hidden = fs.clock === 'hidden';
+  $('#fmBadge').innerHTML = paused ? `⏸ ${L('On a break', 'בהפסקה')}` : `<i class="fm-dot"></i> ${L('Focus time', 'זמן פוקוס')}`;
+  $('#fmClock').textContent = hidden ? '' : mmss(el, !hideSec);
+  $('#fmClock').classList.toggle('hid', hidden);
+  $('#fmClockBtn').innerHTML = `<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/>${hidden ? '<path d="M4 4l16 16"/>' : '<path d="M12 8v4l3 2"/>'}</svg>`;
+  $('#fmMin').innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+  const planMs = fs.plan > 0 ? fs.plan * 60000 : 0;
+  $('#fmPlan').textContent = planMs ? (el < planMs ? L(`${fmtMin(Math.ceil((planMs - el) / 60000))} left of ${fs.plan}`, `נשארו ${fmtMin(Math.ceil((planMs - el) / 60000))} מתוך ${fs.plan}`) : L(`${fs.plan} min reached`, `הושלמו ${fs.plan} דקות`)) : (hidden ? L('Timing… (clock hidden)', 'מודד זמן… (השעון מוסתר)') : L('Open-ended', 'בלי הגבלה'));
+  const next = it && Array.isArray(it.checklist) ? it.checklist.find(x => !x.d) : null;
+  $('#fmStep').hidden = !next; if (next) $('#fmStep').innerHTML = `<span>${L('Next step', 'הצעד הבא')}</span><bdi>${esc(next.t)}</bdi>`;
+  $('#focusMode').classList.toggle('paused', paused);
+  const acts = paused
+    ? `<button class="fm-btn main" data-fm="resume">▶ ${L('Back to focus', 'חזרה לפוקוס')}</button><button class="fm-btn" data-fm="end">${L('End session', 'סיום מקטע')}</button>`
+    : `<button class="fm-btn" data-fm="pause">⏸ ${L('Break', 'הפסקה')}</button><button class="fm-btn" data-fm="end">${L('End session', 'סיום מקטע')}</button><button class="fm-btn main" data-fm="done">✓ ${L('Task done', 'המשימה הושלמה')}</button>`;
+  if ($('#fmActions').dataset.k !== String(paused)) { $('#fmActions').innerHTML = acts; $('#fmActions').dataset.k = String(paused); }
+  // planned time reached — never completes the task by itself
+  if (planMs && el >= planMs && !fs.planAck && !paused && $('#fmLayer').hidden) {
+    fsLayer(`<div class="fm-card"><b>⏰ ${L(`${fs.plan} minutes done`, `עברו ${fs.plan} דקות`)}</b><p>${L('Keep going, take a break, or wrap up?', 'להמשיך, לקחת הפסקה או לסיים?')}</p>
+      <div class="fm-row"><button class="fm-btn main" data-fm="ack">${L('Keep going', 'להמשיך')}</button><button class="fm-btn" data-fm="pause">${L('Break', 'הפסקה')}</button><button class="fm-btn" data-fm="end">${L('Finish', 'סיום')}</button></div></div>`);
+    try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch (e) { /* none */ }
+  }
+  fsBanner();
+}
+function fsLayer(html) { const l = $('#fmLayer'); l.innerHTML = html; l.hidden = !html; }
+function fsBanner() {
+  let b = $('#fsBanner');
+  const show = fs && !fs.endAt && fs.min;
+  if (!show) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('button'); b.id = 'fsBanner'; b.className = 'fs-banner'; b.onclick = () => showFocus(); document.body.appendChild(b); }
+  b.innerHTML = `<i class="fm-dot ${fs.pauseAt ? 'off' : ''}"></i><bdi>${esc(fs.item)}</bdi><b>${fs.clock === 'hidden' ? '⏱' : mmss(fsElapsed(fs), false)}</b><span>${L('Back', 'חזרה')} ›</span>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-fm]'); if (!b || !fs) return;
+  const k = b.dataset.fm;
+  if (k === 'pause') { if (!fs.pauseAt) fs.pauseAt = fsNow(); fsLayer(''); fsSave(); fsRender(); fsSync(); return; }
+  if (k === 'resume') { if (fs.pauseAt) { fs.paused += fsNow() - fs.pauseAt; fs.pauseAt = 0; } fsSave(); fsRender(); fsSync(); return; }
+  if (k === 'ack') { fs.planAck = true; fsSave(); fsLayer(''); return; }
+  if (k === 'end' || k === 'done') { fsFinish(k === 'done'); return; }
+  if (k === 'save') { fsCommit(); return; }
+  if (k === 'back') { fs.endAt = 0; fs.finishing = ''; fsSave(); fsLayer(''); fsRender(); return; }
+});
+$('#fmClockBtn').addEventListener('click', () => { if (!fs) return; fs.clock = { full: 'nosec', nosec: 'hidden', hidden: 'full' }[fs.clock || 'full']; store.set('ai.focusClock', fs.clock); fsSave(); fsRender(); });
+$('#fmMin').addEventListener('click', () => { if (!fs) return; fs.min = true; fsSave(); $('#focusMode').hidden = true; document.body.classList.remove('focus-open'); fsBanner(); });
+function fsFinish(taskDone) {
+  if (fs.pauseAt) { fs.paused += fsNow() - fs.pauseAt; fs.pauseAt = 0; }
+  fs.endAt = fsNow(); fs.finishing = taskDone ? 'done' : 'end'; fsSave();
+  const mins = Math.max(1, Math.round(fsElapsed(fs) / 60000));
+  const it = data.items.find(x => x.row === fs.row), had = parseFloat(it && it.acthrs) || 0;
+  const long = mins > 180;
+  fsLayer(`<div class="fm-card"><b>${taskDone ? '🎉 ' : ''}${L(`You worked on it for ${fmtMin(mins)}`, `עבדת על המשימה ${fmtMin(mins)}`)}</b>
+    ${long ? `<p class="fm-warn">${L('That’s long — forgot to stop? You can fix it:', 'זה ארוך — אולי שכחת לעצור? אפשר לתקן:')}</p>` : ''}
+    <label class="fm-fix">${L('Minutes worked', 'דקות עבודה')} <input type="number" id="fmMins" min="0" max="1440" step="1" inputmode="numeric" value="${mins}"></label>
+    <label class="fm-chk"><input type="checkbox" id="fmAdd" checked> ${had ? L(`Add to actual hours (now ${had} h)`, `להוסיף לשעות בפועל (כרגע ${had} ש׳)`) : L('Save as actual hours', 'לשמור בשעות בפועל')}</label>
+    <div class="fm-row"><button class="fm-btn main" data-fm="save">${taskDone ? L('Save & complete', 'שמור וסמן כהושלמה') : L('Save', 'שמור')}</button><button class="fm-btn" data-fm="back">${L('Back to the session', 'חזרה למקטע')}</button></div></div>`);
+  fsRender();
+}
+async function fsCommit() {
+  const mins = Math.max(0, Math.round(Number($('#fmMins').value) || 0)), add = $('#fmAdd').checked, taskDone = fs.finishing === 'done';
+  const sess = fs, it = data.items.find(x => x.row === sess.row);
+  const hrs = Math.round(mins / 60 * 100) / 100, total = Math.round(((parseFloat(it && it.acthrs) || 0) + (add ? hrs : 0)) * 100) / 100;
+  // close the screen first, then save once — the completion flow gets the total, so hours are never asked or added twice
+  fs = null; store.set('ai.focus', null); clearInterval(fsTick); fsLayer(''); $('#focusMode').hidden = true; document.body.classList.remove('focus-open'); fsBanner();
+  if (!settings.demo) api('POST', { action: 'focusEnd', id: sess.id, log: { row: sess.row, item: sess.item, minutes: mins, start: sess.start, end: sess.endAt, saved: add } }).catch(() => {});
+  focusRemote = null;
+  if (!it) return;
+  if (taskDone) { lastTap = { x: innerWidth / 2, y: innerHeight / 2 }; await toggleDone(it, { hours: add ? total : (it.acthrs ? parseFloat(it.acthrs) : '') }); return; }
+  if (add && hrs > 0) { if (await save(Object.assign({}, it, { acthrs: String(total) }))) toast(L(`Saved ${fmtMin(mins)} · ${total} h in total`, `נשמרו ${fmtMin(mins)} · סה״כ ${total} ש׳`), { label: L('↶ Undo', '↶ ביטול'), fn: undo }); }
+  else toast(L('Session ended', 'המקטע הסתיים'));
+}
+// after loading: restore a session from this device, or offer the one running on another device
+function fsRestore() {
+  if (isGuest()) return;
+  fs = store.get('ai.focus', null);
+  if (fs && !fs.endAt) { if (fs.min) fsBanner(); else showFocus(); return; }
+  if (fs && fs.endAt) { showFocus(); fsFinish(fs.finishing === 'done'); return; }
+  const r = focusRemote;
+  if (r && r.device !== DEV && Date.now() - Number(r.beat || r.start || 0) < 12 * 3600e3 && !$('#fsRemote')) {
+    const b = document.createElement('div'); b.id = 'fsRemote'; b.className = 'fs-banner remote';
+    b.innerHTML = `<i class="fm-dot"></i><bdi>${esc(r.item)}</bdi><span>${L('running on another device', 'פעיל במכשיר אחר')}</span><button type="button" id="fsTake">${L('Continue here', 'להמשיך כאן')}</button>`;
+    document.body.appendChild(b);
+    $('#fsTake').onclick = () => { fs = { id: r.id, row: r.row, item: r.item, device: DEV, start: r.start, plan: r.plan, paused: r.paused || 0, pauseAt: r.pauseAt || 0, endAt: 0, planAck: false, clock: store.get('ai.focusClock', 'full') }; fsSave(); b.remove(); fsSync(true); showFocus(); };
+  }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && fs) fsRender(); });
+
 /* ---------- events ---------- */
 document.addEventListener('click', (e) => {
   const t = e.target;
@@ -1223,11 +1493,13 @@ document.addEventListener('click', (e) => {
     const sec = document.querySelector(`#list .group[data-h="${h}"]`); if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); else toast(L('Nothing there right now', 'אין שם כלום כרגע')); return; }
   const gh = t.closest('[data-grp]');
   if (gh) { setGrp(gh.dataset.grp, !grpIsOpen(gh.dataset.grp)); render(); return; }
+  const drm = t.closest('[data-dayrm]'); if (drm) { e.stopPropagation(); toggleDay(drm.dataset.dayrm); return; }
+  const dad = t.closest('[data-dayadd]'); if (dad) { e.stopPropagation(); toggleDay(dad.dataset.dayadd); return; }
   const cm = t.closest('[data-cmenu]');
   if (cm) { e.stopPropagation(); openCardMenu(cm); return; }
   const ca = t.closest('[data-cact]');
   if (ca) { closeCardMenu(); const it = data.items.find(x => String(x.row) === ca.dataset.row); if (!it) return;
-    if (ca.dataset.cact === 'defer') snooze(it.row); else if (ca.dataset.cact === 'edit') openEdit(it); else if (ca.dataset.cact === 'done') toggleDone(it); return; }
+    if (ca.dataset.cact === 'day') toggleDay(it.row); else if (ca.dataset.cact === 'focus') openFocusSetup(it); else if (ca.dataset.cact === 'defer') snooze(it.row); else if (ca.dataset.cact === 'edit') openEdit(it); else if (ca.dataset.cact === 'done') toggleDone(it); return; }
   if (!t.closest('#cardMenu')) closeCardMenu();
   if (t.closest('#tabMore')) { toggleMore(); return; }
   if (!t.closest('#moreMenu')) toggleMore(false);
@@ -1337,7 +1609,10 @@ function demoApi(method, body) {
       { row: 11, item: 'Send WIP report', status: 'Done', area: 'Work', prio: '2 - Medium', due: d(-3), done: d(-3), topic: 'WIP', focal: 'Me', rec: 'None', com: '' }
     ];
   }
-  if (method === 'GET') return Promise.resolve({ ok: true, role: 'owner', pending: demoPending, items: JSON.parse(JSON.stringify(demoItems)), areas: demoAreas || Object.keys(AREA_C), people: ['Me', 'Colleague'], report: { manager: 'Manager', email: '', from: 'Me', area: 'Work' } });
+  if (method === 'GET') return Promise.resolve({ ok: true, role: 'owner', myDay: store.get('ai.demoDay', null) || { date: '', rows: [] }, pending: demoPending, items: JSON.parse(JSON.stringify(demoItems)), areas: demoAreas || Object.keys(AREA_C), people: ['Me', 'Colleague'], report: { manager: 'Manager', email: '', from: 'Me', area: 'Work' } });
+  if (body.action === 'setDay') { store.set('ai.demoDay', body.day); return Promise.resolve({ ok: true, myDay: body.day }); }
+  if (body.action === 'focusStart') return Promise.resolve({ ok: true, focus: body.session });
+  if (body.action === 'focusEnd') return Promise.resolve({ ok: true, ended: true });
   if (body.action === 'getGuests' || body.action === 'saveGuest' || body.action === 'deleteGuest') {
     if (body.action === 'saveGuest') { const g = Object.assign({}, body.guest); if (g.password) g.pw = g.password; delete g.password; if (!g.id) { g.id = Math.random().toString(36).slice(2, 8); demoGuests.push(g); } else demoGuests = demoGuests.map(x => x.id === g.id ? g : x); }
     if (body.action === 'deleteGuest') demoGuests = demoGuests.filter(x => x.id !== body.id);
@@ -1663,7 +1938,7 @@ async function snooze(row) {
   const d = parse(it.due), t = today();
   const nd = (!d || d <= t) ? addDays(t, 1) : addDays(d, 1);
   const copy = Object.assign({}, it, { due: iso(nd) });
-  if (await save(copy)) toast(L(`Deferred to ${fmt(copy.due, true)}`, `נדחה ל-${fmt(copy.due, true)}`));
+  if (await save(copy)) toast(L(`Deferred to ${fmt(copy.due, true)}`, `נדחה ל-${fmt(copy.due, true)}`), { label: L('↶ Undo', '↶ ביטול'), fn: undo });
 }
 let dragRow = null;
 document.addEventListener('dragstart', (e) => { const w = e.target.closest && e.target.closest('.wi[draggable=true]'); if (!w) return; dragRow = w.dataset.row; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragRow); } catch (err) { /* ignore */ } });
@@ -2785,11 +3060,14 @@ function applyList(j) {
   if (Array.isArray(j.collCats) && (j.collCats.length || j.role === 'guest')) collCats = j.collCats;
   if (j.role === 'guest' && !Array.isArray(j.collCats)) { collCats = []; coll = []; }
   mySugg = j.mySuggestions || [];
+  if (j.myDay) myDay = { date: j.myDay.date || '', rows: (j.myDay.rows || []).map(Number) };
+  focusRemote = j.focus || null;
   data = { items: j.items || [], areas: j.areas && j.areas.length ? j.areas : Object.keys(AREA_C), people: j.people || [], report: j.report, areaHints: j.areaHints || {} };
   if (!data.areas.includes(ui.area) && ui.area !== 'All') ui.area = 'All';
   ui.areas = (ui.areas || []).filter(a => data.areas.includes(a));
   if (isGuest() && (ui.tab === 'waiting')) ui.tab = 'focus';
   if (!settings.demo && remembered()) store.set('ai.cache', data);
+  setTimeout(() => { if (typeof fsRestore === 'function') fsRestore(); }, 0);
 }
 function suggHtml() {
   const col = { Pending: '#B45309', Approved: '#15803D', Rejected: '#B91C1C' };
@@ -3088,7 +3366,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 58;
+const APP_VERSION = 60;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

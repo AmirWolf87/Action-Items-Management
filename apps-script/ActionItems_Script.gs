@@ -254,7 +254,10 @@ function doPost(e) {
     }
     /* ---- owner ---- */
     switch (req.action) {
-      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending'), pwRequests: pwRequests_().filter(r => !r.handled), calCfg: calCfg_(), coll: collRead_(), collCats: collCats_() }));
+      case 'list': return json_(Object.assign({ ok: true, role: 'owner', name: 'Owner', user: ownerUser_() }, readAll_(), { pending: readPending_().filter(x => x.status === 'Pending'), pwRequests: pwRequests_().filter(r => !r.handled), calCfg: calCfg_(), coll: collRead_(), collCats: collCats_(), myDay: myDay_(), focus: focusGet_() }));
+      case 'setDay': return json_({ ok: true, myDay: myDaySet_(req.day) });
+      case 'focusStart': return withLock_(() => json_(Object.assign({ ok: true }, focusStart_(req.session, !!req.force))));
+      case 'focusEnd': return withLock_(() => json_(Object.assign({ ok: true }, focusEnd_(req.id, req.log))));
       case 'pwHandled': { const L = pwRequests_(); L.forEach(r => { if (r.id === req.id) r.handled = true; }); PropertiesService.getScriptProperties().setProperty('PW_REQUESTS', JSON.stringify(L)); return json_({ ok: true }); }
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
@@ -1698,4 +1701,39 @@ function forgotPassword_(user) {
   const ch = (cfg.onSuggest && cfg.onSuggest.channel) || 'push';
   if (ch === 'push' || ch === 'both') { try { pushNtfy_(cfg.topic, title, message, ['key'], 4); } catch (e) { console.error(e); } }
   if (ch === 'email' || ch === 'both') MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, message + '\n\n' + APP_URL);
+}
+
+/* =====================================================================
+ * ☀ "My day" (up to 3 chosen tasks) and ⏱ Focus sessions
+ * ===================================================================== */
+function myDay_() {
+  try { const d = JSON.parse(PropertiesService.getScriptProperties().getProperty('MY_DAY') || 'null'); if (d && d.date) return { date: String(d.date), rows: (d.rows || []).map(Number).filter(Boolean).slice(0, 3) }; } catch (e) { /* none */ }
+  return { date: '', rows: [] };
+}
+function myDaySet_(d) {
+  const out = { date: String((d && d.date) || '').slice(0, 10), rows: ((d && d.rows) || []).map(Number).filter(Boolean).slice(0, 3) };
+  PropertiesService.getScriptProperties().setProperty('MY_DAY', JSON.stringify(out));
+  return out;
+}
+// one active focus session across devices
+function focusGet_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('FOCUS_ACTIVE') || 'null'); } catch (e) { return null; } }
+function focusStart_(sess, force) {
+  const P = PropertiesService.getScriptProperties(), cur = focusGet_();
+  if (cur && cur.id !== sess.id && !force && Date.now() - Number(cur.beat || cur.start || 0) < 12 * 3600 * 1000) return { busy: cur };
+  const clean = { id: String(sess.id || '').slice(0, 40), row: Number(sess.row) || 0, item: String(sess.item || '').slice(0, 200), device: String(sess.device || '').slice(0, 40),
+    start: Number(sess.start) || Date.now(), plan: Number(sess.plan) || 0, paused: Number(sess.paused) || 0, pauseAt: Number(sess.pauseAt) || 0, beat: Date.now() };
+  P.setProperty('FOCUS_ACTIVE', JSON.stringify(clean));
+  return { focus: clean };
+}
+function focusEnd_(id, log) {
+  const P = PropertiesService.getScriptProperties(), cur = focusGet_();
+  if (cur && (!id || cur.id === id)) P.deleteProperty('FOCUS_ACTIVE');
+  if (log && Number(log.minutes) > 0) {
+    const ss = SpreadsheetApp.getActive();
+    let sh = ss.getSheetByName('Focus Log');
+    if (!sh) { sh = ss.insertSheet('Focus Log'); sh.getRange(1, 1, 1, 7).setValues([['Date', 'Row', 'Task', 'Minutes', 'Started', 'Ended', 'Saved to hours']]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF'); sh.setFrozenRows(1); }
+    const tz = ss.getSpreadsheetTimeZone(), f = (ms) => ms ? Utilities.formatDate(new Date(Number(ms)), tz, 'yyyy-MM-dd HH:mm') : '';
+    sh.appendRow([Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'), Number(log.row) || '', String(log.item || '').slice(0, 200), Math.round(Number(log.minutes) * 10) / 10, f(log.start), f(log.end), log.saved ? 'yes' : 'no']);
+  }
+  return { ended: true };
 }
