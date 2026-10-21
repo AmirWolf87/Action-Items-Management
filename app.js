@@ -100,7 +100,10 @@ async function api(method, body) {
   return j;
 }
 
-function setSync(text) { $('#sync').textContent = text ? '· ' + text : ''; }
+function setSync(text, err) {
+  $('#sync').textContent = text && !err ? '· ' + text : '';
+  const e = $('#syncErr'); if (e) { e.hidden = !err; e.textContent = err ? '⚠ ' + text : ''; }
+}
 let ciOpenAfterLoad = /^#calreview/.test(location.hash);
 async function load(quiet) {
   if (!settings.demo && (!settings.url || !password || !username)) { showLock(); return false; }
@@ -112,7 +115,7 @@ async function load(quiet) {
     setSync(L('synced ', 'סונכרן ') + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
   } catch (e) {
     if (e.auth) { lockApp(e.message); return false; }
-    setSync(L('offline', 'לא מחובר') + (queue().length ? L(` · ${queue().length} waiting to sync`, ` · ${queue().length} ממתינים לסנכרון`) : ''));
+    setSync(L('Not synced', 'לא מסונכרן') + (queue().length ? L(` · ${queue().length} waiting`, ` · ${queue().length} ממתינים`) : ''), true);
     if (!quiet) toast(e.message);
     render(); return false;
   }
@@ -201,11 +204,11 @@ async function toggleDone(it) {
       if (upd) copy.hrs = String(h);
     }
     celebrate(at.x, at.y);                                    // right away — don't wait for the sheet
-    if (await save(copy)) { toast(L(`Done ✓  Next: ${fmt(copy.due, true)}`, `בוצע ✓  הבא: ${fmt(copy.due, true)}`)); }
+    if (await save(copy)) { toast(L(`Done ✓  Next: ${fmt(copy.due, true)}`, `בוצע ✓  הבא: ${fmt(copy.due, true)}`), { label: L('↶ Undo', '↶ ביטול'), fn: undo }); }
   } else {
     copy.status = 'Done'; copy.done = iso(today());
     celebrate(at.x, at.y);
-    if (await save(copy)) toast('Done ✓');
+    if (await save(copy)) toast(L('Done ✓', 'בוצע ✓'), { label: L('↶ Undo', '↶ ביטול'), fn: undo });
   }
 }
 
@@ -287,23 +290,35 @@ function dueLabel(it) {
   return `<span class="due ${cls}">${txt}</span><span>${fmt(it.due, true)}</span>`;
 }
 function card(it) {
-  const h = horizon(it);
-  const cls = isClosed(it) ? 'closed' : h === 'Overdue' ? 'overdue' : h === 'Today' ? 'today' : '';
-  const st = it.status && it.status !== 'Not started' && !isClosed(it) ? pill(it.status, STATUS_C[it.status]) : '';
-  const pr = it.prio ? pill(it.prio.replace(/^\d - /, ''), PRIO_C[String(it.prio).charAt(0)]) : '';
+  const h = horizon(it), closed = isClosed(it);
+  const cls = closed ? 'closed' : h === 'Overdue' ? 'overdue' : h === 'Today' ? 'today' : '';
+  const hi = /^1/.test(it.prio || '') && !closed ? `<span class="c-hi">${L('High', 'גבוהה')}</span>` : '';
+  const area = it.area ? `<span class="c-area" style="--a:${areaColor(it.area)[1]}"><i></i>${esc(tr(it.area))}</span>` : '';
+  // one when-line, no repeats: "2 days late · Mon 20/10", "Today · 09:30", "Thu 23/10"
+  let when = '';
+  if (closed) when = it.done ? `<span>${L('Done', 'בוצע')} ${fmt(it.done)}</span>` : '';
+  else { const d = parse(it.due);
+    if (d) { const n = dayDiff(d, today());
+      const rel = n < 0 ? `<span class="c-late">${n === -1 ? L('1 day late', 'באיחור יום') : L(`${-n} days late`, `באיחור ${-n} ימים`)}</span>` : n === 0 ? `<span class="c-today">${L('Today', 'היום')}</span>` : n === 1 ? `<span>${L('Tomorrow', 'מחר')}</span>` : '';
+      when = rel + (n < 0 || n > 1 ? `<span>${fmt(it.due, true)}</span>` : '') + (it.time ? `<span>${esc(it.time)}</span>` : ''); } }
+  const st = it.status === 'In progress' && !closed ? `<span>${L('In progress', 'בתהליך')}</span>` : '';
   const who = it.focal && it.focal !== 'Me' ? `<span>👤 ${esc(it.focal)}</span>` : '';
-  const rec = it.rec && it.rec !== 'None' ? `<span title="Recurring">↻ ${esc(it.rec)}</span>` : '';
-  const priv = it.private ? '<span class="private-ic" title="Private — hidden from guests">🔒</span>' : '';
-  const cl = Array.isArray(it.checklist) && it.checklist.length ? `<span>☑ ${it.checklist.filter(x => x.d).length}/${it.checklist.length}</span>` : '';
   const wd = waitDays(it);
   const wait = wd !== null ? `<span class="${wd >= 3 ? 'wait-late' : ''}">⏳ ${L(`waiting ${wd}d`, `ממתין ${wd} ימ׳`)}</span>` : '';
+  const rec = it.rec && it.rec !== 'None' ? `<span title="${esc(L('Recurring', 'חוזרת'))}">↻ ${esc(tr(it.rec))}</span>` : '';
+  const cl = Array.isArray(it.checklist) && it.checklist.length ? `<span>☑ ${it.checklist.filter(x => x.d).length}/${it.checklist.length}</span>` : '';
+  const priv = it.private ? '<span class="private-ic" title="Private — hidden from guests">🔒</span>' : '';
+  const cal = it.cal && !isGuest() ? `<span class="cal-ic" title="${esc(L('In iPhone calendar: ', 'ביומן האייפון: ') + it.cal)}">📅</span>` : '';
+  const sep = (arr) => arr.filter(Boolean).join('<span class="dot" aria-hidden="true">·</span>');
+  const owner = !isGuest();
   return `<div class="card ${cls}" data-row="${it.row}">
-    <button class="check ${isClosed(it) ? 'on' : ''}" data-check="${it.row}" aria-label="Mark done">${isClosed(it) ? '✓' : ''}</button>
+    ${owner ? `<button class="check ${closed ? 'on' : ''}" data-check="${it.row}" aria-label="${esc(closed ? L('Mark as not done', 'סמן כלא בוצע') : L('Mark done', 'סמן כבוצע'))}"><span class="ring">${closed ? '✓' : ''}</span></button>` : '<span class="check-sp"></span>'}
     <div class="body">
-      <div class="title" dir="auto">${esc(it.item)}</div>
-      <div class="meta">${it.area ? pill(it.area, areaColor(it.area)) : ''}${pr}${st}${dueLabel(it)}${who}${wait}${cl}${rec}${priv}${it.cal && !isGuest() ? `<span class="cal-ic" title="${esc(L('In iPhone calendar: ', 'ביומן האייפון: ') + it.cal)}">📅 ${esc(it.cal)}</span>` : ''}</div>
+      <div class="title"><bdi>${esc(it.item)}</bdi></div>
+      ${area || hi ? `<div class="meta m1">${area}${hi}</div>` : ''}
+      ${when || st || who || wait || rec || cl || priv || cal ? `<div class="meta m2">${sep([when ? `<span class="c-when">${when}</span>` : '', st, who, wait, rec, cl, priv, cal])}</div>` : ''}
       ${it.com ? `<div class="note" dir="auto">${esc(it.com)}</div>` : ''}
-    </div>${isClosed(it) ? '' : `<button class="snooze" data-snooze="${it.row}" title="${L('Defer to tomorrow', 'דחה למחר')}" aria-label="${L('Defer to tomorrow', 'דחה למחר')}">⏭<span class="snz-t"> ${L('Tomorrow', 'מחר')}</span></button>`}</div>`;
+    </div>${owner && !closed ? `<button class="c-more" data-cmenu="${it.row}" aria-label="${esc(L('More actions', 'פעולות נוספות'))}" aria-haspopup="menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>` : ''}</div>`;
 }
 
 /* area filter: one area, several (long-press a tab to add it), or all */
@@ -333,23 +348,33 @@ function filtered() {
 function render() {
   document.body.classList.toggle('guest', isGuest());
   $('#guestBar').hidden = !isGuest();
-  if (isGuest()) $('#guestBar').textContent = L(`👀 Viewing as ${me.name} · read-only`, `👀 צפייה בתור ${me.name} · קריאה בלבד`) + (me.canSuggest ? L(' · tap ＋ to suggest an item', ' · לחץ ＋ כדי להציע משימה') : '');
-  $('#fab').classList.toggle('can-suggest', isGuest() && me.canSuggest);
+  if (isGuest()) $('#guestBar').textContent = L(`👀 ${me.name} · view only`, `👀 ${me.name} · צפייה בלבד`);
   $('#btnPending').hidden = isGuest() || !(pending.length + pwReq.length);
   $('#pendingBadge').textContent = (pending.length + pwReq.length) || '';
   $('#today').textContent = today().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
-  const open = data.items.filter(it => !isClosed(it));
+  // counts follow the same scope as the list (selected areas, guests' own view)
+  const scope = data.items.filter(it => areaOk(it.area));
+  const open = scope.filter(it => !isClosed(it));
   const cnt = (h) => open.filter(it => horizon(it) === h).length;
   const ws = weekStart(today());
-  const doneWeek = data.items.filter(it => it.status === 'Done' && parse(it.done) >= ws).length;
-  $('#kpis').innerHTML = [
-    ['Overdue', cnt('Overdue'), 'red', 'focus'], ['Today', cnt('Today'), 'amber', 'focus'],
-    ['This week', cnt('This week'), 'green', 'focus'], ['Waiting', open.filter(i => i.status === 'Waiting').length, 'purple', 'waiting'],
-    ['Done wk', doneWeek, '', 'done'], ['Open', open.length, '', 'all']
-  ].map(([l, n, c, tab]) => `<button class="kpi ${c}" data-goto="${tab}"><b>${n}</b><span>${l}</span></button>`).join('');
-
-  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#areaChips').innerHTML = ORDER_BTN() + ['All'].concat(data.areas).map(a => { const sel = areaSel(), on = sel ? sel.includes(a) : a === 'All'; return `<button class="chip ${on ? 'on' : ''} ${on && sel && sel.length > 1 ? 'multi' : ''}" data-area="${esc(a)}">${on && sel && sel.length > 1 ? '✓ ' : ''}${esc(a)}</button>`; }).join('');
+  const doneWeek = scope.filter(it => it.status === 'Done' && parse(it.done) >= ws).length;
+  const k3 = [['Overdue', cnt('Overdue'), L('late', 'באיחור'), 'red'], ['Today', cnt('Today'), L('today', 'להיום'), 'amber'], ['This week', cnt('This week'), L('this week', 'השבוע'), 'green']];
+  $('#kpis').innerHTML = k3.map(([h, n, l, c]) => `<button class="kpi ${c} ${n ? '' : 'zero'}" data-jump="${h}"><b>${n}</b> ${l}</button>`).join('<span class="kdot" aria-hidden="true">·</span>');
+  if ($('#menuKpis')) $('#menuKpis').innerHTML = [['waiting', open.filter(i => i.status === 'Waiting').length, L('Waiting', 'ממתינות')], ['done', doneWeek, L('Done this week', 'בוצעו השבוע')], ['all', open.length, L('Open', 'פתוחות')]]
+    .map(([t, n, l]) => `<button class="mk" data-goto="${t}"><b>${n}</b><span>${l}</span></button>`).join('');
+  const TITLES = { focus: L('Focus', 'פוקוס'), notebook: L('Notebook', 'פנקס'), week: L('Week', 'שבוע'), all: L('All open', 'כל הפתוחות'), waiting: L('Waiting', 'ממתין'), people: L('People', 'אנשים'), done: L('Done', 'בוצעו') };
+  $('#screenTitle').textContent = TITLES[ui.tab] || 'Action Items';
+  const inMore = ['all', 'waiting', 'people', 'done'].includes(ui.tab);
+  document.querySelectorAll('#tabs [data-tab], #moreMenu [data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === ui.tab); b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'); });
+  $('#tabMore').classList.toggle('on', inMore); $('#tabMoreLbl').textContent = inMore ? TITLES[ui.tab] : L('More', 'עוד');
+  if ($('#langMenuLbl')) $('#langMenuLbl').textContent = isHe() ? 'English' : 'עברית';
+  const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll';
+  const fab = $('#fab');
+  fab.hidden = isGuest() && !me.canSuggest;
+  $('#fabLbl').textContent = isGuest() ? L('Suggest a task', 'הצעת משימה') : inColl ? L('New in the Collection', 'רשומה חדשה באוסף') : L('Add a task', 'הוספת משימה');
+  fab.setAttribute('aria-label', $('#fabLbl').textContent);
+  if (search && $('#searchRow').hidden) { $('#searchRow').hidden = false; $('#btnSearch').setAttribute('aria-expanded', 'true'); }
+  $('#areaChips').innerHTML = ['All'].concat(data.areas).map(a => { const sel = areaSel(), on = sel ? sel.includes(a) : a === 'All'; return `<button class="chip ${on ? 'on' : ''} ${on && sel && sel.length > 1 ? 'multi' : ''}" data-area="${esc(a)}" aria-pressed="${on}">${on ? '<span class="ck" aria-hidden="true">✓</span>' : ''}${esc(a)}</button>`; }).join('');
 
   const items = filtered();
   let html = '';
@@ -372,12 +397,16 @@ function render() {
   } else {
     const hs = ui.tab === 'focus' ? ['Overdue', 'Today', 'This week'] : HORIZONS.filter(h => h !== 'No date');
     const openF = items.filter(it => !isClosed(it)).sort(sortOpen);
-    html = hs.map(h => group(h, openF.filter(it => horizon(it) === h), h.toLowerCase().replace(' ', ''))).join('');
+    html = hs.map(h => group(h, openF.filter(it => horizon(it) === h), h.toLowerCase().replace(' ', ''), { collapsible: true, key: ui.tab + ':' + h })).join('');
+    if (ui.tab === 'focus') {
+      const urgent = openF.filter(it => ['Overdue', 'Today'].includes(horizon(it))).length, wk = openF.filter(it => horizon(it) === 'This week').length;
+      if (!urgent) html = `<div class="empty calm"><b>🌤</b><strong>${L('Nothing late or due today', 'אין משהו באיחור או להיום')}</strong>${wk ? `<button class="btn ghost" data-jump="This week">${L(`Show this week (${wk})`, `הצג את השבוע (${wk})`)}</button>` : `<span>${L('Enjoy — or add something with ＋ below.', 'תהנה — או הוסף משהו עם ＋ למטה.')}</span>`}</div>` + html;
+    }
     const nd = openF.filter(it => !it.due).length;
     if (ui.tab === 'all' && nd) html += `<button class="nb-link" data-goto="notebook">📒 ${L(`${nd} items without a date are in the Notebook`, `${nd} משימות ללא תאריך נמצאות בפנקס`)} <span>›</span></button>`;
   }
   if (isGuest() && ui.tab === 'focus' && mySugg.length) html = suggHtml() + html;
-  if (ui.tab === 'focus') html = `<button class="story-btn" data-story><span class="sb-play">▶</span><span><b>${L('Summary video', 'סרטון סיכום')}</b><small>${L('What’s urgent, in 30 seconds', 'מה דחוף — ב-30 שניות')}</small></span><span class="sb-film">🎬</span></button>` + html;
+  if (ui.tab === 'focus') html = `<button class="story-row" data-story><span class="sr-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z" fill="currentColor" stroke="none"/></svg></span><span class="sr-t">${L('Today’s recap', 'תקציר היום')} <small>· ${L('30 seconds', '30 שניות')}</small></span><span class="sr-scope">${esc(areaSelLabel())}</span></button>` + html;
   if (!html) html = ui.tab === 'focus'
     ? `<div class="empty"><b>🎉</b>Nothing overdue, due today or this week.<br>Check "All open" for later items.</div>`
     : `<div class="empty"><b>🗂</b>No items here.</div>`;
@@ -896,9 +925,16 @@ $('#list').addEventListener('keydown', (e) => {
   if (e.target.id === 'nbNew' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const v = e.target.value; e.target.value = ''; nbAdd(v); }
   if (e.target.id === 'collNew' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const v = e.target.value; e.target.value = ''; collQuickAdd(v); }
 });
-function group(title, arr, cls) {
+let grpOpen = (() => { try { return JSON.parse(sessionStorage.getItem('ai.grp') || '{}'); } catch (e) { return {}; } })();
+const GRP_CLOSED = { 'focus:This week': 1, 'all:Next week': 0 };   // collapsed unless opened in this session
+function grpIsOpen(key) { return key in grpOpen ? grpOpen[key] : !GRP_CLOSED[key]; }
+function setGrp(key, v) { grpOpen[key] = v; try { sessionStorage.setItem('ai.grp', JSON.stringify(grpOpen)); } catch (e) { /* none */ } }
+function group(title, arr, cls, opt) {
   if (!arr.length) return '';
-  return `<section class="group ${cls}"><h3>${esc(title)} <span class="n">${arr.length}</span></h3>${arr.map(card).join('')}</section>`;
+  const key = opt && opt.collapsible ? opt.key : '', open = !key || grpIsOpen(key);
+  const head = key ? `<h3><button class="grp-h" data-grp="${esc(key)}" aria-expanded="${open}"><span>${esc(tr(title))}</span> <span class="n">${arr.length}</span><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></h3>`
+    : `<h3>${esc(title)} <span class="n">${arr.length}</span></h3>`;
+  return `<section class="group ${cls} ${open ? '' : 'shut'}" data-h="${esc(title)}">${head}${open ? arr.map(card).join('') : ''}</section>`;
 }
 
 /* ---------- edit dialog ---------- */
@@ -1127,10 +1163,76 @@ $('#repCopy').addEventListener('click', async () => {
   }
 });
 
+/* ---------- card ⋯ menu, More tab, search, area picker, quick-entry sheet ---------- */
+function openCardMenu(btn) {
+  const m = $('#cardMenu'), row = btn.dataset.cmenu, r = btn.getBoundingClientRect();
+  if (!m.hidden && m.dataset.row === row) { closeCardMenu(); return; }
+  m.dataset.row = row;
+  m.innerHTML = [['done', '✓', L('Mark done', 'סמן כבוצע')], ['defer', '⏭', L('Defer to tomorrow', 'דחייה למחר')], ['edit', '✎', L('Edit', 'עריכה')]]
+    .map(([k, ic, l]) => `<button role="menuitem" data-cact="${k}" data-row="${row}"><span aria-hidden="true">${ic}</span>${l}</button>`).join('');
+  m.hidden = false; btn.setAttribute('aria-expanded', 'true');
+  const w = m.offsetWidth, h = m.offsetHeight;
+  let top = r.bottom + 4; if (top + h > innerHeight - 90) top = r.top - h - 4;
+  let left = isHe() ? r.left : r.right - w; left = Math.max(8, Math.min(innerWidth - w - 8, left));
+  m.style.top = top + 'px'; m.style.left = left + 'px';
+  m.querySelector('button').focus({ preventScroll: true });
+}
+function closeCardMenu() { const m = $('#cardMenu'); if (m.hidden) return; m.hidden = true; document.querySelectorAll('[data-cmenu][aria-expanded=true]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
+function toggleMore(open) {
+  const m = $('#moreMenu'), b = $('#tabMore'); open = open === undefined ? m.hidden : open;
+  if (open === !m.hidden) return;
+  m.hidden = !open; b.setAttribute('aria-expanded', open);
+  if (open) { const r = b.getBoundingClientRect(); m.style.top = (r.bottom + 6 + scrollY) + 'px'; m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, isHe() ? r.left : r.right - m.offsetWidth)) + 'px'; }
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeCardMenu(); toggleMore(false); } });
+window.addEventListener('scroll', () => { closeCardMenu(); toggleMore(false); }, { passive: true });
+$('#btnSearch').addEventListener('click', () => {
+  const r = $('#searchRow'), open = r.hidden; r.hidden = !open; $('#btnSearch').setAttribute('aria-expanded', open);
+  if (open) $('#search').focus(); else if (search) { search = ''; $('#search').value = ''; render(); }
+});
+$('#btnAreaPick').addEventListener('click', openAreaPick);
+function openAreaPick() {
+  const sel = areaSel() || [];
+  $('#apList').innerHTML = data.areas.map(a => `<label class="ap-row"><input type="checkbox" value="${esc(a)}" ${sel.includes(a) ? 'checked' : ''}><span class="ap-dot" style="background:${areaColor(a)[1]}"></span><span>${esc(tr(a))}</span><b>${data.items.filter(it => it.area === a && !isClosed(it)).length}</b></label>`).join('');
+  $('#dlgAreaPick').showModal();
+}
+$('#apDone').addEventListener('click', () => {
+  const set = [...document.querySelectorAll('#apList input:checked')].map(x => x.value);
+  if (!set.length || set.length === data.areas.length) { ui.area = 'All'; ui.areas = []; } else if (set.length === 1) { ui.area = set[0]; ui.areas = []; } else { ui.areas = set; ui.area = set[0]; }
+  store.set('ai.ui', ui); $('#dlgAreaPick').close(); render();
+});
+$('#apAll').addEventListener('click', () => { document.querySelectorAll('#apList input').forEach(x => { x.checked = false; }); $('#apDone').click(); });
+$('#apOrder').addEventListener('click', () => { $('#dlgAreaPick').close(); openOrder(); });
+function openQuick() {
+  const d = $('#dlgQuick');
+  $('#qaHelpList').innerHTML = [[L('Date', 'תאריך'), L('today, tomorrow, Sunday, 25/10', 'היום, מחר, ביום ראשון, 25/10')], [L('Time', 'שעה'), '9:30'], [L('Priority', 'עדיפות'), L('!1 high · !3 low', '!1 גבוהה · !3 נמוכה')], [L('Hours', 'שעות'), '~2h · ~0.5'], [L('Person', 'אדם'), '@' + L('Ezra', 'עזרא')], [L('Area', 'תחום'), L('detected from the words, or asked', 'מזוהה מהמילים, או שאשאל')]]
+    .map(([k, v]) => `<li><b>${k}</b> <span dir="auto">${v}</span></li>`).join('');
+  d.showModal(); setTimeout(() => $('#qa').focus(), 60);
+}
+$('#qaHelpBtn').addEventListener('click', () => { const h = $('#qaHelp'); h.hidden = !h.hidden; $('#qaHelpBtn').setAttribute('aria-expanded', !h.hidden); });
+$('#qaFull').addEventListener('click', () => { const v = $('#qa').value.trim(); $('#dlgQuick').close(); openEdit(null); if (v) { const p = parseQuick(v); F('item').value = p.item || v; if (p.due) F('due').value = p.due; if (p.time) F('time').value = p.time; if (p.prio) F('prio').value = p.prio; if (p.area) F('area').value = p.area; if (p.hrs) F('hrs').value = p.hrs; if (p.focal) F('focal').value = p.focal; } });
+// keep the sheet above the iPhone keyboard
+if (window.visualViewport) { const kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) + 'px'); visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb); }
+
 /* ---------- events ---------- */
 document.addEventListener('click', (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) { t.closest('dialog').close(); return; }
+  const jp = t.closest('[data-jump]');
+  if (jp) { const h = jp.dataset.jump; if (ui.tab !== 'focus') { ui.tab = 'focus'; store.set('ai.ui', ui); } setGrp('focus:' + h, true); render();
+    const sec = document.querySelector(`#list .group[data-h="${h}"]`); if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); else toast(L('Nothing there right now', 'אין שם כלום כרגע')); return; }
+  const gh = t.closest('[data-grp]');
+  if (gh) { setGrp(gh.dataset.grp, !grpIsOpen(gh.dataset.grp)); render(); return; }
+  const cm = t.closest('[data-cmenu]');
+  if (cm) { e.stopPropagation(); openCardMenu(cm); return; }
+  const ca = t.closest('[data-cact]');
+  if (ca) { closeCardMenu(); const it = data.items.find(x => String(x.row) === ca.dataset.row); if (!it) return;
+    if (ca.dataset.cact === 'defer') snooze(it.row); else if (ca.dataset.cact === 'edit') openEdit(it); else if (ca.dataset.cact === 'done') toggleDone(it); return; }
+  if (!t.closest('#cardMenu')) closeCardMenu();
+  if (t.closest('#tabMore')) { toggleMore(); return; }
+  if (!t.closest('#moreMenu')) toggleMore(false);
+  if (t.closest('#moreMenu [data-tab]')) toggleMore(false);
+  if (t.closest('#menuKpis [data-goto]') && $('#dlgMenu').open) $('#dlgMenu').close();
   if (t.closest('[data-lang-toggle]')) { setLang(isHe() ? 'en' : 'he'); return; }
   const sz = t.closest('[data-snooze]');
   if (sz) { e.stopPropagation(); snooze(sz.dataset.snooze); return; }
@@ -1193,7 +1295,7 @@ $('#areaChips').addEventListener('pointerdown', (e) => { const ch = e.target.clo
 $('#areaChips').addEventListener('scroll', () => clearTimeout(areaHold), { passive: true });
 $('#areaChips').addEventListener('contextmenu', (e) => { if (e.target.closest('[data-area]')) e.preventDefault(); });
 $('#search').addEventListener('input', (e) => { search = e.target.value; render(); });
-$('#fab').addEventListener('click', () => isGuest() ? openSuggest() : (ui.tab === 'notebook' && ui.nbBook === 'coll') ? openColl({ cat: ui.collCat, status: 'want' }) : openEdit(null));
+$('#fab').addEventListener('click', () => isGuest() ? openSuggest() : (ui.tab === 'notebook' && ui.nbBook === 'coll') ? openColl({ cat: ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat, status: 'want' }) : openQuick());
 $('#btnSettings').addEventListener('click', openSettings);
 $('#btnRefresh').addEventListener('click', () => load());
 $('#btnReport').addEventListener('click', openReport);
@@ -1210,13 +1312,15 @@ $('#btnPending2').addEventListener('click', openPending);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && lockEl.hidden) load(true); });
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, action) {
   const t = $('#toast');
   // dialogs sit in the browser's top layer — move the toast inside the open dialog so it is visible
   const host = [...document.querySelectorAll('dialog[open]')].pop() || document.body;
   if (t.parentNode !== host) host.appendChild(t);
-  t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  t.textContent = msg; t.classList.toggle('has-act', !!action);
+  if (action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'toast-act'; b.textContent = action.label; b.onclick = (e) => { e.stopPropagation(); t.classList.remove('show'); action.fn(); }; t.appendChild(b); }
+  t.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), action ? 6000 : 3200);
 }
 
 /* ---------- demo backend (no sheet needed) ---------- */
@@ -1694,7 +1798,7 @@ $('#quickAdd').addEventListener('submit', async (e) => {
   if (!area) { const g = guessArea(p.item, p.focal); area = await askArea(p.item, g && g.ranked); if (!area) return; }
   const it = { item: p.item, status: 'Not started', area, prio: p.prio || '2 - Medium',
     due: p.due, time: p.time, focal: p.focal || 'Me', hrs: p.hrs, rec: 'None', created: iso(today()) };
-  $('#qa').value = ''; qaPreview();
+  $('#qa').value = ''; qaPreview(); if ($('#dlgQuick').open) $('#dlgQuick').close();
   if (await save(it)) toast(L(`Added to ${it.area}: ${it.item}`, `נוסף ל${tr(it.area)}: ${it.item}`));
 });
 
@@ -2520,11 +2624,7 @@ function renderPlayMenu() {
   const urgent = (a) => data.items.filter(it => it.area === a && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;
   const items = [];
   const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll' && !isGuest();
-  if (isGuest()) { if (me.canSuggest) items.push(['new', '＋', L('Suggest an item', 'הצעת משימה'), L('Goes to the owner for approval', 'נשלחת לאישור')]); }
-  else {
-    if (inColl) items.push(['newcoll', '💡', L('New in the Collection', 'רשומה חדשה באוסף'), esc(catOf(ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat).name || '')]);
-    items.push(['new', '＋', L('New action item', 'משימה חדשה'), L('With date, area, priority…', 'עם תאריך, תחום, עדיפות…')]);
-  }
+  void inColl;   // new task / new Collection entry: the ＋ button next to ▶
   if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
   { const n = data.items.filter(it => areaOk(it.area) && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;   // the video follows the area(s) on screen
     items.push(['story:', '🎬', L(`What’s urgent · ${areaSelLabel()}`, `מה דחוף · ${areaSelLabel()}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); }
@@ -2988,7 +3088,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 57;
+const APP_VERSION = 58;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

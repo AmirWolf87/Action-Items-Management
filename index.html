@@ -14,56 +14,75 @@
 <script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('ai.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
-<link rel="stylesheet" href="styles.css?v=57">
+<link rel="stylesheet" href="styles.css?v=58">
 </head>
 <body>
 <header class="top">
   <div class="top-row">
-    <div>
-      <h1>Action Items</h1>
-      <div class="sub"><span id="today"></span> <span id="sync" class="sync"></span></div>
+    <div class="top-title">
+      <h1 id="screenTitle" class="no-i18n">Action Items</h1>
+      <div class="sub"><span id="today"></span> <span id="sync" class="sync"></span><button type="button" class="sync-err" id="syncErr" hidden></button></div>
     </div>
     <div class="top-actions">
-      <button class="icon-btn lang-btn" data-lang-toggle title="החלף לעברית">עב</button>
-      <button class="icon-btn" id="btnRefresh" title="Refresh" aria-label="Refresh">⟳</button>
       <button class="icon-btn owner-only" id="btnPending" title="Suggestions waiting for approval" aria-label="Pending approvals" hidden>📥<span class="badge" id="pendingBadge"></span></button>
-      <button class="icon-btn owner-only" id="btnReport" title="Weekly report" aria-label="Weekly report">✉</button>
-      <button class="icon-btn" id="btnMenu" title="Menu" aria-label="Menu">☰</button>
+      <button class="icon-btn" id="btnSearch" title="Search" aria-label="Search" aria-expanded="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2"/></svg></button>
+      <button class="icon-btn" id="btnMenu" title="Menu" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     </div>
   </div>
   <div class="guest-bar" id="guestBar" hidden></div>
-  <div class="kpis" id="kpis"></div>
+  <div class="kpis kpi-line" id="kpis"></div>
 </header>
 
 <nav class="tabs" id="tabs">
   <button data-tab="focus" class="on">Focus</button>
   <button data-tab="notebook">📒 Notebook</button>
   <button data-tab="week">Week</button>
-  <button data-tab="all">All open</button>
-  <button data-tab="waiting">Waiting</button>
-  <button data-tab="people">People</button>
-  <button data-tab="done">Done</button>
+  <button class="tab-more" id="tabMore" aria-haspopup="menu" aria-expanded="false"><span class="no-i18n" id="tabMoreLbl">More</span> <span aria-hidden="true">▾</span></button>
 </nav>
+<div class="more-menu" id="moreMenu" role="menu" hidden>
+  <button data-tab="all" role="menuitem">All open</button>
+  <button data-tab="waiting" role="menuitem">Waiting</button>
+  <button data-tab="people" role="menuitem">People</button>
+  <button data-tab="done" role="menuitem">Done</button>
+</div>
 
 <div class="filters">
-  <form id="quickAdd" class="quick-add owner-only" autocomplete="off">
-    <label for="qa" class="qa-title"><span class="qa-bolt">⚡</span><span>Quick add</span><small>Type naturally — date, time, !1, @person, ~2h</small></label>
-    <span class="qa-icon" aria-hidden="true">⚡</span>
-    <input id="qa" placeholder="tomorrow 9:30 Send forecast to Ezra !1 ~2h" dir="auto">
-    <button type="submit" class="btn primary" aria-label="Add">＋</button>
-  </form>
-  <div class="qa-preview" id="qaPreview"></div>
-  <div class="chips" id="areaChips"></div>
-  <input id="search" type="search" placeholder="Search…" autocomplete="off">
+  <div class="search-row" id="searchRow" hidden><input id="search" type="search" placeholder="Search…" autocomplete="off" enterkeyhint="search"></div>
+  <div class="area-row"><div class="chips" id="areaChips"></div><button type="button" class="area-pick" id="btnAreaPick" aria-label="Choose areas">Choose areas</button></div>
 </div>
 
 <main id="list" class="list"></main>
 
-<button class="fab" id="fab" aria-label="Add action item">+</button>
+<div class="bottom-bar" id="bottomBar">
+  <button class="fab add-btn" id="fab" aria-label="Add action item"><span aria-hidden="true">＋</span> <span class="no-i18n" id="fabLbl">Add a task</span></button>
+  <button class="fab fab-play" id="fabPlay" aria-label="Quick actions" aria-expanded="false" aria-controls="playMenu"><span>▶</span></button>
+</div>
 <div class="play-shade" id="playShade" hidden></div>
 <div class="play-menu" id="playMenu" hidden role="menu"></div>
-<button class="fab fab-play" id="fabPlay" aria-label="Quick actions" aria-expanded="false"><span>▶</span></button>
+<div class="card-menu" id="cardMenu" role="menu" hidden></div>
 <div class="toast" id="toast"></div>
+
+<!-- Quick entry (bottom sheet) -->
+<dialog id="dlgQuick" class="sheet qa-sheet">
+  <form id="quickAdd" class="quick-add owner-only" autocomplete="off">
+    <div class="sheet-head"><h2>New task</h2><button type="button" class="icon-btn dark qa-help-btn" id="qaHelpBtn" aria-label="Help" aria-expanded="false">?</button><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+    <div class="qa-help" id="qaHelp" hidden>
+      <p>Type naturally — the app picks up:</p>
+      <ul class="no-i18n" id="qaHelpList"></ul>
+    </div>
+    <div class="qa-field"><input id="qa" placeholder="tomorrow 9:30 Send forecast to Ezra !1 ~2h" dir="auto" enterkeyhint="done"><button type="submit" class="btn primary" aria-label="Add">Add</button></div>
+    <div class="qa-preview" id="qaPreview"></div>
+    <button type="button" class="linkish qa-full" id="qaFull">Open the full editor ›</button>
+  </form>
+</dialog>
+
+<!-- Choose areas -->
+<dialog id="dlgAreaPick" class="sheet small">
+  <div class="sheet-head"><h2>Choose areas</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Pick one or more areas — tasks, counts and the summary video follow your choice.</p>
+  <div class="ap-list no-i18n" id="apList"></div>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="apAll">All areas</button><button type="button" class="btn ghost owner-only" id="apOrder">⇅ Order</button><span class="grow"></span><button type="button" class="btn primary" id="apDone">Show</button></div>
+</dialog>
 
 <!-- Edit / add -->
 <dialog id="dlgEdit" class="sheet">
@@ -257,7 +276,11 @@
 <!-- Menu -->
 <dialog id="dlgMenu" class="sheet small menu">
   <div class="sheet-head"><h2>Menu</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div class="menu-kpis no-i18n" id="menuKpis"></div>
   <button class="menu-item" id="btnStory">🎬 <span>Summary video</span></button>
+  <button class="menu-item" id="btnRefresh">⟳ <span>Refresh</span></button>
+  <button class="menu-item" data-lang-toggle id="btnLangMenu">🌐 <span class="no-i18n" id="langMenuLbl">עברית</span></button>
+  <button class="menu-item owner-only" id="btnReport">✉ <span>Weekly report</span></button>
   <button class="menu-item owner-only" id="btnNotify">🔔 <span>Phone notifications</span></button>
   <button class="menu-item owner-only" id="btnShare">👥 <span>Sharing &amp; guests</span></button>
   <button class="menu-item owner-only" id="btnPending2">📥 <span>Suggestions to approve</span></button>
@@ -474,7 +497,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=57"></script>
-<script src="app.js?v=57"></script>
+<script src="i18n.js?v=58"></script>
+<script src="app.js?v=58"></script>
 </body>
 </html>
