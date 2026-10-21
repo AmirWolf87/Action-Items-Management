@@ -379,6 +379,7 @@ function render() {
 
   const items = filtered();
   let html = '';
+  if (search.trim()) { $('#list').classList.remove('weekmode'); document.body.classList.remove('nb-mode', 'coll-mode'); $('#list').innerHTML = searchHtml(search.trim()); return; }
   $('#list').classList.toggle('weekmode', ui.tab === 'week');
   if (ui.tab !== 'notebook') document.body.classList.remove('nb-mode', 'coll-mode');
   if (ui.tab === 'week') { $('#list').innerHTML = renderWeek(items); return; }
@@ -1173,6 +1174,90 @@ $('#repCopy').addEventListener('click', async () => {
     toast('The email is selected — press Ctrl+C (or long-press › Copy), then paste in Outlook');
   }
 });
+
+/* ---------- 🔎 one search for tasks, Notebook and Collection ---------- */
+function searchHtml(q) {
+  const ql = q.toLowerCase(), hit = (arr) => arr.join(' ').toLowerCase().includes(ql);
+  const all = data.items.filter(it => hit([it.item, it.topic, it.com, it.focal, tr(it.area || '')]));     // guests only ever receive what's shared with them
+  const tasks = all.filter(it => it.due || isClosed(it)).sort((a, b) => isClosed(a) - isClosed(b) || sortOpen(a, b));
+  const notes = all.filter(it => !it.due && !isClosed(it));
+  const cl = coll.filter(en => collCats.some(c => c.id === en.cat) && hit([en.title, en.notes, en.place, en.by, en.for, en.ing || '']));
+  const sec = (ic, title, n, body) => n ? `<section class="group sr-sec"><h3>${ic} ${esc(title)} <span class="n">${n}</span></h3>${body}</section>` : '';
+  const nbRow = (it) => `<button class="sr-item" data-sropen="${it.row}"><span class="sr-type">📒 ${L('Notebook', 'פנקס')}</span><bdi>${esc(it.item)}</bdi><small>${esc(tr(it.area))}</small></button>`;
+  const clRow = (en) => { const c = catOf(en.cat); return `<button class="sr-item" data-cid="${esc(en.id)}"><span class="sr-type">💡 ${esc(c.name || L('Collection', 'אוסף'))}</span><bdi>${esc(en.title)}</bdi><small>${esc([en.place, en.status === 'tried' ? L('tried', 'ניסינו') : ''].filter(Boolean).join(' · '))}</small></button>`; };
+  const html = sec('✅', L('Tasks', 'משימות'), tasks.length, tasks.slice(0, 40).map(it => card(it)).join(''))
+    + sec('📒', L('Notebook', 'פנקס'), notes.length, notes.slice(0, 40).map(nbRow).join(''))
+    + sec('💡', L('Collection', 'אוסף'), cl.length, cl.slice(0, 40).map(clRow).join(''));
+  return `<div class="sr-head">${L(`Results for “${esc(q)}” — all areas`, `תוצאות עבור "${esc(q)}" — בכל התחומים`)}</div>` + (html || `<div class="empty"><b>🔎</b>${L('Nothing found.', 'לא נמצא כלום.')}</div>`);
+}
+document.addEventListener('click', (e) => { const o = e.target.closest('[data-sropen]'); if (!o) return; const it = data.items.find(x => String(x.row) === o.dataset.sropen); if (it) openEdit(it); });
+
+/* ---------- 🗓 weekly review: decisions, not statistics ---------- */
+let wr = null;
+function openReview() {
+  if (isGuest()) return;
+  wr = { step: 0, log: [], pick: {} };
+  $('#dlgReview').showModal(); wrRender();
+}
+function wrLog(txt) { wr.log.push(txt); }
+function wrRender() {
+  const box = $('#wrBody'), steps = [L('Overdue', 'באיחור'), L('Waiting on others', 'ממתין לאחרים'), L('From the Notebook', 'מהפנקס'), L('Decisions', 'החלטות')];
+  const nav = `<ol class="wr-steps">${steps.map((t, k) => `<li class="${k === wr.step ? 'on' : k < wr.step ? 'done' : ''}">${t}</li>`).join('')}</ol>`;
+  const open = data.items.filter(it => !isClosed(it));
+  let body = '';
+  if (wr.step === 0) {
+    const od = open.filter(it => horizon(it) === 'Overdue').sort((a, b) => parse(a.due) - parse(b.due));
+    body = od.length ? `<p class="wr-q">${L('What stays late? Decide on each one.', 'מה עדיין באיחור? להחליט על כל אחת.')}</p><ul class="wr-list">${od.slice(0, 8).map(it => `<li><bdi>${esc(it.item)}</bdi><small class="c-late">${L(`${dayDiff(today(), parse(it.due))}d late`, `באיחור ${dayDiff(today(), parse(it.due))} ימ׳`)}</small></li>`).join('')}</ul>${od.length > 8 ? `<p class="hint">${L(`+${od.length - 8} more`, `ועוד ${od.length - 8}`)}</p>` : ''}
+      <button class="btn primary wr-big" data-wr="triage">${L(`Go through ${od.length}, one at a time`, `לעבור על ${od.length}, אחת אחת`)}</button>`
+      : `<p class="wr-ok">✅ ${L('Nothing overdue.', 'אין משימות באיחור.')}</p>`;
+  } else if (wr.step === 1) {
+    const w = open.filter(it => it.status === 'Waiting' || (it.focal && it.focal !== 'Me')).sort((a, b) => (waitDays(b) || 0) - (waitDays(a) || 0));
+    body = w.length ? `<p class="wr-q">${L('Who do you need to follow up with?', 'על מי אני מחכה וצריך לעשות מעקב?')}</p>${w.slice(0, 12).map(it => `<div class="wr-row" data-wrrow="${it.row}"><div><bdi>${esc(it.item)}</bdi><small>👤 ${esc(it.focal || '')}${waitDays(it) !== null ? ' · ' + L(`waiting ${waitDays(it)}d`, `ממתין ${waitDays(it)} ימ׳`) : ''}</small></div>
+        <div class="wr-btns"><button data-wr="nudge" data-r="${it.row}">✉ ${L('Remind', 'תזכורת')}</button><button data-wr="got" data-r="${it.row}">✓ ${L('Got it', 'התקבל')}</button><button data-wr="tue" data-r="${it.row}">📅 ${L('Check Tue', 'לבדוק בשלישי')}</button></div></div>`).join('')}`
+      : `<p class="wr-ok">✅ ${L('Not waiting on anyone.', 'לא מחכה לאף אחד.')}</p>`;
+  } else if (wr.step === 2) {
+    const nb = open.filter(it => !it.due).sort((a, b) => prioRank(a.prio) - prioRank(b.prio));
+    const ns = addDays(weekStart(today()), 7);
+    body = nb.length ? `<p class="wr-q">${L('Which Notebook items move forward next week?', 'אילו משימות מהפנקס לקדם בשבוע הבא?')}</p>
+      <div class="wr-pick">${nb.slice(0, 20).map(it => `<label class="ap-row"><input type="checkbox" data-wrpick="${it.row}" ${wr.pick[it.row] ? 'checked' : ''}><span class="ap-dot" style="background:${areaColor(it.area)[1]}"></span><bdi>${esc(it.item)}</bdi><b>${esc(tr(it.area))}</b></label>`).join('')}</div>
+      <label class="wr-day">${L('Plan them for', 'לתכנן ל־')} <input type="date" id="wrDay" value="${iso(ns)}"></label>
+      <label class="remember"><input type="checkbox" id="wrToDay"> ${L('Also put the first one in My day', 'וגם להכניס את הראשונה ל"שלי להיום"')}</label>`
+      : `<p class="wr-ok">📒 ${L('The Notebook is empty.', 'הפנקס ריק.')}</p>`;
+  } else {
+    const ns = addDays(weekStart(today()), 7), ne = addDays(ns, 6);
+    const next = open.filter(it => { const d = parse(it.due); return d && d >= ns && d <= ne; }).sort(sortOpen);
+    body = `<p class="wr-q">${L('What you decided:', 'מה החלטת:')}</p>${wr.log.length ? `<ul class="wr-list">${wr.log.map(t => `<li>${t}</li>`).join('')}</ul>` : `<p class="hint">${L('No changes this time.', 'לא שינית כלום הפעם.')}</p>`}
+      <p class="wr-q">${L(`Next week (${fmt(iso(ns), true)}–${fmt(iso(ne), true)}):`, `השבוע הבא (${fmt(iso(ns), true)}–${fmt(iso(ne), true)}):`)}</p>
+      ${next.length ? `<ul class="wr-list">${next.map(it => `<li><bdi>${esc(it.item)}</bdi><small>${fmt(it.due, true)} · ${esc(tr(it.area))}</small></li>`).join('')}</ul>` : `<p class="hint">${L('Nothing planned yet.', 'עוד לא תוכנן כלום.')}</p>`}`;
+  }
+  const last = wr.step === 3;
+  box.innerHTML = nav + `<div class="wr-body">${body}</div><div class="sheet-actions">${wr.step ? `<button class="btn ghost" data-wr="prev">‹ ${L('Back', 'חזרה')}</button>` : ''}<span class="grow"></span>${last ? `<button class="btn primary" data-close>${L('Finish', 'סיום')}</button>` : `<button class="btn primary" data-wr="next">${wr.step === 2 && Object.values(wr.pick).some(Boolean) ? L('Plan & continue', 'לתכנן ולהמשיך') : L('Next', 'הבא')} ›</button>`}</div>`;
+}
+document.addEventListener('change', (e) => { const c = e.target.closest('[data-wrpick]'); if (c && wr) wr.pick[c.dataset.wrpick] = c.checked; });
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('#dlgReview [data-wr]'); if (!b || !wr) return;
+  const k = b.dataset.wr, it = b.dataset.r ? data.items.find(x => String(x.row) === b.dataset.r) : null;
+  if (k === 'prev') { wr.step--; wrRender(); return; }
+  if (k === 'triage') { openTriage(); const t = $('#dlgTriage'); const back = () => { t.removeEventListener('close', back); if (wr) { const n = tri ? tri.stats : null; wrRender(); } }; t.addEventListener('close', back); return; }
+  if (k === 'next') {
+    if (wr.step === 2) {
+      const rows = Object.keys(wr.pick).filter(r => wr.pick[r]).map(Number), day = ($('#wrDay') || {}).value;
+      for (const r of rows) { const x = data.items.find(y => y.row === r); if (x && day && await save(Object.assign({}, x, { due: day }))) wrLog(L(`📅 “${esc(x.item)}” → ${fmt(day, true)}`, `📅 "${esc(x.item)}" ← ${fmt(day, true)}`)); }
+      if (rows.length && $('#wrToDay') && $('#wrToDay').checked) { toggleDay(rows[0]); wrLog(L('☀ added to My day', '☀ נוסף לשלי להיום')); }
+      wr.pick = {};
+    }
+    wr.step++; wrRender(); return;
+  }
+  if (!it) return;
+  if (k === 'nudge') {
+    const text = isHe() ? `היי${it.focal && it.focal !== 'Me' ? ' ' + it.focal : ''}, תזכורת קטנה לגבי "${it.item}". אשמח לעדכון כשתוכל/י. תודה!` : `Hi${it.focal && it.focal !== 'Me' ? ' ' + it.focal : ''}, a quick reminder about "${it.item}". Could you update me when you can? Thanks!`;
+    try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); toast(L('Reminder copied', 'התזכורת הועתקה')); } } catch (x) { /* cancelled */ }
+    wrLog(L(`✉ reminded about “${esc(it.item)}”`, `✉ נשלחה תזכורת על "${esc(it.item)}"`)); b.closest('.wr-row').classList.add('did'); return;
+  }
+  if (k === 'got') { if (await save(Object.assign({}, it, { status: 'In progress', focal: 'Me', wsince: '' }))) { wrLog(L(`✓ “${esc(it.item)}” came back`, `✓ "${esc(it.item)}" התקבל`)); wrRender(); } return; }
+  if (k === 'tue') { let d = addDays(weekStart(today()), 2); if (d <= today()) d = addDays(d, 7); if (await save(Object.assign({}, it, { due: iso(d) }))) { wrLog(L(`📅 follow up “${esc(it.item)}” on ${fmt(iso(d), true)}`, `📅 מעקב על "${esc(it.item)}" ב-${fmt(iso(d), true)}`)); b.closest('.wr-row').classList.add('did'); } return; }
+});
+$('#btnReview').addEventListener('click', openReview);
 
 /* ---------- ☀ My day: up to 3 tasks chosen for today (intentions — due dates are not touched) ---------- */
 const todayIso = () => iso(today());
@@ -2905,6 +2990,7 @@ function renderPlayMenu() {
     items.push(['story:', '🎬', L(`What’s urgent · ${areaSelLabel()}`, `מה דחוף · ${areaSelLabel()}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); }
   if (!isGuest()) {
     items.push(['clip', '📋', L('Link → Collection', 'קישור לאוסף'), L('Paste the link you just copied', 'מדביק את הקישור שהעתקת עכשיו')]);
+    items.push(['review', '🗓', L('Weekly review', 'סקירה שבועית'), L('Overdue · waiting · next week', 'באיחור · ממתין · השבוע הבא')]);
     items.push(['report', '✉️', L('Weekly report', 'דוח שבועי'), L('Ready to send', 'מוכן לשליחה')]);
   }
   $('#playMenu').innerHTML = items.map(([k, ic, t, sub]) => `<button data-play="${esc(k)}" class="${k === 'new' || k === 'newcoll' ? 'pm-main' : ''}"><span class="pm-ic">${ic}</span><span><b>${esc(t)}</b><small>${esc(sub)}</small></span></button>`).join('');
@@ -2920,6 +3006,7 @@ $('#playShade').addEventListener('click', () => togglePlay(false));
 $('#playMenu').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-play]'); if (!b) return; const k = b.dataset.play; togglePlay(false);
   if (k === 'new') { isGuest() ? openSuggest() : openEdit(null); return; }
+  if (k === 'review') { openReview(); return; }
   if (k === 'newcoll') { openColl({ cat: ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat, status: 'want' }); return; }
   if (k.startsWith('story:')) { openStory(k.slice(6) || null); return; }
   if (k === 'report') { openReport(); return; }
@@ -3366,7 +3453,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 60;
+const APP_VERSION = 61;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
