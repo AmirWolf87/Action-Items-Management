@@ -2173,43 +2173,63 @@ function confetti(host) {
   host.appendChild(box);
 }
 let mcSeq = 0;
+const INK = '#2A1A12';
+/* "drawn by hand": ink outlines on solid shapes */
+function inked(svg, w) {
+  return String(svg || '').replace(/<(ellipse|path|rect|circle)\b([^>]*?)\/>/g, (m, tag, attrs) => {
+    const f = (attrs.match(/fill="([^"]*)"/) || [])[1] || '';
+    if (!f || f === 'none' || /rgba|url|#fff\b|#FFFFFF/i.test(f) || /opacity/.test(attrs)) return m;
+    return `<${tag}${attrs.replace(/\sstroke(-width)?="[^"]*"/g, '')} stroke="${INK}" stroke-width="${w || 2.6}" stroke-linejoin="round"/>`;
+  });
+}
 function mascotSvg(ch) {
   ch = ch || ST_CAST[0];
-  const G = 'mcg' + (++mcSeq), shade = 'rgba(0,0,0,.14)', limb = ch.limb || 'var(--mc)';
-  // a soft 3D look: the same shapes again, filled with a shadow gradient (dark edges) and a shine
-  const shadeOf = (svg) => String(svg || '').replace(/fill="var\(--mc\)"/g, `fill="url(#${G}s)"`).replace(/stroke="[^"]*"/g, '').replace(/class="[^"]*"/g, '');
+  const G = 'mcg' + (++mcSeq), limb = ch.limb || 'var(--mc)';
   const onlyMc = (svg) => (String(svg || '').match(/<(ellipse|path|rect|circle)[^>]*fill="var\(--mc\)"[^>]*\/>/g) || []).join('');
-  const legs = ch.noLegs ? '' : `<g class="mc-leg mc-legL"><rect x="43" y="150" width="12" height="32" rx="6" fill="${limb}" stroke="${shade}"/><ellipse cx="46" cy="184" rx="11" ry="6" fill="${ch.shoe || '#1F2937'}"/></g>
-      <g class="mc-leg mc-legR"><rect x="65" y="150" width="12" height="32" rx="6" fill="${limb}" stroke="${shade}"/><ellipse cx="74" cy="184" rx="11" ry="6" fill="${ch.shoe || '#1F2937'}"/></g>`;
-  const torso = ch.torso || `<ellipse cx="60" cy="138" rx="28" ry="25" fill="var(--mc)" stroke="${shade}"/><ellipse cx="60" cy="143" rx="17" ry="15" fill="rgba(255,255,255,.3)"/>`;
-  const arm = (side) => { const L = side === 'L', sx = L ? 37 : 83, hx = L ? 18 : 102;
-    return `<g class="mc-arm mc-arm${side}"><path d="M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154" stroke="${limb}" stroke-width="11" fill="none" stroke-linecap="round"/><path d="M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154" stroke="${shade}" stroke-width="11" fill="none" stroke-linecap="round" opacity=".35"/>
-      ${L ? (ch.itemL || '') : ''}<circle cx="${hx}" cy="156" r="7.5" fill="${ch.limb ? '#F5D0B5' : 'var(--mc)'}" stroke="${shade}"/>${L ? '' : `<g class="mc-extra mc-cup"><rect x="${hx - 8}" y="138" width="16" height="18" rx="3" fill="#fff" stroke="#78350F" stroke-width="2.5"/><path d="M${hx + 8} 143 q6 0 6 5 q0 5-6 5" fill="none" stroke="#78350F" stroke-width="2.5"/>
+  const plain = (svg, fill) => onlyMc(svg).replace(/fill="var\(--mc\)"/g, `fill="${fill}"`).replace(/\s(stroke|stroke-width|class)="[^"]*"/g, '');
+  const torso = ch.torso || `<ellipse cx="60" cy="138" rx="28" ry="25" fill="var(--mc)"/><ellipse cx="60" cy="143" rx="17" ry="15" fill="rgba(255,255,255,.3)"/>`;
+  const forms = plain(ch.body, '#fff') + plain(torso, '#fff'), formsOff = plain(ch.body, '#000') + plain(torso, '#000');
+  const legs = ch.noLegs ? '' : ['L', 'R'].map(sd => { const x = sd === 'L' ? 43 : 65, fx = sd === 'L' ? 46 : 74;
+    return `<g class="mc-leg mc-leg${sd}"><path d="M${x + 6} 150 Q${x + (sd === 'L' ? 4 : 8)} 166 ${x + 6} 180" stroke="${INK}" stroke-width="15" fill="none" stroke-linecap="round"/><path d="M${x + 6} 150 Q${x + (sd === 'L' ? 4 : 8)} 166 ${x + 6} 180" stroke="${limb}" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <path d="M${fx - 12} 186 Q${fx - 11} 176 ${fx} 177 Q${fx + 12} 178 ${fx + 12} 186 Z" fill="${ch.shoe || '#1F2937'}" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/></g>`; }).join('');
+  const arm = (side) => { const L = side === 'L', sx = L ? 37 : 83, hx = L ? 18 : 102, d = `M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154`;
+    return `<g class="mc-arm mc-arm${side}"><path d="${d}" stroke="${INK}" stroke-width="14.5" fill="none" stroke-linecap="round"/><path d="${d}" stroke="${limb}" stroke-width="9.5" fill="none" stroke-linecap="round"/>
+      ${L ? inked(ch.itemL || '', 2) : ''}<path d="M${hx - 7} 156 q0-8 7-8 q8 0 8 7 q0 3-2 4 q2 2 0 4 q-2 3-7 2 q-6-1-6-9z" fill="${ch.limb ? '#F5D0B5' : 'var(--mc)'}" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>${L ? '' : `<g class="mc-extra mc-cup"><path d="M${hx - 8} 138 h16 l-2 18 h-12 z" fill="#fff" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/><path d="M${hx + 8} 143 q6 0 6 5 q0 5-6 5" fill="none" stroke="${INK}" stroke-width="2.4"/>
       <path class="mc-steam" d="M${hx - 3} 134 q-3-5 0-8 q3-3 0-8 M${hx + 3} 134 q-3-5 0-8 q3-3 0-8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></g>`}</g>`; };
-  const wings = ch.wings ? `<g class="mc-wing mc-wingL"><path d="M34 120 Q4 126 8 162 Q22 150 36 146 Z" fill="#78350F"/></g><g class="mc-wing mc-wingR"><path d="M86 120 Q116 126 112 162 Q98 150 84 146 Z" fill="#78350F"/></g>` : '';
-  const sparkle = ch.sparkle ? `<g class="mc-sparkles"><path d="M8 40 l2 6 l6 2 l-6 2 l-2 6 l-2-6 l-6-2 l6-2 Z" fill="#FDE047"/><path d="M110 70 l1.5 4.5 l4.5 1.5 l-4.5 1.5 l-1.5 4.5 l-1.5-4.5 l-4.5-1.5 l4.5-1.5 Z" fill="#F9A8D4"/><path d="M100 14 l1.5 4.5 l4.5 1.5 l-4.5 1.5 l-1.5 4.5 l-1.5-4.5 l-4.5-1.5 l4.5-1.5 Z" fill="#A5F3FC"/></g>` : '';
+  const wings = ch.wings ? `<g class="mc-wing mc-wingL"><path d="M34 120 Q4 126 8 162 Q14 152 20 156 Q24 148 36 146 Z" fill="#78350F" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/></g><g class="mc-wing mc-wingR"><path d="M86 120 Q116 126 112 162 Q106 152 100 156 Q96 148 84 146 Z" fill="#78350F" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/></g>` : '';
+  const sparkle = ch.sparkle ? `<g class="mc-sparkles"><path d="M8 40 l2 6 l6 2 l-6 2 l-2 6 l-2-6 l-6-2 l6-2 Z" fill="#FDE047" stroke="${INK}" stroke-width="1.2"/><path d="M110 70 l1.5 4.5 l4.5 1.5 l-4.5 1.5 l-1.5 4.5 l-1.5-4.5 l-4.5-1.5 l4.5-1.5 Z" fill="#F9A8D4" stroke="${INK}" stroke-width="1.2"/><path d="M100 14 l1.5 4.5 l4.5 1.5 l-4.5 1.5 l-1.5 4.5 l-1.5-4.5 l-4.5-1.5 l4.5-1.5 Z" fill="#A5F3FC" stroke="${INK}" stroke-width="1.2"/></g>` : '';
+  const eye = (cx, flip) => `<path d="M${cx - 11} ${62} q1-13 12-12 q11 1 10 13 q-1 11-11 11 q-11 0-11-12z" fill="#FFFDF7" stroke="${INK}" stroke-width="2.4" ${flip ? `transform="rotate(-6 ${cx} 62)"` : `transform="rotate(5 ${cx} 62)"`}/>`;
   return `<svg class="mc-svg mc-${ch.id} ${ch.quirk || ''} ${ch.hat ? 'has-hat' : ''}" viewBox="0 0 120 200" aria-hidden="true" style="--mc:${ch.c}">
-    <defs><radialGradient id="${G}s" cx="38%" cy="32%" r="75%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".22"/></radialGradient>
-      <radialGradient id="${G}h" cx="35%" cy="28%" r="45%"><stop offset="0%" stop-color="#fff" stop-opacity=".55"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
-    <ellipse class="mc-shadow" cx="60" cy="192" rx="32" ry="5" fill="rgba(0,0,0,.28)"/>
-    <g class="mc-all">
-      <g class="mc-extra mc-rocket"><path d="M38 188 L46 200 L54 188 Z" fill="#F97316"/><path d="M66 188 L74 200 L82 188 Z" fill="#F97316"/><path d="M42 188 L46 195 L50 188 Z M70 188 L74 195 L78 188 Z" fill="#FDE047"/></g>
-      ${ch.tail || ''}${wings}${legs}${arm('L')}${torso}${shadeOf(onlyMc(torso))}${arm('R')}
-      <g class="mc-head">${ch.back}${ch.body}${shadeOf(onlyMc(ch.body))}<ellipse cx="44" cy="44" rx="26" ry="18" fill="url(#${G}h)"/>${ch.front}
-        <ellipse class="mc-cheek" cx="30" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/><ellipse class="mc-cheek" cx="90" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/>
-        <g class="mc-eyes"><circle cx="44" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/><circle cx="76" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/>
-          <g class="mc-pupils"><circle class="mc-pupil" cx="46" cy="64" r="5" fill="#1F2937"/><circle class="mc-pupil" cx="78" cy="64" r="5" fill="#1F2937"/><circle cx="47.5" cy="62" r="1.6" fill="#fff"/><circle cx="79.5" cy="62" r="1.6" fill="#fff"/></g>
+    <defs>
+      <filter id="${G}b" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="2"><animate attributeName="seed" values="2;7;12" dur="0.42s" repeatCount="indefinite" calcMode="discrete"/></feTurbulence><feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+      <pattern id="${G}x" width="4.5" height="4.5" patternUnits="userSpaceOnUse" patternTransform="rotate(38)"><path d="M0 0 V4.5" stroke="${INK}" stroke-width="1.1" opacity=".42"/></pattern>
+      <pattern id="${G}y" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-50)"><path d="M0 0 V6" stroke="${INK}" stroke-width=".9" opacity=".25"/></pattern>
+      <mask id="${G}m"><g>${forms}</g><g transform="translate(-10 -11)">${formsOff}</g></mask>
+      <mask id="${G}n"><g>${forms}</g><g transform="translate(-5 -6)">${formsOff}</g></mask>
+      <radialGradient id="${G}h" cx="35%" cy="28%" r="45%"><stop offset="0%" stop-color="#fff" stop-opacity=".5"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    </defs>
+    <path class="mc-shadow" d="M30 192 q8-6 30-6 q24 0 30 6 q-6 5-30 5 q-24 0-30-5z" fill="${INK}" opacity=".22"/>
+    <g class="mc-all" filter="url(#${G}b)">
+      <g class="mc-extra mc-rocket"><path d="M38 188 L46 200 L54 188 Z M66 188 L74 200 L82 188 Z" fill="#F97316" stroke="${INK}" stroke-width="1.6"/><path d="M42 188 L46 195 L50 188 Z M70 188 L74 195 L78 188 Z" fill="#FDE047"/></g>
+      ${inked(ch.tail || '')}${wings}${legs}${arm('L')}${inked(torso)}${arm('R')}
+      <g class="mc-head">${inked(ch.back)}${inked(ch.body, 3)}${ch.front}
+        <rect x="0" y="0" width="120" height="200" fill="url(#${G}x)" mask="url(#${G}m)"/><rect x="0" y="0" width="120" height="200" fill="url(#${G}y)" mask="url(#${G}n)"/>
+        <path d="M30 46 Q36 30 54 26" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" opacity=".55"/><path d="M28 56 Q29 52 31 49" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".45"/>
+        <g class="mc-cheek" stroke="#E11D48" stroke-width="1.6" stroke-linecap="round" opacity=".55"><path d="M24 80 l4-5 M28 81 l4-5 M32 82 l4-5"/><path d="M84 82 l4-5 M88 81 l4-5 M92 80 l4-5"/></g>
+        <g class="mc-eyes">${eye(44, true)}${eye(76, false)}
+          <g class="mc-pupils"><ellipse class="mc-pupil" cx="46" cy="64" rx="5" ry="5.6" fill="${INK}"/><ellipse class="mc-pupil" cx="78" cy="64" rx="5" ry="5.6" fill="${INK}"/><circle cx="47.8" cy="61.6" r="1.8" fill="#fff"/><circle cx="79.8" cy="61.6" r="1.8" fill="#fff"/></g>
           <rect class="mc-lid" x="32" y="50" width="56" height="0" fill="var(--mc)"/></g>
-        <path class="mc-mouth m-smile" d="M44 86 Q60 100 76 86" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
-        <path class="mc-mouth m-wavy" d="M42 90 q6-6 12 0 t12 0 t12 0" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
-        <ellipse class="mc-mouth m-o" cx="60" cy="90" rx="7" ry="9" fill="#1F2937"/>
-        <path class="mc-mouth m-grin" d="M40 84 Q60 106 80 84 Z" fill="#1F2937"/>
-        <g class="mc-talk"><ellipse cx="60" cy="90" rx="10" ry="8" fill="#1F2937"/><ellipse cx="60" cy="94" rx="6" ry="3.5" fill="#F87171"/></g>
-        ${ch.over || ''}${ch.hat || ''}
-        <g class="mc-extra mc-shades"><rect x="28" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="64" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="54" y="58" width="12" height="4" fill="#111827"/><path d="M32 57 L40 57" stroke="#fff" stroke-width="2" opacity=".6"/></g>
-        <g class="mc-extra mc-crown"><path d="M36 22 L44 6 L52 20 L60 2 L68 20 L76 6 L84 22 Z" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/><circle cx="60" cy="14" r="3" fill="#F87171"/></g>
-        <g class="mc-extra mc-sweat"><path d="M98 40 q6 10 0 14 q-6-4 0-14z" fill="#7DD3FC"/><path d="M18 46 q5 8 0 11 q-5-3 0-11z" fill="#7DD3FC"/></g>
-        <g class="mc-extra mc-glass"><circle cx="76" cy="62" r="15" fill="rgba(186,230,253,.25)" stroke="#1F2937" stroke-width="4"/><path d="M87 73 L100 88" stroke="#1F2937" stroke-width="6" stroke-linecap="round"/></g>
+        <g class="mc-brows"><path class="mc-browL" d="M33 46 Q42 40 52 44" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round"/><path class="mc-browR" d="M68 44 Q78 40 87 46" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round"/></g>
+        <path class="mc-mouth m-smile" d="M44 86 Q52 97 61 95 Q70 94 76 85" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+        <path class="mc-mouth m-wavy" d="M42 90 q6-6 12 0 t12 0 t12 0" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+        <path class="mc-mouth m-o" d="M54 90 q0-9 6-9 q7 0 7 9 q0 9-7 9 q-6 0-6-9z" fill="${INK}"/>
+        <g class="mc-mouth m-grin"><path d="M40 84 Q52 88 80 83 Q76 104 60 105 Q44 104 40 84 Z" fill="${INK}"/><path d="M46 86 Q60 89 74 85 L73 90 Q60 92 47 90 Z" fill="#fff"/><path d="M52 100 Q60 96 68 100 Q62 104 52 100 Z" fill="#F87171"/></g>
+        <g class="mc-talk"><path d="M50 90 q0-8 10-8 q10 0 10 8 q0 8-10 8 q-10 0-10-8z" fill="${INK}"/><ellipse cx="60" cy="94" rx="6" ry="3.2" fill="#F87171"/></g>
+        ${ch.over || ''}${inked(ch.hat || '', 2.2)}
+        <g class="mc-extra mc-shades"><path d="M27 55 h29 q1 12-8 15 q-12 2-17-4 q-4-5-4-11z M64 55 h29 q0 6-4 11 q-5 6-17 4 q-9-3-8-15z" fill="#111827" stroke="${INK}" stroke-width="1.5"/><path d="M56 58 h8" stroke="#111827" stroke-width="3"/><path d="M31 58 L39 58" stroke="#fff" stroke-width="2" opacity=".6"/></g>
+        <g class="mc-extra mc-crown"><path d="M36 22 L42 5 L51 19 L60 0 L69 19 L78 5 L84 22 Q60 27 36 22 Z" fill="#FDE047" stroke="${INK}" stroke-width="2.2" stroke-linejoin="round"/><circle cx="60" cy="13" r="3" fill="#F87171" stroke="${INK}" stroke-width="1"/></g>
+        <g class="mc-extra mc-sweat"><path d="M98 40 q6 10 0 14 q-6-4 0-14z M18 46 q5 8 0 11 q-5-3 0-11z" fill="#7DD3FC" stroke="${INK}" stroke-width="1.4"/></g>
+        <g class="mc-extra mc-glass"><circle cx="76" cy="62" r="15" fill="rgba(186,230,253,.3)" stroke="${INK}" stroke-width="4"/><path d="M87 73 L100 88" stroke="${INK}" stroke-width="6" stroke-linecap="round"/></g>
       </g>${sparkle}
     </g>
   </svg>`;
@@ -2871,7 +2891,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 51;
+const APP_VERSION = 52;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
