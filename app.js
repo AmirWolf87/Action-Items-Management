@@ -2357,7 +2357,10 @@ function storyGo(i) {
   const t0 = Date.now();
   // the bubble line first, then the summary — in the character's voice
   const text = L(md[1][0], md[1][1]).replace(/[\u{1F000}-\u{1FAFF}☀-➿️]/gu, '') + '. ' + sl.say;
-  if (s.muted || !window.speechSynthesis) { start(minDur); return; }
+  // no spoken narration (it sounded robotic) — the character just "talks" silently while its bubble pops up
+  try { if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch (e) { /* none */ }
+  setTimeout(() => { if (story && story.tok === tok) { mc.classList.add('talking'); setTimeout(() => mc.classList.remove('talking'), 1700); } }, 500);
+  start(minDur); return;
   s.safety = setTimeout(() => { if (story && story.tok === tok && s.phase === 'speak' && !s.paused) { try { speechSynthesis.cancel(); } catch (e) { /* none */ } start(Math.max(1500, minDur - (Date.now() - t0))); } }, 20000);
   storySpeak(text, tok, () => { clearTimeout(s.safety); if (s.phase !== 'speak') return; start(Math.max(1500, minDur - (Date.now() - t0))); });
 }
@@ -2868,7 +2871,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 50;
+const APP_VERSION = 51;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
