@@ -2238,7 +2238,6 @@ function mascotSvg(ch) {
 const stSnd = {
   ctx: null, master: null, music: null, beat: 0, next: 0, loop: null,
   init() {
-    if (this.off) return;
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* older iOS */ }   // play even when the phone is on silent (iOS 17+)
     if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.gain.value = 0.9; this.master.connect(this.ctx.destination);
       this.music = this.ctx.createGain(); this.music.gain.value = 0.05; this.music.connect(this.master); }
@@ -2251,9 +2250,8 @@ const stSnd = {
   noise(t, d, f1, f2, vol) { const c = this.ctx; if (!c) return; const n = c.createBuffer(1, Math.ceil(c.sampleRate * d), c.sampleRate), a = n.getChannelData(0); for (let k = 0; k < a.length; k++) a[k] = Math.random() * 2 - 1;
     const s = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain(); s.buffer = n; bp.type = 'bandpass'; bp.Q.value = 1.2; bp.frequency.setValueAtTime(f1, t); bp.frequency.exponentialRampToValueAtTime(f2, t + d);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.25, t + d * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + d); s.connect(bp); bp.connect(g); g.connect(this.master); s.start(t); },
-  off: true,   // the video is silent (sounds felt robotic)
   fx(name, delay) {
-    if (this.off || !this.ctx || (story && story.muted)) return; const t = this.ctx.currentTime + (delay || 0);
+    if (!this.ctx || (story && story.muted)) return; const t = this.ctx.currentTime + (delay || 0);
     if (name === 'whoosh') this.noise(t, 0.35, 300, 2400, 0.22);
     else if (name === 'pop') this.tone(520 + Math.random() * 200, t, 0.09, 'sine', 0.16, 900);
     else if (name === 'boing') { this.tone(180, t, 0.35, 'triangle', 0.25, 520); this.tone(520, t + 0.18, 0.25, 'triangle', 0.15, 260); }
@@ -2281,8 +2279,9 @@ const stSnd = {
     else if (name === 'giggle') [0, 0.1, 0.2, 0.3, 0.4].forEach((d, k) => this.tone(800 - k * 40, t + d, 0.07, 'triangle', 0.12, 1100 - k * 40));
     else if (name === 'achoo') { this.tone(500, t, 0.3, 'sine', 0.06, 900); this.noise(t + 0.35, 0.3, 3000, 900, 0.3); }
   },
+  noMusic: true,   // sound effects only — no background music
   startMusic() {
-    if (this.off || !this.ctx || this.loop) return;
+    if (this.noMusic || !this.ctx || this.loop) return;
     const prog = [[261.6, 329.6, 392], [220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7]], step = 0.22;
     this.next = this.ctx.currentTime + 0.1; this.beat = 0;
     this.loop = setInterval(() => {
@@ -2307,13 +2306,14 @@ function openStory(area) {
   const cast = stCast(slides);
   const el = document.createElement('div'); el.className = 'story'; el.setAttribute('role', 'dialog');
   el.innerHTML = `<div class="st-bg"><i></i><i></i><i></i></div><div class="st-bars">${slides.map(() => '<i><b></b></i>').join('')}</div>
-    <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><span class="st-name">${esc(L(cast.ch.name[0], cast.ch.name[1]))}</span><span class="st-snd-sp"></span></div>
+    <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><span class="st-name">${esc(L(cast.ch.name[0], cast.ch.name[1]))}</span><button class="st-snd" data-st-snd aria-label="sound"></button></div>
     <div class="st-stage"></div>
     <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap">${mascotSvg(cast.ch)}</div></div>
     <p class="st-hint" hidden></p>
     <div class="st-tap st-prev"></div><div class="st-tap st-next"></div>`;
   document.body.appendChild(el); document.body.classList.add('story-open');
   story = { el, slides, cast, i: -1, tok: 0, muted: !!store.get('ai.storyMute', false), timer: null, safety: null, phase: '', t0: 0, dur: 0, paused: false, left: 0, hold: null };
+  el.querySelector('[data-st-snd]').textContent = story.muted ? '🔇' : '🔊';
   el.addEventListener('click', storyClick);
   // hold to pause (a quick tap only moves between slides)
   el.addEventListener('pointerdown', (e) => { if (e.target.closest('button,.mc-wrap')) return; clearTimeout(story && story.hold); if (story) story.hold = setTimeout(() => storyPause(true), 220); });
@@ -2892,7 +2892,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 53;
+const APP_VERSION = 54;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
