@@ -2077,6 +2077,77 @@ const ST_CAST = [
     back: '<path d="M30 34 L36 14 L44 30 L52 10 L60 28 L68 10 L76 30 L84 14 L90 34 Z" fill="#16A34A"/>',
     body: '<ellipse cx="60" cy="68" rx="46" ry="40" fill="var(--mc)"/>', front: '<circle cx="30" cy="90" r="4" fill="#22C55E"/><circle cx="92" cy="50" r="5" fill="#22C55E"/><circle cx="88" cy="98" r="3" fill="#22C55E"/>' }
 ];
+/* richer extras for the original cast */
+Object.assign(ST_CAST.find(c => c.id === 'cat'), { quirk: 'q-tail', sfx: 'meow', tail: '<path class="mc-tail" d="M84 150 Q116 150 110 112 Q108 100 100 104" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/>',
+  lines: { panic: [['Hiss! Who left all these tasks on my keyboard? 🙀', 'חחחש! מי השאיר את כל המשימות על המקלדת שלי? 🙀']], party: [['Purrrfect week 😻', 'שבוע פררררפקט 😻']], rocket: [['I’ll be on your keyboard if you need me', 'אם תצטרך אותי — אני על המקלדת 🐾']] } });
+Object.assign(ST_CAST.find(c => c.id === 'dino'), { quirk: 'q-tail', sfx: 'roar', tail: '<path class="mc-tail" d="M82 156 Q112 168 118 140 L104 150 Z" fill="var(--mc)" stroke="rgba(0,0,0,.14)"/>',
+  lines: { panic: [['Even the asteroid was more on time 😬', 'אפילו המטאוריט הגיע יותר בזמן 😬']], rocket: [['ROAR! Go stomp that list 🦖', 'רוארר! לך תרמוס את הרשימה 🦖']] } });
+Object.assign(ST_CAST.find(c => c.id === 'robot'), { sfx: 'beep', lines: { panic: [['ERROR 404: deadline not found 🤖', 'שגיאה 404: הדדליין לא נמצא 🤖']], think: [['Calculating… 87% chance you’ll crush it', 'מחשב… 87% סיכוי שתפציץ 📊']] } });
+Object.assign(ST_CAST.find(c => c.id === 'ghost'), { quirk: 'q-float', sfx: 'boo', lines: { peek: [['I can walk through walls and still can’t get them to answer 👻', 'אני עובר דרך קירות ועדיין לא מצליח להשיג אותם 👻']] } });
+Object.assign(ST_CAST.find(c => c.id === 'alien'), { sfx: 'radio', lines: { think: [['On my planet a week is 3 days. Lucky you 🛸', 'בכוכב שלי שבוע זה 3 ימים. יש לך מזל 🛸']] } });
+Object.assign(ST_CAST.find(c => c.id === 'penguin'), { sfx: 'squeak', lines: { coffee: [['Iced coffee, obviously 🧊', 'קפה קר, ברור 🧊']] } });
+Object.assign(ST_CAST.find(c => c.id === 'bear'), { sfx: 'growl', lines: { coffee: [['Honey in the coffee. Trust me 🍯', 'דבש בקפה. תסמוך עליי 🍯']] } });
+Object.assign(ST_CAST.find(c => c.id === 'monster'), { sfx: 'growl', lines: { party: [['Burp. Those tasks were delicious 😋', 'גראפס. המשימות האלה היו טעימות 😋']] } });
+ST_CAST.push(
+  { id: 'owl', voice: [1.2, 0.92], c: '#A16207', name: ['Professor Hoot', 'פרופסור הוּט'], quirk: 'q-owl', sfx: 'hoot', shoe: '#F59E0B',
+    hi: [['Hoo-hoo! Professor Hoot here. Let’s review the material 🦉', 'הוּ־הוּ! פרופסור הוּט כאן. בוא נעבור על החומר 🦉']],
+    lines: { think: [['Wise owls plan ahead. Wiser ones start today 🦉', 'ינשוף חכם מתכנן. ינשוף חכם יותר מתחיל היום 🦉']], panic: [['Hoo let this happen?! 😱', 'הוּ אחראי על זה?! 😱']] },
+    back: '<path d="M24 34 L20 4 L44 26 Z M96 34 L100 4 L76 26 Z" fill="#78350F"/>', body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)"/>',
+    front: '<circle cx="44" cy="62" r="17" fill="#FDE68A"/><circle cx="76" cy="62" r="17" fill="#FDE68A"/><path d="M28 40 Q44 30 56 44 M92 40 Q76 30 64 44" stroke="#78350F" stroke-width="4" fill="none" stroke-linecap="round"/>',
+    over: '<path d="M54 74 L66 74 L60 84 Z" fill="#F59E0B" stroke="#B45309" stroke-width="1.5"/>',
+    torso: '<ellipse cx="60" cy="138" rx="28" ry="25" fill="var(--mc)"/><ellipse cx="60" cy="142" rx="18" ry="17" fill="#FDE68A"/><path d="M52 134 l4 4 l4-4 l4 4 l4-4 M50 144 l4 4 l4-4 l4 4 l4-4 l4 4" stroke="#B45309" stroke-width="2" fill="none"/>',
+    wings: true, hat: '<g class="mc-hat"><rect x="38" y="16" width="44" height="6" fill="#111827"/><path d="M42 16 L60 6 L78 16 Z" fill="#111827"/><path d="M78 16 L86 30" stroke="#FDE047" stroke-width="2"/><circle cx="86" cy="31" r="3" fill="#FDE047"/></g>' },
+  { id: 'fox', voice: [1.3, 1.1], c: '#F97316', name: ['Foxy', 'שועלי'], quirk: 'q-tail', sfx: 'yip', shoe: '#1F2937',
+    hi: [['Psst… Foxy here. I know a shortcut through your tasks 🦊', 'פססט… שועלי כאן. אני מכיר קיצור דרך בין המשימות 🦊']],
+    lines: { peek: [['Leave it to me, I’ll sniff out an answer 🦊', 'תשאיר לי, אני ארחרח להם תשובה 🦊']], rocket: [['Quick like a fox! Go go go 🦊', 'מהר כמו שועל! זוז זוז זוז 🦊']] },
+    back: '<path d="M22 44 L26 2 L54 30 Z M98 44 L94 2 L66 30 Z" fill="var(--mc)"/><path d="M26 14 L27 2 L36 12 Z M94 14 L93 2 L84 12 Z" fill="#1F2937"/>',
+    body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)"/>', front: '<path d="M18 74 Q60 120 102 74 Q90 104 60 106 Q30 104 18 74 Z" fill="#FFF7ED"/>',
+    over: '<ellipse cx="60" cy="76" rx="6" ry="4.5" fill="#1F2937"/>',
+    torso: '<ellipse cx="60" cy="138" rx="27" ry="25" fill="var(--mc)"/><ellipse cx="60" cy="144" rx="15" ry="16" fill="#FFF7ED"/>',
+    tail: '<g class="mc-tail"><path d="M82 152 Q122 150 114 100 Q100 118 84 136 Z" fill="var(--mc)"/><path d="M114 100 Q118 112 110 120 Q104 112 114 100 Z" fill="#FFF7ED"/></g>' },
+  { id: 'unicorn', voice: [1.6, 1.0], c: '#FCE7F3', name: ['Sparkle', 'נצנצה'], quirk: 'q-sparkle', sfx: 'chime', shoe: '#C084FC',
+    hi: [['✨ Hi! I’m Sparkle. I sprinkle glitter on boring tasks ✨', '✨ היי! אני נצנצה. אני מפזרת נצנצים על משימות משעממות ✨']],
+    lines: { party: [['Rainbows for everyone! 🌈', 'קשת לכולם! 🌈']], panic: [['Not even glitter can hide these 😬', 'אפילו נצנצים לא יסתירו את אלה 😬']] },
+    back: '<circle cx="24" cy="44" r="12" fill="#F472B6"/><circle cx="20" cy="62" r="11" fill="#A78BFA"/><circle cx="22" cy="80" r="10" fill="#60A5FA"/><circle cx="32" cy="30" r="11" fill="#FBBF24"/><path d="M30 30 L36 10 L48 28 Z" fill="var(--mc)"/>',
+    body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)" stroke="#F9A8D4" stroke-width="2"/>', front: '<ellipse cx="60" cy="88" rx="24" ry="14" fill="#FBCFE8"/><circle cx="52" cy="84" r="2" fill="#DB2777"/><circle cx="68" cy="84" r="2" fill="#DB2777"/>',
+    hat: '<g class="mc-hat"><path d="M52 28 L60 -8 L68 28 Z" fill="#FDE047" stroke="#CA8A04" stroke-width="1.5"/><path d="M54 20 L66 16 M56 10 L64 6" stroke="#CA8A04" stroke-width="1.5"/></g>',
+    tail: '<g class="mc-tail"><path d="M84 150 Q112 144 112 120" stroke="#F472B6" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M86 156 Q116 154 118 128" stroke="#A78BFA" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M84 144 Q106 136 106 116" stroke="#60A5FA" stroke-width="6" fill="none" stroke-linecap="round"/></g>',
+    sparkle: true },
+  { id: 'astro', voice: [1.05, 1.0], c: '#FCD9B8', limb: '#E5E7EB', name: ['Astro', 'אסטרו'], quirk: 'q-float', sfx: 'radio', shoe: '#6B7280',
+    hi: [['Houston, this is Astro. Ready for the task mission 🚀', 'יוסטון, כאן אסטרו. מוכן למשימת המשימות 🚀']],
+    lines: { think: [['One small task for you, one giant leap for the list', 'משימה קטנה לך, צעד גדול לרשימה 🌕']], rocket: [['Ignition! See you in orbit 🛰', 'הצתה! נתראה במסלול 🛰']] },
+    back: '', body: '<ellipse cx="60" cy="66" rx="40" ry="40" fill="var(--mc)"/><path d="M24 52 Q60 14 96 52 Q88 30 60 26 Q32 30 24 52 Z" fill="#92400E"/>', front: '',
+    over: '<circle cx="60" cy="64" r="52" fill="rgba(191,219,254,.18)" stroke="#E5E7EB" stroke-width="5"/><path d="M26 44 Q36 22 60 18" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" opacity=".8"/><path d="M96 26 L106 6" stroke="#9CA3AF" stroke-width="3"/><circle class="mc-blink" cx="106" cy="5" r="4" fill="#F87171"/>',
+    torso: '<rect x="32" y="112" width="56" height="48" rx="16" fill="#E5E7EB" stroke="#9CA3AF" stroke-width="2"/><rect x="46" y="122" width="28" height="18" rx="4" fill="#1E3A8A"/><circle cx="53" cy="131" r="3" fill="#34D399"/><circle class="mc-blink" cx="67" cy="131" r="3" fill="#F87171"/><path d="M36 150 L84 150" stroke="#60A5FA" stroke-width="3"/>' },
+  { id: 'pirate', voice: [0.75, 0.95], c: '#F2C9A0', limb: '#991B1B', name: ['Captain Arr', 'קפטן אררר'], quirk: 'q-sway', sfx: 'arr', shoe: '#111827',
+    hi: [['Arrr! Captain Arr on deck. Show me the treasure… I mean the tasks 🏴‍☠️', 'אררר! קפטן אררר על הסיפון. תראה לי את האוצר… כלומר את המשימות 🏴‍☠️']],
+    lines: { panic: [['Arrr! These tasks will sink the ship ⚓', 'אררר! המשימות האלה עוד יטביעו את הספינה ⚓']], peek: [['Send a parrot to remind them 🦜', 'שלח להם תוכי עם תזכורת 🦜']], party: [['Yo-ho-ho! That’s real treasure 💰', 'יו־הו־הו! זה האוצר האמיתי 💰']] },
+    back: '', body: '<ellipse cx="60" cy="66" rx="42" ry="42" fill="var(--mc)"/>', front: '<path d="M30 92 Q60 128 90 92 Q86 110 60 114 Q34 110 30 92 Z" fill="#78350F"/>',
+    over: '<path d="M26 50 L94 46" stroke="#111827" stroke-width="3"/><ellipse cx="44" cy="62" rx="13" ry="12" fill="#111827"/>',
+    hat: '<g class="mc-hat"><path d="M10 34 Q60 -4 110 34 Q60 22 10 34 Z" fill="#111827"/><path d="M26 30 Q60 0 94 30" fill="#111827"/><circle cx="60" cy="18" r="6" fill="#F8FAFC"/><path d="M56 24 L64 24" stroke="#111827" stroke-width="2"/></g>',
+    torso: '<path d="M32 118 Q60 108 88 118 L86 160 L34 160 Z" fill="#991B1B"/><path d="M50 116 L60 160 L70 116 Z" fill="#F8FAFC"/><path d="M52 126 H68 M54 136 H66 M56 146 H64" stroke="#1E3A8A" stroke-width="3"/><circle cx="40" cy="130" r="2.5" fill="#FDE047"/><circle cx="80" cy="130" r="2.5" fill="#FDE047"/>' },
+  { id: 'wizard', voice: [0.85, 0.88], c: '#F5D0B5', limb: '#6D28D9', name: ['Merlinus', 'מרלינוס'], quirk: 'q-sparkle', sfx: 'magic', shoe: '#4C1D95',
+    hi: [['Abracadabra! Merlinus at your service. Shall I make tasks disappear? 🪄', 'אברקדברה! מרלינוס לשירותך. שאעלים לך משימות? 🪄']],
+    lines: { think: [['My crystal ball says… a busy week 🔮', 'כדור הבדולח שלי אומר… שבוע עמוס 🔮']], rocket: [['Wand ready. Now YOU do the magic ✨', 'השרביט מוכן. עכשיו אתה עושה את הקסם ✨']], panic: [['Even magic can’t undo “late” 😅', 'אפילו קסם לא מבטל "באיחור" 😅']] },
+    back: '', body: '<ellipse cx="60" cy="66" rx="40" ry="40" fill="var(--mc)"/>', front: '<path d="M28 82 Q32 132 60 152 Q88 132 92 82 Q80 104 60 104 Q40 104 28 82 Z" fill="#F8FAFC" stroke="#E5E7EB"/>',
+    over: '<path d="M40 82 Q50 76 58 82 M62 82 Q70 76 80 82" stroke="#F8FAFC" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M34 46 Q44 40 54 46 M66 46 Q76 40 86 46" stroke="#E5E7EB" stroke-width="4" fill="none" stroke-linecap="round"/>',
+    hat: '<g class="mc-hat"><ellipse cx="60" cy="34" rx="50" ry="9" fill="#5B21B6"/><path d="M28 34 L66 -24 L92 34 Z" fill="#6D28D9"/><path d="M66 -24 Q80 -20 84 -8" stroke="#6D28D9" stroke-width="6" fill="none"/><path d="M50 10 l2 5 l5 0 l-4 3 l2 5 l-5-3 l-5 3 l2-5 l-4-3 l5 0 Z M72 20 l1.5 3.5 l3.5 0 l-3 2 l1.5 3.5 l-3.5-2 l-3.5 2 l1.5-3.5 l-3-2 l3.5 0 Z" fill="#FDE047"/></g>',
+    itemL: '<g class="mc-wand"><path d="M18 156 L4 128" stroke="#78350F" stroke-width="4" stroke-linecap="round"/><path d="M4 120 l2.5 5 l5.5 .5 l-4 3.5 l1.5 5.5 l-5.5-3 l-5 3 l1.5-5.5 l-4-3.5 l5.5-.5 Z" fill="#FDE047"/></g>',
+    torso: '<path d="M30 160 Q34 116 60 112 Q86 116 90 160 Z" fill="#6D28D9"/><path d="M40 140 l2 4 l4 0 l-3 3 l1 4 l-4-2 l-4 2 l1-4 l-3-3 l4 0 Z" fill="#FDE047"/>', sparkle: true },
+  { id: 'chef', voice: [1.0, 1.08], c: '#F8D5B8', limb: '#F8FAFC', name: ['Chef Pepe', 'שף פפה'], quirk: 'q-sway', sfx: 'sizzle', shoe: '#111827',
+    hi: [['Bonjour! Chef Pepe here. Today’s menu: your tasks, served hot 👨‍🍳', 'בונז׳ור! שף פפה כאן. התפריט היום: המשימות שלך, מוגשות חמות 👨‍🍳']],
+    lines: { coffee: [['Espresso. Double. Now. ☕', 'אספרסו. כפול. עכשיו. ☕']], party: [['Chef’s kiss! 🤌', 'נשיקת שף! 🤌']], panic: [['Something is burning in the kitchen! 🔥', 'משהו נשרף במטבח! 🔥']] },
+    back: '', body: '<ellipse cx="60" cy="68" rx="40" ry="40" fill="var(--mc)"/>', front: '<ellipse cx="60" cy="76" rx="5" ry="4" fill="#E9A07A"/>',
+    over: '<path d="M38 82 Q48 72 60 80 Q72 72 82 82 Q72 80 60 84 Q48 80 38 82 Z" fill="#3F2A1D"/>',
+    hat: '<g class="mc-hat"><rect x="34" y="22" width="52" height="14" rx="3" fill="#F8FAFC" stroke="#E5E7EB"/><circle cx="40" cy="12" r="12" fill="#F8FAFC"/><circle cx="60" cy="4" r="14" fill="#F8FAFC"/><circle cx="80" cy="12" r="12" fill="#F8FAFC"/></g>',
+    itemL: '<g class="mc-spat"><path d="M18 156 L8 132" stroke="#78350F" stroke-width="4" stroke-linecap="round"/><rect x="0" y="116" width="14" height="18" rx="3" fill="#9CA3AF" transform="rotate(-22 7 125)"/></g>',
+    torso: '<ellipse cx="60" cy="138" rx="28" ry="25" fill="#F8FAFC" stroke="#E5E7EB"/><path d="M44 126 H76 V158 H44 Z" fill="#FCA5A5" opacity=".85"/><circle cx="54" cy="122" r="2" fill="#9CA3AF"/><circle cx="66" cy="122" r="2" fill="#9CA3AF"/><path d="M48 116 L60 124 L72 116" fill="#DC2626"/>' },
+  { id: 'octo', voice: [1.45, 1.05], c: '#F472B6', name: ['Octavia', 'תמנונה'], quirk: 'q-tent', sfx: 'blub', noLegs: true,
+    hi: [['Blub blub! Octavia here — eight arms, zero excuses 🐙', 'בלוב בלוב! תמנונה כאן — שמונה זרועות, אפס תירוצים 🐙']],
+    lines: { coffee: [['Eight cups of coffee. One per arm ☕', 'שמונה כוסות קפה. אחת לכל זרוע ☕']], party: [['Eight high-fives! 🙌', 'שמונה כיפים! 🙌']] },
+    back: '', body: '<path d="M16 72 Q16 20 60 20 Q104 20 104 72 Q104 108 60 110 Q16 108 16 72 Z" fill="var(--mc)"/>', front: '<circle cx="34" cy="38" r="5" fill="rgba(255,255,255,.35)"/><circle cx="86" cy="42" r="4" fill="rgba(0,0,0,.1)"/><circle cx="76" cy="30" r="3" fill="rgba(0,0,0,.1)"/>',
+    torso: '<g class="mc-tent"><path d="M30 104 Q18 140 30 160 Q36 170 28 180" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M46 108 Q40 146 48 166 Q52 178 44 188" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M74 108 Q80 146 72 166 Q68 178 76 188" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M90 104 Q102 140 90 160 Q84 170 92 180" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/></g>' }
+);
 /* pick something not used last time */
 function stPick(pool, avoid) { const fresh = pool.filter(x => avoid.indexOf(x[1]) < 0); const from = fresh.length ? fresh : pool; return from[Math.floor(Math.random() * from.length)]; }
 function stCast(slides) {
@@ -2086,7 +2157,8 @@ function stCast(slides) {
   const used = last.lines || [], now = [];
   const lines = slides.map(sl => {
     const md = sl.mood || ST_MOOD[sl.cls] || ['hi', 'intro'];
-    const pool = md[1] === 'intro' ? ch.hi : (ST_LINES[md[1]] || [['', '']]);
+    const own = (ch.lines && ch.lines[md[1]]) || [];
+    const pool = md[1] === 'intro' ? ch.hi : (own.length && Math.random() < 0.55 ? own : (ST_LINES[md[1]] || [['', '']]).concat(own));
     const pick = stPick(pool, used.concat(now)); now.push(pick[1]); return [md[0], pick];
   });
   store.set('ai.storyLast', { ch: ch.id, chs: (last.chs || []).concat(ch.id).slice(-6), lines: now });
@@ -2100,22 +2172,30 @@ function confetti(host) {
     if (k % 3 === 0) c.style.borderRadius = '50%'; box.appendChild(c); }
   host.appendChild(box);
 }
+let mcSeq = 0;
 function mascotSvg(ch) {
   ch = ch || ST_CAST[0];
-  const shade = 'rgba(0,0,0,.14)';
-  const legs = ch.noLegs ? '' : `<g class="mc-leg mc-legL"><rect x="43" y="150" width="12" height="32" rx="6" fill="var(--mc)" stroke="${shade}"/><ellipse cx="46" cy="184" rx="11" ry="6" fill="${ch.shoe || '#1F2937'}"/></g>
-      <g class="mc-leg mc-legR"><rect x="65" y="150" width="12" height="32" rx="6" fill="var(--mc)" stroke="${shade}"/><ellipse cx="74" cy="184" rx="11" ry="6" fill="${ch.shoe || '#1F2937'}"/></g>`;
+  const G = 'mcg' + (++mcSeq), shade = 'rgba(0,0,0,.14)', limb = ch.limb || 'var(--mc)';
+  // a soft 3D look: the same shapes again, filled with a shadow gradient (dark edges) and a shine
+  const shadeOf = (svg) => String(svg || '').replace(/fill="var\(--mc\)"/g, `fill="url(#${G}s)"`).replace(/stroke="[^"]*"/g, '').replace(/class="[^"]*"/g, '');
+  const onlyMc = (svg) => (String(svg || '').match(/<(ellipse|path|rect|circle)[^>]*fill="var\(--mc\)"[^>]*\/>/g) || []).join('');
+  const legs = ch.noLegs ? '' : `<g class="mc-leg mc-legL"><rect x="43" y="150" width="12" height="32" rx="6" fill="${limb}" stroke="${shade}"/><ellipse cx="46" cy="184" rx="11" ry="6" fill="${ch.shoe || '#1F2937'}"/></g>
+      <g class="mc-leg mc-legR"><rect x="65" y="150" width="12" height="32" rx="6" fill="${limb}" stroke="${shade}"/><ellipse cx="74" cy="184" rx="11" ry="6" fill="${ch.shoe || '#1F2937'}"/></g>`;
   const torso = ch.torso || `<ellipse cx="60" cy="138" rx="28" ry="25" fill="var(--mc)" stroke="${shade}"/><ellipse cx="60" cy="143" rx="17" ry="15" fill="rgba(255,255,255,.3)"/>`;
   const arm = (side) => { const L = side === 'L', sx = L ? 37 : 83, hx = L ? 18 : 102;
-    return `<g class="mc-arm mc-arm${side}"><path d="M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154" stroke="var(--mc)" stroke-width="11" fill="none" stroke-linecap="round"/><path d="M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154" stroke="${shade}" stroke-width="11" fill="none" stroke-linecap="round" opacity=".35" stroke-dasharray="0 0"/>
-      <circle cx="${hx}" cy="156" r="7.5" fill="var(--mc)" stroke="${shade}"/>${L ? '' : `<g class="mc-extra mc-cup"><rect x="${hx - 8}" y="138" width="16" height="18" rx="3" fill="#fff" stroke="#78350F" stroke-width="2.5"/><path d="M${hx + 8} 143 q6 0 6 5 q0 5-6 5" fill="none" stroke="#78350F" stroke-width="2.5"/>
+    return `<g class="mc-arm mc-arm${side}"><path d="M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154" stroke="${limb}" stroke-width="11" fill="none" stroke-linecap="round"/><path d="M${sx} 126 Q${L ? 22 : 98} 138 ${hx} 154" stroke="${shade}" stroke-width="11" fill="none" stroke-linecap="round" opacity=".35"/>
+      ${L ? (ch.itemL || '') : ''}<circle cx="${hx}" cy="156" r="7.5" fill="${ch.limb ? '#F5D0B5' : 'var(--mc)'}" stroke="${shade}"/>${L ? '' : `<g class="mc-extra mc-cup"><rect x="${hx - 8}" y="138" width="16" height="18" rx="3" fill="#fff" stroke="#78350F" stroke-width="2.5"/><path d="M${hx + 8} 143 q6 0 6 5 q0 5-6 5" fill="none" stroke="#78350F" stroke-width="2.5"/>
       <path class="mc-steam" d="M${hx - 3} 134 q-3-5 0-8 q3-3 0-8 M${hx + 3} 134 q-3-5 0-8 q3-3 0-8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></g>`}</g>`; };
-  return `<svg class="mc-svg mc-${ch.id}" viewBox="0 0 120 200" aria-hidden="true" style="--mc:${ch.c}">
+  const wings = ch.wings ? `<g class="mc-wing mc-wingL"><path d="M34 120 Q4 126 8 162 Q22 150 36 146 Z" fill="#78350F"/></g><g class="mc-wing mc-wingR"><path d="M86 120 Q116 126 112 162 Q98 150 84 146 Z" fill="#78350F"/></g>` : '';
+  const sparkle = ch.sparkle ? `<g class="mc-sparkles"><path d="M8 40 l2 6 l6 2 l-6 2 l-2 6 l-2-6 l-6-2 l6-2 Z" fill="#FDE047"/><path d="M110 70 l1.5 4.5 l4.5 1.5 l-4.5 1.5 l-1.5 4.5 l-1.5-4.5 l-4.5-1.5 l4.5-1.5 Z" fill="#F9A8D4"/><path d="M100 14 l1.5 4.5 l4.5 1.5 l-4.5 1.5 l-1.5 4.5 l-1.5-4.5 l-4.5-1.5 l4.5-1.5 Z" fill="#A5F3FC"/></g>` : '';
+  return `<svg class="mc-svg mc-${ch.id} ${ch.quirk || ''} ${ch.hat ? 'has-hat' : ''}" viewBox="0 0 120 200" aria-hidden="true" style="--mc:${ch.c}">
+    <defs><radialGradient id="${G}s" cx="38%" cy="32%" r="75%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".22"/></radialGradient>
+      <radialGradient id="${G}h" cx="35%" cy="28%" r="45%"><stop offset="0%" stop-color="#fff" stop-opacity=".55"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
     <ellipse class="mc-shadow" cx="60" cy="192" rx="32" ry="5" fill="rgba(0,0,0,.28)"/>
     <g class="mc-all">
       <g class="mc-extra mc-rocket"><path d="M38 188 L46 200 L54 188 Z" fill="#F97316"/><path d="M66 188 L74 200 L82 188 Z" fill="#F97316"/><path d="M42 188 L46 195 L50 188 Z M70 188 L74 195 L78 188 Z" fill="#FDE047"/></g>
-      ${legs}${arm('L')}${torso}${arm('R')}
-      <g class="mc-head">${ch.back}${ch.body}${ch.front}
+      ${ch.tail || ''}${wings}${legs}${arm('L')}${torso}${shadeOf(onlyMc(torso))}${arm('R')}
+      <g class="mc-head">${ch.back}${ch.body}${shadeOf(onlyMc(ch.body))}<ellipse cx="44" cy="44" rx="26" ry="18" fill="url(#${G}h)"/>${ch.front}
         <ellipse class="mc-cheek" cx="30" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/><ellipse class="mc-cheek" cx="90" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/>
         <g class="mc-eyes"><circle cx="44" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/><circle cx="76" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/>
           <g class="mc-pupils"><circle class="mc-pupil" cx="46" cy="64" r="5" fill="#1F2937"/><circle class="mc-pupil" cx="78" cy="64" r="5" fill="#1F2937"/><circle cx="47.5" cy="62" r="1.6" fill="#fff"/><circle cx="79.5" cy="62" r="1.6" fill="#fff"/></g>
@@ -2125,15 +2205,15 @@ function mascotSvg(ch) {
         <ellipse class="mc-mouth m-o" cx="60" cy="90" rx="7" ry="9" fill="#1F2937"/>
         <path class="mc-mouth m-grin" d="M40 84 Q60 106 80 84 Z" fill="#1F2937"/>
         <g class="mc-talk"><ellipse cx="60" cy="90" rx="10" ry="8" fill="#1F2937"/><ellipse cx="60" cy="94" rx="6" ry="3.5" fill="#F87171"/></g>
+        ${ch.over || ''}${ch.hat || ''}
         <g class="mc-extra mc-shades"><rect x="28" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="64" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="54" y="58" width="12" height="4" fill="#111827"/><path d="M32 57 L40 57" stroke="#fff" stroke-width="2" opacity=".6"/></g>
         <g class="mc-extra mc-crown"><path d="M36 22 L44 6 L52 20 L60 2 L68 20 L76 6 L84 22 Z" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/><circle cx="60" cy="14" r="3" fill="#F87171"/></g>
         <g class="mc-extra mc-sweat"><path d="M98 40 q6 10 0 14 q-6-4 0-14z" fill="#7DD3FC"/><path d="M18 46 q5 8 0 11 q-5-3 0-11z" fill="#7DD3FC"/></g>
         <g class="mc-extra mc-glass"><circle cx="76" cy="62" r="15" fill="rgba(186,230,253,.25)" stroke="#1F2937" stroke-width="4"/><path d="M87 73 L100 88" stroke="#1F2937" stroke-width="6" stroke-linecap="round"/></g>
-      </g>
+      </g>${sparkle}
     </g>
   </svg>`;
 }
-
 /* ---- 🔊 sound for the video: soft music, sound effects, character voices (Web Audio + the phone's speech) ---- */
 const stSnd = {
   ctx: null, master: null, music: null, beat: 0, next: 0, loop: null,
@@ -2162,6 +2242,22 @@ const stSnd = {
     else if (name === 'fanfare') [523, 659, 784, 1047].forEach((f, k) => { this.tone(f, t + k * 0.12, k === 3 ? 0.6 : 0.16, 'triangle', 0.18); this.tone(f / 2, t + k * 0.12, 0.2, 'sine', 0.08); });
     else if (name === 'launch') { this.noise(t, 2.2, 200, 3000, 0.25); this.tone(120, t, 2, 'sawtooth', 0.05, 900); }
     else if (name === 'tick') this.tone(1200, t, 0.03, 'square', 0.04);
+    else if (name === 'meow') { this.tone(500, t, 0.18, 'sawtooth', 0.06, 900); this.tone(900, t + 0.18, 0.35, 'sawtooth', 0.05, 420); }
+    else if (name === 'roar') { this.noise(t, 0.8, 200, 120, 0.3); this.tone(90, t, 0.8, 'sawtooth', 0.12, 60); }
+    else if (name === 'beep') [880, 660, 990].forEach((f, k) => this.tone(f, t + k * 0.11, 0.09, 'square', 0.06));
+    else if (name === 'boo') this.tone(300, t, 0.9, 'sine', 0.16, 180);
+    else if (name === 'radio') { this.noise(t, 0.25, 2000, 1500, 0.12); this.tone(1400, t + 0.25, 0.12, 'sine', 0.1); this.tone(1400, t + 0.42, 0.12, 'sine', 0.1); }
+    else if (name === 'squeak') { this.tone(1200, t, 0.08, 'sine', 0.12, 1800); this.tone(1500, t + 0.1, 0.1, 'sine', 0.1, 2200); }
+    else if (name === 'growl') { this.noise(t, 0.6, 160, 100, 0.25); this.tone(110, t, 0.6, 'sawtooth', 0.07, 80); }
+    else if (name === 'hoot') { this.tone(420, t, 0.25, 'sine', 0.18, 380); this.tone(420, t + 0.35, 0.45, 'sine', 0.18, 360); }
+    else if (name === 'yip') { this.tone(700, t, 0.07, 'triangle', 0.15, 1300); this.tone(800, t + 0.12, 0.07, 'triangle', 0.15, 1500); }
+    else if (name === 'chime') [1319, 1568, 1976, 2637].forEach((f, k) => this.tone(f, t + k * 0.07, 0.5, 'sine', 0.08));
+    else if (name === 'arr') { this.tone(140, t, 0.6, 'sawtooth', 0.09, 100); this.noise(t, 0.6, 400, 200, 0.12); }
+    else if (name === 'magic') { [784, 988, 1175, 1568, 1976].forEach((f, k) => this.tone(f, t + k * 0.06, 0.4, 'sine', 0.07)); this.noise(t, 0.6, 4000, 8000, 0.05); }
+    else if (name === 'sizzle') this.noise(t, 0.9, 5000, 7000, 0.14);
+    else if (name === 'blub') [0, 0.14, 0.26].forEach((d, k) => this.tone(300 + k * 120, t + d, 0.1, 'sine', 0.15, 700 + k * 150));
+    else if (name === 'giggle') [0, 0.1, 0.2, 0.3, 0.4].forEach((d, k) => this.tone(800 - k * 40, t + d, 0.07, 'triangle', 0.12, 1100 - k * 40));
+    else if (name === 'achoo') { this.tone(500, t, 0.3, 'sine', 0.06, 900); this.noise(t + 0.35, 0.3, 3000, 900, 0.3); }
   },
   startMusic() {
     if (!this.ctx || this.loop) return;
@@ -2199,12 +2295,19 @@ function openStory(area) {
   el.querySelector('[data-st-snd]').textContent = story.muted ? '🔇' : '🔊';
   el.addEventListener('click', storyClick);
   // hold to pause (a quick tap only moves between slides)
-  el.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; clearTimeout(story && story.hold); if (story) story.hold = setTimeout(() => storyPause(true), 220); });
+  el.addEventListener('pointerdown', (e) => { if (e.target.closest('button,.mc-wrap')) return; clearTimeout(story && story.hold); if (story) story.hold = setTimeout(() => storyPause(true), 220); });
   const up = () => { if (!story) return; clearTimeout(story.hold); if (story.paused) { story.justResumed = true; storyPause(false); } };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   document.addEventListener('keydown', storyKey);
   stSnd.init(); if (!story.muted) stSnd.startMusic();
   storyGo(0);
+  // little surprises every few seconds: look around, spin, hop, double blink, sneeze, wave…
+  const acts = ['look', 'look', 'spin', 'hop', 'blink2', 'sneeze', 'wave', 'shake'];
+  const act = () => { const s = story; if (!s || s.el !== el) return; s.actT = setTimeout(act, 3500 + Math.random() * 3500);
+    if (s.paused) return; const w = el.querySelector('.mc-wrap'), a = acts[Math.floor(Math.random() * acts.length)];
+    if (w.className.indexOf('act-') >= 0) return; w.classList.add('act-' + a); if (a === 'sneeze') stSnd.fx('achoo', 0.1); if (a === 'spin') stSnd.fx('whoosh');
+    setTimeout(() => w.classList.remove('act-' + a), 1300); };
+  story.actT = setTimeout(act, 4000);
 }
 function stVoice() {
   const want = isHe() ? 'he' : 'en', vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
@@ -2241,7 +2344,7 @@ function storyGo(i) {
   if (lis.length) mc.classList.add('look');
   mc.querySelector('.mc-bubble').textContent = L(md[1][0], md[1][1]);
   s.el.querySelectorAll('.st-confetti').forEach(c => c.remove()); if (md[0] === 'party') confetti(s.el);
-  stSnd.fx(i === 0 ? 'boing' : 'whoosh'); if (i > 0 && ST_FX[sl.cls]) stSnd.fx(ST_FX[sl.cls], 0.35);
+  stSnd.fx(i === 0 ? 'boing' : 'whoosh'); if (i === 0 && s.cast.ch.sfx) stSnd.fx(s.cast.ch.sfx, 0.7); if (i > 0 && ST_FX[sl.cls]) stSnd.fx(ST_FX[sl.cls], 0.35);
   stage.querySelectorAll('[data-count]').forEach(b => { const n = Number(b.dataset.count) || 0, t0 = performance.now(); let last = 0; const step = (t) => { if (!story || story.tok !== tok) return; const p = Math.min(1, (t - t0) / 900), v = Math.round(n * (1 - Math.pow(1 - p, 3))); if (v !== last) { last = v; stSnd.fx('tick'); } b.textContent = v; if (p < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); });
   s.el.querySelectorAll('.st-bars i').forEach((bar, k) => { const b = bar.firstChild; b.style.transition = 'none'; b.style.width = k < i ? '100%' : '0%'; });
   const minDur = 5200 + lis.length * 900;
@@ -2270,6 +2373,10 @@ function storyClick(e) {
   const s = story; if (!s) return;
   if (s.justResumed) { s.justResumed = false; return; }        // the end of a long press is not a tap
   if (e.target.closest('[data-st-x]')) { storyClose(); return; }
+  if (e.target.closest('.mc-wrap')) {             // tickle the character
+    const w = e.target.closest('.mc-wrap'), bb = s.el.querySelector('.mc-bubble'), ch = s.cast.ch; w.className = 'mc-wrap'; void w.offsetWidth; w.classList.add('act-tickle'); stSnd.fx('giggle'); if (ch.sfx) stSnd.fx(ch.sfx, 0.5);
+    const T = [['Hehe, that tickles!', 'חחח זה מדגדג!'], ['Hey! I’m working here 😤', 'היי! אני באמצע עבודה 😤'], ['Again! Again! 😂', 'עוד! עוד! 😂'], ['Boop! 👉', 'בופ! 👉']][Math.floor(Math.random() * 4)];
+    const keep = bb.textContent; bb.textContent = L(T[0], T[1]); clearTimeout(s.tickleT); s.tickleT = setTimeout(() => { if (story === s) bb.textContent = keep; w.classList.remove('act-tickle'); }, 1600); return; }
   if (e.target.closest('[data-st-snd]')) { s.muted = !s.muted; store.set('ai.storyMute', s.muted); e.target.textContent = s.muted ? '🔇' : '🔊';
     if (s.muted) { try { speechSynthesis.cancel(); } catch (x) { /* none */ } stSnd.stop(); } else { stSnd.init(); stSnd.startMusic(); } storyGo(s.i); return; }
   if (e.target.closest('[data-st-go]')) { storyClose(); ui.tab = 'focus'; store.set('ai.ui', ui); render(); return; }
@@ -2278,7 +2385,7 @@ function storyClick(e) {
 }
 function storyKey(e) { if (!story) return; if (e.key === 'Escape') storyClose(); if (e.key === 'ArrowLeft') storyGo(story.i + (isHe() ? 1 : -1)); if (e.key === 'ArrowRight') storyGo(story.i + (isHe() ? -1 : 1)); }
 function storyClose() {
-  if (!story) return; clearTimeout(story.timer); clearTimeout(story.safety); clearTimeout(story.hold); story.tok++;
+  if (!story) return; clearTimeout(story.timer); clearTimeout(story.safety); clearTimeout(story.hold); clearTimeout(story.actT); clearTimeout(story.tickleT); story.tok++;
   try { speechSynthesis.cancel(); } catch (e) { /* none */ }
   stSnd.stop(); story.el.remove(); story = null; document.body.classList.remove('story-open'); document.removeEventListener('keydown', storyKey);
 }
@@ -2761,7 +2868,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 49;
+const APP_VERSION = 50;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
