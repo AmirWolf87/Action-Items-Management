@@ -2017,7 +2017,7 @@ function storySlides(area) {
     say: L(`Later this week: ${names(hot)}.`, `בהמשך השבוע: ${names(hot)}.`) });
   if (waiting.length) S.push({ cls: 'st-purple', html: `<div class="st-emoji">⏳</div><h2>${L('Waiting on others', 'ממתין לאחרים')}</h2><ul>${waiting.slice(0, 5).map(it => li(it, (it.focal && it.focal !== 'Me' ? '👤 ' + esc(it.focal) + ' · ' : '') + L(`${waitDays(it) || 0}d`, `${waitDays(it) || 0} ימ׳`))).join('')}</ul>`,
     say: L(`Waiting on others: ${waiting.length}. Maybe time for a reminder.`, `${waiting.length} משימות ממתינות לאחרים. אולי הזמן לתזכורת.`) });
-  S.push({ cls: 'st-green', mood: doneWk ? null : ['hi', ['Zero is just the starting point 💪', 'אפס זו רק נקודת ההתחלה 💪']], html: `<div class="st-emoji">🏆</div><h2>${L('Done this week', 'הושלמו השבוע')}</h2><div class="st-big" data-count="${doneWk}">0</div><p>${doneWk ? L('Great job — keep going!', 'כל הכבוד — ממשיכים!') : L('Let’s get the first one done today.', 'בוא נסגור היום את הראשונה.')}</p>`,
+  S.push({ cls: 'st-green', mood: doneWk ? null : ['hi', 'zero'], html: `<div class="st-emoji">🏆</div><h2>${L('Done this week', 'הושלמו השבוע')}</h2><div class="st-big" data-count="${doneWk}">0</div><p>${doneWk ? L('Great job — keep going!', 'כל הכבוד — ממשיכים!') : L('Let’s get the first one done today.', 'בוא נסגור היום את הראשונה.')}</p>`,
     say: doneWk ? L(`You finished ${doneWk} this week. Great job!`, `סגרת השבוע ${doneWk} משימות. כל הכבוד!`) : L('Let’s get the first one done today.', 'בוא נסגור היום את הראשונה.') });
   const first = over[0] || tod[0] || hot[0];
   S.push({ cls: 'st-outro', html: `<div class="st-emoji">🚀</div><h2>${L('Start with', 'מתחילים עם')}</h2>${first ? `<div class="st-first" dir="auto">${esc(first.item)}</div>` : `<p>${L('Nothing urgent — enjoy the day!', 'אין שום דבר דחוף — יום נעים!')}</p>`}
@@ -2025,35 +2025,94 @@ function storySlides(area) {
     say: first ? L(`Start with: ${first.item}. Good luck!`, `מתחילים עם: ${first.item}. בהצלחה!`) : L('Nothing urgent. Enjoy the day!', 'אין שום דבר דחוף. יום נעים!') });
   return S;
 }
-const ST_MOOD = {
-  'st-intro': ['hi', ['Let’s see what’s waiting for us 😎', 'יאללה, בוא נראה מה מחכה לנו 😎']],
-  'st-red': ['panic', ['Uh-oh… this is starting to smell 😬', 'אוי אוי אוי… זה מתחיל להריח 😬']],
-  'st-amber': ['coffee', ['Coffee in hand? Let’s go! ☕', 'קפה ביד? יאללה! ☕']],
-  'st-blue': ['think', ['Planning is half the work. The other half… is also work.', 'תכנון זה חצי מהעבודה. החצי השני… גם עבודה.']],
-  'st-purple': ['peek', ['Someone owes you an answer 👀', 'מישהו חייב לך תשובה 👀']],
-  'st-green': ['party', ['Who’s the king? You’re the king! 👑', 'מי מלך? אתה מלך! 👑']],
-  'st-outro': ['rocket', ['3… 2… 1… liftoff!', '3… 2… 1… המראה!']]
+/* each slide: [the character's face/pose, which joke pool to draw from] */
+const ST_MOOD = { 'st-intro': ['hi', 'intro'], 'st-red': ['panic', 'panic'], 'st-amber': ['coffee', 'coffee'], 'st-blue': ['think', 'think'], 'st-purple': ['peek', 'peek'], 'st-green': ['party', 'party'], 'st-outro': ['rocket', 'rocket'] };
+/* funny lines — a fresh pick every time (lines used last time are skipped) */
+const ST_LINES = {
+  panic: [['Uh-oh… this is starting to smell 😬', 'אוי אוי אוי… זה מתחיל להריח 😬'], ['Nobody saw anything. Let’s fix it quietly 🤫', 'אף אחד לא ראה כלום. בוא נטפל בזה בשקט 🤫'],
+    ['These tasks have started asking about you 😅', 'המשימות האלה כבר שואלות עליך 😅'], ['Some of these have waited longer than a doctor’s queue', 'יש פה דברים שמחכים יותר מתור בקופת חולים 🏥'],
+    ['Relax, the pyramids weren’t built on time either 🏜', 'לא נורא, גם הפירמידות לא נבנו בזמן 🏜'], ['Deep breath… now RUN! 🏃', 'נשימה עמוקה… ועכשיו לרוץ! 🏃'],
+    ['I’m not saying panic. I’m saying hurry 😰', 'אני לא אומר להיבהל. אני אומר למהר 😰'], ['Late is just early for next week 🙃', 'באיחור זה בסך הכול מוקדם לשבוע הבא 🙃']],
+  coffee: [['Coffee in hand? Let’s go! ☕', 'קפה ביד? יאללה! ☕'], ['Today is the day. Almost certainly. ☕', 'היום זה היום. כמעט בטוח. ☕'], ['One more coffee and it’s done', 'עוד קפה אחד וזה נסגר ☕'],
+    ['Short list, big ambitions 💪', 'רשימה קצרה, כוונות גדולות 💪'], ['Close it today — it won’t nag you tomorrow', 'מה שנסגר היום — לא יציק מחר'], ['I believe in you. Mostly. 😇', 'אני מאמין בך. רוב הזמן. 😇'],
+    ['Plan: do it. Plan B: do it anyway', 'תוכנית א׳: לעשות. תוכנית ב׳: לעשות בכל זאת 😎']],
+  think: [['Planning is half the work. The other half… is also work.', 'תכנון זה חצי מהעבודה. החצי השני… גם עבודה.'], ['I see the future… it’s full of tasks 🔮', 'אני רואה עתיד… והוא מלא משימות 🔮'],
+    ['This week has no idea what’s coming 😏', 'השבוע הזה לא יודע מה מחכה לו 😏'], ['Smart to look ahead. Smarter to start', 'חכם להסתכל קדימה. עוד יותר חכם — להתחיל 🧠'],
+    ['Tomorrow is a day too. Today is more of a day.', 'מחר זה גם יום. אבל היום זה יותר יום.'], ['Future you says thanks in advance 🙏', 'אתה של סוף השבוע כבר אומר תודה 🙏']],
+  peek: [['Someone owes you an answer 👀', 'מישהו חייב לך תשובה 👀'], ['Just saying… a tiny reminder wouldn’t hurt 📨', 'אני רק אומר… תזכורת קטנה לא תזיק 📨'],
+    ['Ball’s in their court. We’re watching 🕵️', 'הכדור אצלם. אבל אנחנו עוקבים 🕵️'], ['Maybe they forgot? Let’s remind them nicely (or not) 😇', 'אולי הם שכחו? בוא נזכיר בנימוס (או שלא) 😇'],
+    ['Waiting… waiting… still waiting 🐌', 'ממתינים… ממתינים… עדיין ממתינים 🐌'], ['Their reply is on the way. By snail mail 🐌✉️', 'התשובה שלהם בדרך. בדואר רשום 🐌✉️']],
+  party: [['Who’s the king? You’re the king! 👑', 'מי מלך? אתה מלך! 👑'], ['Wow! Can I get an autograph? ✍️', 'וואו! אפשר לקבל חתימה? ✍️'], ['Take a break. You earned it 🎉', 'קח הפסקה. הרווחת 🎉'],
+    ['A machine! Simply a machine 🔥', 'מכונה! פשוט מכונה 🔥'], ['If there were a Task Olympics — gold 🥇', 'אם הייתה אולימפיאדת משימות — זהב 🥇'], ['Somebody call the newspapers 📰', 'שמישהו יתקשר לעיתון 📰']],
+  zero: [['Zero is just the starting point 💪', 'אפס זו רק נקודת ההתחלה 💪'], ['Every long journey starts with one task 🐢', 'גם המסע הכי ארוך מתחיל במשימה אחת 🐢'],
+    ['The week is still young. Like you 😉', 'השבוע עוד צעיר. כמוך 😉'], ['An empty board is the easiest to fill with ✔️', 'לוח ריק — הכי קל למלא אותו בווי ✔️']],
+  rocket: [['3… 2… 1… liftoff!', '3… 2… 1… המראה!'], ['Go, before the coffee gets cold 🚀', 'קדימה, לפני שהקפה מתקרר 🚀'], ['You’re a cannon. Now fire 💥', 'אתה תותח. עכשיו לירות 💥'],
+    ['See you on the other side of the list 👋', 'נתראה בצד השני של הרשימה 👋'], ['Off to work! (I’ll stay here and cheer) 📣', 'יאללה, לעבודה! (אני נשאר פה לעודד) 📣'], ['Go get ’em, tiger 🐯', 'קדימה, טיגריס 🐯']]
 };
-function mascotSvg() {
-  return `<svg class="mc-svg" viewBox="0 0 120 130" aria-hidden="true">
+/* the cast — a different funny character every time the video plays */
+const ST_CAST = [
+  { id: 'blob', c: '#FBBF24', name: ['Sunny', 'שמשון'], hi: [['Hi, I’m Sunny! Let’s see what’s waiting 😎', 'היי, אני שמשון! בוא נראה מה מחכה לנו 😎']],
+    back: '', front: '<ellipse cx="46" cy="50" rx="14" ry="8" fill="rgba(255,255,255,.35)"/>', body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)"/>' },
+  { id: 'cat', c: '#FDBA74', name: ['Mitzi', 'מיצי'], hi: [['Meow. I checked your tasks… and your fridge 🐟', 'מיאו. אני מיצי. בדקתי את המשימות שלך… וגם את המקרר 🐟']],
+    back: '<path d="M22 46 L28 6 L54 30 Z" fill="var(--mc)"/><path d="M98 46 L92 6 L66 30 Z" fill="var(--mc)"/><path d="M29 36 L32 16 L46 30 Z" fill="#F9A8D4"/><path d="M91 36 L88 16 L74 30 Z" fill="#F9A8D4"/>',
+    body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)"/>', front: '<g stroke="#7C2D12" stroke-width="2" stroke-linecap="round" opacity=".55"><path d="M24 78 L6 74 M24 84 L6 88 M96 78 L114 74 M96 84 L114 88"/></g><path d="M56 76 L64 76 L60 81 Z" fill="#F472B6"/>' },
+  { id: 'robot', c: '#CBD5E1', name: ['Robotoast', 'רובוטוסט'], hi: [['Beep boop. I am Robotoast. Scanning tasks… 🤖', 'ביפ בופ. אני רובוטוסט. סורק משימות… 🤖']],
+    back: '<path d="M60 26 V10" stroke="#64748B" stroke-width="4"/><circle class="mc-blink" cx="60" cy="8" r="6" fill="#F87171"/><rect x="6" y="56" width="10" height="22" rx="3" fill="#94A3B8"/><rect x="104" y="56" width="10" height="22" rx="3" fill="#94A3B8"/>',
+    body: '<rect x="14" y="26" width="92" height="82" rx="16" fill="var(--mc)" stroke="#94A3B8" stroke-width="3"/>', front: '<circle cx="24" cy="36" r="3" fill="#94A3B8"/><circle cx="96" cy="36" r="3" fill="#94A3B8"/><circle cx="24" cy="98" r="3" fill="#94A3B8"/><circle cx="96" cy="98" r="3" fill="#94A3B8"/>' },
+  { id: 'ghost', c: '#F1F5F9', name: ['Boo', 'בובו'], hi: [['Boo! I’m the ghost of tasks not yet done 👻', 'בּוּ! אני בובו, רוח המשימות שעוד לא נסגרו 👻']],
+    back: '', body: '<path d="M16 66 Q16 22 60 22 Q104 22 104 66 L104 108 q-11 10 -22 0 q-11 10 -22 0 q-11 10 -22 0 q-11 10 -22 0 Z" fill="var(--mc)" stroke="#CBD5E1" stroke-width="2"/>', front: '' },
+  { id: 'alien', c: '#86EFAC', name: ['Zorg', 'זורג'], hi: [['Greetings, human. I came from space to inspect your list 👽', 'שלום בן אנוש. באתי מהחלל לבדוק את הרשימה שלך 👽']],
+    back: '<path d="M44 28 L34 6 M76 28 L86 6" stroke="#16A34A" stroke-width="4" stroke-linecap="round"/><circle cx="34" cy="6" r="6" fill="#FDE047"/><circle cx="86" cy="6" r="6" fill="#FDE047"/>',
+    body: '<ellipse cx="60" cy="68" rx="46" ry="40" fill="var(--mc)"/>', front: '<ellipse cx="44" cy="44" rx="12" ry="6" fill="rgba(255,255,255,.4)"/>' },
+  { id: 'monster', c: '#C4B5FD', name: ['Grrr', 'גרררר'], hi: [['Grrr! I eat tasks for breakfast 😋', 'גררר! אני אוכל משימות לארוחת בוקר 😋']],
+    back: '<path d="M30 34 Q18 14 26 4 Q32 18 44 26 Z" fill="#FDE68A"/><path d="M90 34 Q102 14 94 4 Q88 18 76 26 Z" fill="#FDE68A"/>',
+    body: '<ellipse cx="60" cy="66" rx="45" ry="42" fill="var(--mc)"/>', front: '<circle cx="28" cy="50" r="5" fill="rgba(0,0,0,.12)"/><circle cx="94" cy="96" r="6" fill="rgba(0,0,0,.12)"/><circle cx="86" cy="40" r="3.5" fill="rgba(0,0,0,.12)"/>' },
+  { id: 'bear', c: '#D6A77A', name: ['Teddy', 'דובי'], hi: [['I’m Teddy. Just woke up from hibernation — what did I miss? 🐻', 'אני דובי. בדיוק התעוררתי משנת חורף — מה פספסתי? 🐻']],
+    back: '<circle cx="24" cy="30" r="14" fill="var(--mc)"/><circle cx="96" cy="30" r="14" fill="var(--mc)"/><circle cx="24" cy="30" r="7" fill="#F5D0A9"/><circle cx="96" cy="30" r="7" fill="#F5D0A9"/>',
+    body: '<ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc)"/>', front: '<ellipse cx="60" cy="86" rx="22" ry="16" fill="#F5D0A9"/><ellipse cx="60" cy="77" rx="6" ry="4" fill="#3F2A1D"/>' },
+  { id: 'penguin', c: '#334155', name: ['Pingo', 'פינגו'], hi: [['Pingo here! Sliding you straight to business 🐧', 'פינגו כאן! מחליק לך ישר לעניינים 🐧']],
+    back: '<ellipse cx="14" cy="80" rx="8" ry="18" fill="#1E293B" transform="rotate(20 14 80)"/><ellipse cx="106" cy="80" rx="8" ry="18" fill="#1E293B" transform="rotate(-20 106 80)"/>',
+    body: '<ellipse cx="60" cy="66" rx="44" ry="44" fill="var(--mc)"/><ellipse cx="60" cy="74" rx="32" ry="32" fill="#F8FAFC"/>', front: '<path d="M53 74 L67 74 L60 80 Z" fill="#FB923C"/>' },
+  { id: 'dino', c: '#4ADE80', name: ['Dino-Danny', 'דינו־דני'], hi: [['Roarrr! I’m Dino-Danny. I remember tasks from the Jurassic 🦖', 'רוארר! אני דינו־דני, ואני זוכר משימות עוד מתקופת היורה 🦖']],
+    back: '<path d="M30 34 L36 14 L44 30 L52 10 L60 28 L68 10 L76 30 L84 14 L90 34 Z" fill="#16A34A"/>',
+    body: '<ellipse cx="60" cy="68" rx="46" ry="40" fill="var(--mc)"/>', front: '<circle cx="30" cy="90" r="4" fill="#22C55E"/><circle cx="92" cy="50" r="5" fill="#22C55E"/><circle cx="88" cy="98" r="3" fill="#22C55E"/>' }
+];
+/* pick something not used last time */
+function stPick(pool, avoid) { const fresh = pool.filter(x => avoid.indexOf(x[1]) < 0); const from = fresh.length ? fresh : pool; return from[Math.floor(Math.random() * from.length)]; }
+function stCast(slides) {
+  let last = {}; try { last = store.get('ai.storyLast', {}) || {}; } catch (e) { last = {}; }
+  const others = ST_CAST.filter(c => c.id !== last.ch && (last.chs || []).slice(-3).indexOf(c.id) < 0);
+  const ch = (others.length ? others : ST_CAST)[Math.floor(Math.random() * (others.length || ST_CAST.length))];
+  const used = last.lines || [], now = [];
+  const lines = slides.map(sl => {
+    const md = sl.mood || ST_MOOD[sl.cls] || ['hi', 'intro'];
+    const pool = md[1] === 'intro' ? ch.hi : (ST_LINES[md[1]] || [['', '']]);
+    const pick = stPick(pool, used.concat(now)); now.push(pick[1]); return [md[0], pick];
+  });
+  store.set('ai.storyLast', { ch: ch.id, chs: (last.chs || []).concat(ch.id).slice(-6), lines: now });
+  return { ch, lines };
+}
+function mascotSvg(ch) {
+  ch = ch || ST_CAST[0];
+  return `<svg class="mc-svg mc-${ch.id}" viewBox="0 0 120 130" aria-hidden="true" style="--mc:${ch.c}">
     <g class="mc-extra mc-rocket"><path d="M48 112 L60 128 L72 112 Z" fill="#F97316"/><path d="M53 112 L60 122 L67 112 Z" fill="#FDE047"/></g>
-    <g class="mc-body"><ellipse cx="60" cy="66" rx="44" ry="42" fill="var(--mc,#FBBF24)"/><ellipse cx="46" cy="50" rx="14" ry="8" fill="rgba(255,255,255,.35)"/>
+    <g class="mc-body">${ch.back}${ch.body}${ch.front}
       <ellipse class="mc-cheek" cx="30" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/><ellipse class="mc-cheek" cx="90" cy="80" rx="7" ry="4" fill="#F472B6" opacity=".6"/>
-      <g class="mc-eyes"><circle cx="44" cy="62" r="11" fill="#fff"/><circle cx="76" cy="62" r="11" fill="#fff"/>
+      <g class="mc-eyes"><circle cx="44" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/><circle cx="76" cy="62" r="11" fill="#fff" stroke="rgba(0,0,0,.12)"/>
         <circle class="mc-pupil" cx="46" cy="64" r="5" fill="#1F2937"/><circle class="mc-pupil" cx="78" cy="64" r="5" fill="#1F2937"/>
-        <rect class="mc-lid" x="32" y="50" width="56" height="0" fill="var(--mc,#FBBF24)"/></g>
-      <path class="mc-mouth m-smile" d="M44 84 Q60 98 76 84" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <path class="mc-mouth m-wavy" d="M42 88 q6-6 12 0 t12 0 t12 0" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
-      <ellipse class="mc-mouth m-o" cx="60" cy="88" rx="7" ry="9" fill="#1F2937"/>
-      <path class="mc-mouth m-grin" d="M40 82 Q60 104 80 82 Z" fill="#1F2937"/>
+        <rect class="mc-lid" x="32" y="50" width="56" height="0" fill="var(--mc)"/></g>
+      <path class="mc-mouth m-smile" d="M44 86 Q60 100 76 86" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path class="mc-mouth m-wavy" d="M42 90 q6-6 12 0 t12 0 t12 0" stroke="#1F2937" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <ellipse class="mc-mouth m-o" cx="60" cy="90" rx="7" ry="9" fill="#1F2937"/>
+      <path class="mc-mouth m-grin" d="M40 84 Q60 106 80 84 Z" fill="#1F2937"/>
       <g class="mc-extra mc-shades"><rect x="28" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="64" y="54" width="28" height="16" rx="6" fill="#111827"/><rect x="54" y="58" width="12" height="4" fill="#111827"/></g>
-      <g class="mc-extra mc-crown"><path d="M36 28 L44 12 L52 26 L60 8 L68 26 L76 12 L84 28 Z" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/></g>
+      <g class="mc-extra mc-crown"><path d="M36 22 L44 6 L52 20 L60 2 L68 20 L76 6 L84 22 Z" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/></g>
       <g class="mc-extra mc-sweat"><path d="M98 40 q6 10 0 14 q-6-4 0-14z" fill="#7DD3FC"/><path d="M18 46 q5 8 0 11 q-5-3 0-11z" fill="#7DD3FC"/></g>
       <g class="mc-extra mc-glass"><circle cx="76" cy="62" r="15" fill="none" stroke="#1F2937" stroke-width="4"/><path d="M87 73 L100 88" stroke="#1F2937" stroke-width="6" stroke-linecap="round"/></g>
     </g>
     <g class="mc-extra mc-cup"><rect x="92" y="78" width="20" height="22" rx="4" fill="#fff" stroke="#78350F" stroke-width="3"/><path d="M112 84 q8 0 8 7 q0 6-8 6" fill="none" stroke="#78350F" stroke-width="3"/>
       <path class="mc-steam" d="M98 72 q-4-6 0-10 q4-4 0-10 M106 72 q-4-6 0-10 q4-4 0-10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".8"/></g>
-    <g class="mc-extra mc-hand"><circle cx="16" cy="70" r="9" fill="var(--mc,#FBBF24)" stroke="rgba(0,0,0,.15)"/></g>
+    <g class="mc-extra mc-hand"><circle cx="16" cy="70" r="9" fill="var(--mc)" stroke="rgba(0,0,0,.15)"/></g>
   </svg>`;
 }
 function confetti(host) {
@@ -2066,14 +2125,15 @@ function confetti(host) {
 }
 function openStory(area) {
   const slides = storySlides(typeof area === 'string' ? area : null);
+  const cast = stCast(slides);
   const el = document.createElement('div'); el.className = 'story'; el.setAttribute('role', 'dialog');
   el.innerHTML = `<div class="st-bars">${slides.map(() => '<i><b></b></i>').join('')}</div>
     <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><button class="st-snd" data-st-snd aria-label="sound"></button></div>
     <div class="st-stage"></div>
-    <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap">${mascotSvg()}</div></div>
+    <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap" title="${esc(L(cast.ch.name[0], cast.ch.name[1]))}">${mascotSvg(cast.ch)}</div></div>
     <div class="st-tap st-prev"></div><div class="st-tap st-next"></div>`;
   document.body.appendChild(el); document.body.classList.add('story-open');
-  story = { el, slides, i: -1, muted: !!store.get('ai.storyMute', false), timer: null, t0: 0, dur: 0, paused: false, left: 0 };
+  story = { el, slides, cast, i: -1, muted: !!store.get('ai.storyMute', false), timer: null, t0: 0, dur: 0, paused: false, left: 0 };
   el.querySelector('[data-st-snd]').textContent = story.muted ? '🔇' : '🔊';
   el.addEventListener('click', storyClick);
   el.addEventListener('pointerdown', () => storyPause(true)); el.addEventListener('pointerup', () => storyPause(false));
@@ -2097,7 +2157,7 @@ function storyGo(i) {
   s.el.className = 'story ' + sl.cls;
   const stage = s.el.querySelector('.st-stage'); stage.innerHTML = `<div class="st-slide">${sl.html}</div>`;
   stage.querySelectorAll('li').forEach((x, k) => { x.style.animationDelay = (0.25 + k * 0.18) + 's'; });
-  const md = sl.mood || ST_MOOD[sl.cls] || ['hi', ['', '']], mc = s.el.querySelector('.st-mascot');
+  const md = s.cast.lines[i], mc = s.el.querySelector('.st-mascot');
   mc.className = 'st-mascot mood-' + md[0]; void mc.offsetWidth; mc.classList.add('mc-in');
   mc.querySelector('.mc-bubble').textContent = L(md[1][0], md[1][1]);
   s.el.querySelectorAll('.st-confetti').forEach(c => c.remove()); if (md[0] === 'party') confetti(s.el);
@@ -2612,7 +2672,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 47;
+const APP_VERSION = 48;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

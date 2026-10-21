@@ -738,3 +738,5 @@ body.story-open .fab-play,body.story-open .fab{visibility:hidden}
 .dt-name{min-width:0}
 .dt-detail .ct-img{max-height:260px;object-fit:contain;background:var(--card)}
 #collBaseNew{margin-top:6px}
+.mc-blink{animation:mcLed 1s steps(2) infinite}
+@keyframes mcLed{50%{fill:#FDE047}}
