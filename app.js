@@ -2175,12 +2175,45 @@ ST_CAST.push(
     back: '', body: '<path d="M16 72 Q16 20 60 20 Q104 20 104 72 Q104 108 60 110 Q16 108 16 72 Z" fill="var(--mc)"/>', front: '<circle cx="34" cy="38" r="5" fill="rgba(255,255,255,.35)"/><circle cx="86" cy="42" r="4" fill="rgba(0,0,0,.1)"/><circle cx="76" cy="30" r="3" fill="rgba(0,0,0,.1)"/>',
     torso: '<g class="mc-tent"><path d="M30 104 Q18 140 30 160 Q36 170 28 180" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M46 108 Q40 146 48 166 Q52 178 44 188" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M74 108 Q80 146 72 166 Q68 178 76 188" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M90 104 Q102 140 90 160 Q84 170 92 180" stroke="var(--mc)" stroke-width="10" fill="none" stroke-linecap="round"/></g>' }
 );
+ST_CAST.push(
+  { id: 'soldier', voice: [0.8, 1.0], c: '#E8B98F', limb: '#4D5D33', name: ['Sgt. Shlomi', 'רס״ר שלומי'], quirk: 'q-sway', sfx: 'whistle', shoe: '#1F2937',
+    hi: [['Attention! Sgt. Shlomi here — tasks, fall in! 🪖', 'הקשב! רס״ר שלומי כאן — משימות, להסתדר בשלשות! 🪖']],
+    lines: { panic: [['What’s this mess?! Sort it out by 18:00 😤', 'מה הבלגן הזה?! לסדר עד שש בערב 😤']], coffee: [['Field coffee, finjan style ☕', 'קפה שחור בפינג׳אן, כמו בשטח ☕']], party: [['Outstanding! Weekend leave approved 🎖', 'מצוין! יציאה הביתה אושרה 🎖']], rocket: [['Move, move, move! 🏃', 'זוז, זוז, זוז! 🏃']] },
+    back: '', body: '<ellipse cx="60" cy="68" rx="40" ry="40" fill="var(--mc)"/>', front: '<path d="M36 92 Q60 108 84 92" stroke="#A16207" stroke-width="2" fill="none" opacity=".35"/>',
+    hat: '<g class="mc-hat"><path d="M16 46 Q16 8 60 8 Q104 8 104 46 Q60 36 16 46 Z" fill="#556B2F"/><path d="M24 34 Q60 22 96 34 M30 22 Q60 12 90 22 M40 14 L36 44 M60 10 L60 40 M80 14 L84 44" stroke="#3F4F24" stroke-width="2" fill="none"/><path d="M12 46 Q60 34 108 46" stroke="#3F4F24" stroke-width="4" fill="none"/></g>',
+    torso: '<path d="M32 116 Q60 108 88 116 L88 160 L32 160 Z" fill="#556B2F"/><rect x="38" y="124" width="16" height="12" rx="2" fill="#4D5D33" stroke="#2A1A12" stroke-width="1.5"/><rect x="66" y="124" width="16" height="12" rx="2" fill="#4D5D33" stroke="#2A1A12" stroke-width="1.5"/><path d="M60 112 V160" stroke="#3F4F24" stroke-width="2"/><path d="M40 112 L44 118 L48 112 M72 112 L76 118 L80 112" fill="#FDE047"/>' },
+  { id: 'doctor', voice: [1.1, 1.0], c: '#F5D0B5', limb: '#F8FAFC', name: ['Dr. Rafael', 'ד״ר רפאל'], quirk: '', sfx: 'heart', shoe: '#64748B',
+    hi: [['Dr. Rafael here. Say “aaah”… and show me your list 🩺', 'ד״ר רפאל כאן. תגיד "אההה"… ותראה לי את הרשימה 🩺']],
+    lines: { panic: [['Diagnosis: acute task-itis. Treatment: start now 💊', 'אבחנה: משימתיות חריפה. טיפול: להתחיל עכשיו 💊']], coffee: [['Doctor’s orders: water first, then coffee 💧', 'הוראות רופא: קודם מים, אחר כך קפה 💧']], party: [['Your health score is excellent! 💪', 'מדדים מצוינים! 💪']], rocket: [['An appointment a day keeps the doctor away 🍎', 'תור אחד ביום מרחיק את הרופא 🍎']] },
+    back: '', body: '<ellipse cx="60" cy="68" rx="40" ry="40" fill="var(--mc)"/><path d="M22 54 Q24 24 60 24 Q96 24 98 54 Q86 36 60 38 Q34 36 22 54 Z" fill="#6B4226"/>', front: '',
+    hat: '<g class="mc-hat"><path d="M26 34 Q60 22 94 34" stroke="#94A3B8" stroke-width="4" fill="none"/><circle cx="60" cy="26" r="10" fill="#E2E8F0" stroke="#2A1A12" stroke-width="2"/><circle cx="60" cy="26" r="4" fill="#fff"/></g>',
+    torso: '<path d="M30 160 Q32 116 60 112 Q88 116 90 160 Z" fill="#F8FAFC"/><path d="M60 112 L52 160 M60 112 L68 160" stroke="#CBD5E1" stroke-width="2"/><path d="M44 116 Q40 138 52 144 Q60 148 58 138" stroke="#334155" stroke-width="2.5" fill="none"/><circle cx="58" cy="137" r="4" fill="#94A3B8" stroke="#2A1A12" stroke-width="1.5"/><rect x="70" y="124" width="12" height="10" rx="1" fill="#E2E8F0" stroke="#2A1A12" stroke-width="1.2"/><path d="M76 126 v6 M73 129 h6" stroke="#DC2626" stroke-width="2"/>' }
+);
+/* which characters fit which area (matched by name, Hebrew or English) */
+const ST_AREA_CAST = [
+  [/work|עבוד|משרד|job/i, ['robot', 'owl', 'fox', 'astro']],
+  [/home|בית|house|משק/i, ['cat', 'bear', 'chef']],
+  [/m\.?sc|תואר|לימוד|study|studies|univers|אוניבר/i, ['owl', 'wizard', 'alien']],
+  [/reserve|מילואים|צבא|army|idf/i, ['soldier', 'dino']],
+  [/family|משפח|kids|ילדים/i, ['bear', 'penguin', 'octo', 'unicorn']],
+  [/financ|money|כספ|כסף|פיננס|bank|בנק/i, ['pirate', 'robot']],
+  [/health|בריאות|רפוא|doctor|sport|ספורט/i, ['doctor', 'penguin']],
+  [/personal|אישי|myself/i, ['blob', 'unicorn', 'ghost', 'monster']]
+];
+function stCastFor(areas) {
+  if (!areas || !areas.length) return ST_CAST;
+  const ids = new Set(); areas.forEach(a => ST_AREA_CAST.forEach(([re, list]) => { if (re.test(a) || re.test(tr(a))) list.forEach(x => ids.add(x)); }));
+  const fit = ST_CAST.filter(c => ids.has(c.id));
+  return fit.length ? fit : ST_CAST;
+}
 /* pick something not used last time */
 function stPick(pool, avoid) { const fresh = pool.filter(x => avoid.indexOf(x[1]) < 0); const from = fresh.length ? fresh : pool; return from[Math.floor(Math.random() * from.length)]; }
-function stCast(slides) {
+function stCast(slides, areas) {
   let last = {}; try { last = store.get('ai.storyLast', {}) || {}; } catch (e) { last = {}; }
-  const others = ST_CAST.filter(c => c.id !== last.ch && (last.chs || []).slice(-3).indexOf(c.id) < 0);
-  const ch = (others.length ? others : ST_CAST)[Math.floor(Math.random() * (others.length || ST_CAST.length))];
+  const pool = stCastFor(areas);
+  const others = pool.filter(c => c.id !== last.ch && (last.chs || []).slice(-Math.min(3, pool.length - 1)).indexOf(c.id) < 0);
+  const from = others.length ? others : pool.filter(c => c.id !== last.ch).length ? pool.filter(c => c.id !== last.ch) : pool;
+  const ch = from[Math.floor(Math.random() * from.length)];
   const used = last.lines || [], now = [];
   const lines = slides.map(sl => {
     const md = sl.mood || ST_MOOD[sl.cls] || ['hi', 'intro'];
@@ -2303,6 +2336,8 @@ const stSnd = {
     else if (name === 'magic') { [784, 988, 1175, 1568, 1976].forEach((f, k) => this.tone(f, t + k * 0.06, 0.4, 'sine', 0.07)); this.noise(t, 0.6, 4000, 8000, 0.05); }
     else if (name === 'sizzle') this.noise(t, 0.9, 5000, 7000, 0.14);
     else if (name === 'blub') [0, 0.14, 0.26].forEach((d, k) => this.tone(300 + k * 120, t + d, 0.1, 'sine', 0.15, 700 + k * 150));
+    else if (name === 'whistle') { this.tone(1800, t, 0.18, 'sine', 0.12, 2400); this.tone(2400, t + 0.22, 0.35, 'sine', 0.12, 1700); }
+    else if (name === 'heart') [0, 0.18, 0.7, 0.88].forEach((d, k) => this.tone(k % 2 ? 60 : 75, t + d, 0.14, 'sine', 0.35, 45));
     else if (name === 'giggle') [0, 0.1, 0.2, 0.3, 0.4].forEach((d, k) => this.tone(800 - k * 40, t + d, 0.07, 'triangle', 0.12, 1100 - k * 40));
     else if (name === 'achoo') { this.tone(500, t, 0.3, 'sine', 0.06, 900); this.noise(t + 0.35, 0.3, 3000, 900, 0.3); }
   },
@@ -2330,10 +2365,13 @@ const ST_FX = { 'st-intro': 'boing', 'st-red': 'uhoh', 'st-amber': 'slurp', 'st-
 function openStory(area) {
   if (story) storyClose();
   const slides = storySlides(typeof area === 'string' ? area : null);
-  const cast = stCast(slides);
+  const areas = typeof area === 'string' ? [area] : areaSel();
+  const cast = stCast(slides, areas);
+  const catsHtml = (areas || []).length ? areas.map(a => `<span>${AREA_EMOJI[a] || '📁'} ${esc(tr(a))}</span>`).join('') : `<span>🗂 ${esc(L('All areas', 'כל התחומים'))}</span>`;
   const el = document.createElement('div'); el.className = 'story'; el.setAttribute('role', 'dialog');
   el.innerHTML = `<div class="st-bg"><i></i><i></i><i></i></div><div class="st-bars">${slides.map(() => '<i><b></b></i>').join('')}</div>
     <div class="st-top"><button class="st-x" data-st-x aria-label="${esc(tr('Close'))}">✕</button><span class="st-name">${esc(L(cast.ch.name[0], cast.ch.name[1]))}</span><button class="st-snd" data-st-snd aria-label="sound"></button></div>
+    <div class="st-cats" dir="auto"><small>${esc(L('This video covers', 'הסרטון על'))}:</small>${catsHtml}</div>
     <div class="st-stage"></div>
     <div class="st-mascot"><div class="mc-bubble" dir="auto"></div><div class="mc-wrap">${mascotSvg(cast.ch)}</div></div>
     <p class="st-hint" hidden></p>
@@ -2920,7 +2958,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 55;
+const APP_VERSION = 56;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

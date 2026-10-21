@@ -851,3 +851,6 @@ body.story-open .fab-play,body.story-open .fab{visibility:hidden}
 .st-snd-sp{width:40px}
 #areaChips .chip{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #areaChips .chip.multi{box-shadow:inset 0 0 0 2px var(--accent)}
+.st-cats{position:relative;z-index:3;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin-top:10px;font-size:13.5px;font-weight:700}
+.st-cats small{opacity:.85;font-weight:600;font-size:12.5px}
+.st-cats span{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);padding:4px 10px;border-radius:999px;backdrop-filter:blur(6px)}
