@@ -574,14 +574,14 @@ function disableNotifications() {
 }
 
 /* one place that talks to ntfy; logs every push so problems can be seen in the app */
-function pushNtfy_(topic, title, message, tags, priority) {
+function pushNtfy_(topic, title, message, tags, priority, click) {
   let code = 0, err = '', via = 'push';
   const token = PropertiesService.getScriptProperties().getProperty('NTFY_TOKEN') || '';
   try {
     const r = UrlFetchApp.fetch('https://ntfy.sh/', {
       method: 'post', contentType: 'application/json', muteHttpExceptions: true,
       headers: token ? { Authorization: 'Bearer ' + token } : {},
-      payload: JSON.stringify({ topic: topic, title: title, message: message, tags: tags || [], click: APP_URL, priority: priority || 3 })
+      payload: JSON.stringify({ topic: topic, title: title, message: message, tags: tags || [], click: click || APP_URL, priority: priority || 3 })
     });
     code = r.getResponseCode();
     if (code >= 300) err = 'ntfy.sh answered ' + code + ': ' + String(r.getContentText()).slice(0, 160);
@@ -659,7 +659,8 @@ function digest_(area, cfg) {
     overdue.forEach(it => lines.push('⚠ ' + it.item + ' (' + daysLate(it.due) + 'd late)'));
     msg = lines.slice(0, 15).join('\n') + (lines.length > 15 ? '\n…and ' + (lines.length - 15) + ' more' : '');
   }
-  return { title: title, message: msg };
+  const one = today.length + overdue.length === 1 ? (today[0] || overdue[0]) : null;   // one task → the notification opens it
+  return { title: title, message: msg, row: one && one.row ? one.row : 0 };
 }
 
 function sendRule_(rule, isTest, cfg) {
@@ -667,7 +668,7 @@ function sendRule_(rule, isTest, cfg) {
   const d = rule.kind === 'weekly' ? weeklyDigest_(rule.area || 'All', cfg) : digest_(rule.area || 'All', cfg);
   const title = (isTest ? '[Test] ' : '') + d.title;
   const ch = rule.channel || 'push';
-  if (ch === 'push' || ch === 'both') pushNtfy_(cfg.topic, title, d.message, ['clipboard'], 3);
+  if (ch === 'push' || ch === 'both') pushNtfy_(cfg.topic, title, d.message, ['clipboard'], 3, d.row ? APP_URL + '#task=' + d.row : '');
   if (ch === 'email' || ch === 'both') {
     MailApp.sendEmail(Session.getEffectiveUser().getEmail(), title, d.message + '\n\n' + APP_URL);
   }

@@ -1126,3 +1126,39 @@ dialog.wr-sheet{padding:16px}
 dialog .ap-row{flex-direction:row!important;align-items:center!important;justify-content:flex-start;text-align:start;font-size:15px;color:var(--ink);gap:10px;margin:0}
 dialog .ap-row input{margin:0;flex:0 0 auto}
 dialog .ap-row bdi,dialog .ap-row span:not(.ap-dot){flex:1}
+/* 🌅 daily welcome */
+body.welcome-open{overflow:hidden}
+body.welcome-open .bottom-bar{visibility:hidden}
+.welcome{position:fixed;inset:0;z-index:55;overflow:auto;background:radial-gradient(120% 70% at 50% 0%,var(--focus-soft),var(--bg) 60%);color:var(--ink);padding:calc(28px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));display:flex;justify-content:center;animation:wcIn .35s ease}
+@keyframes wcIn{from{opacity:0}to{opacity:1}}
+.wc-in{width:min(460px,100%);display:flex;flex-direction:column;justify-content:center;min-height:100%}
+.wc-date{margin:0;color:var(--muted);font-size:14px}
+.wc-hello{margin:4px 0 0;font-size:16px;color:var(--muted)}
+.welcome h1{font-size:28px;line-height:1.2;margin:6px 0 22px;font-weight:800;letter-spacing:-.3px}
+.wc-cards{display:flex;flex-direction:column;gap:12px}
+.wc-card{display:grid;grid-template-columns:52px 1fr auto;grid-template-rows:auto auto;column-gap:14px;align-items:center;width:100%;min-height:104px;padding:18px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--ink);text-align:start;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.wc-card:active{background:var(--focus-pressed)}
+.wc-ic{grid-row:span 2;width:52px;height:52px;border-radius:16px;background:var(--focus-soft);display:grid;place-items:center;font-size:26px}
+.wc-txt b{display:block;font-size:20px}.wc-txt small{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.wc-play{grid-row:1;grid-column:3;width:44px;height:44px;border-radius:50%;background:var(--primary);display:grid;place-items:center}
+.wc-play svg{width:20px;height:20px;fill:#fff;margin-inline-start:2px}
+
+.wc-dur{grid-row:2;grid-column:3;font-size:12.5px;color:var(--muted);text-align:center;margin-top:4px}
+.wc-skip{margin-top:18px;min-height:52px;border-radius:16px;border:1.5px solid var(--line);background:transparent;color:var(--ink);font-size:16px;font-weight:700;cursor:pointer}
+.wc-skip:active{background:var(--focus-pressed)}
+.wc-note{font-size:12.5px;color:var(--muted);text-align:center;margin:14px 0 0}
+@media (prefers-reduced-motion: reduce){.welcome{animation:none}}
+/* switch in the menu */
+.wc-toggle{cursor:pointer}
+.switch{appearance:none;-webkit-appearance:none;width:48px;height:28px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:0 0 auto;margin:0;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:inset-inline-start .2s}
+.switch:checked{background:var(--primary)}.switch:checked::after{inset-inline-start:23px}
+/* after the video */
+dialog.af-sheet{padding:16px}
+.af-sheet .sheet-head{display:flex;align-items:center}.af-sheet .sheet-head h2{flex:1;margin:0;font-size:18px}
+.af-seg{display:flex;margin:10px 0 6px}.af-seg button{flex:1;min-height:44px}
+.af-q{font-weight:700;margin:10px 0 8px}
+.af-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:8px}
+.af-t{flex:1;min-width:0}.af-t bdi{display:block;font-size:16px;font-weight:600}.af-t small{color:var(--muted);font-size:13px}
+.af-go{min-height:44px;white-space:nowrap}
+.seg button.on{background:var(--primary);color:var(--on-primary)}

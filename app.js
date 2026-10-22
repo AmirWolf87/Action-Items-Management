@@ -369,6 +369,7 @@ function render() {
   document.querySelectorAll('#tabs [data-tab], #moreMenu [data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === ui.tab); b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'); });
   $('#tabMore').classList.toggle('on', inMore); $('#tabMoreLbl').textContent = inMore ? TITLES[ui.tab] : L('More', 'עוד');
   if ($('#langMenuLbl')) $('#langMenuLbl').textContent = isHe() ? 'English' : 'עברית';
+  if ($('#welcomeOn')) $('#welcomeOn').checked = store.get('ai.welcomeOn', true);
   const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll';
   const fab = $('#fab');
   fab.hidden = isGuest() && !me.canSuggest;
@@ -1408,6 +1409,97 @@ $('#qaHelpBtn').addEventListener('click', () => { const h = $('#qaHelp'); h.hidd
 $('#qaFull').addEventListener('click', () => { const v = $('#qa').value.trim(); $('#dlgQuick').close(); openEdit(null); if (v) { const p = parseQuick(v); F('item').value = p.item || v; if (p.due) F('due').value = p.due; if (p.time) F('time').value = p.time; if (p.prio) F('prio').value = p.prio; if (p.area) F('area').value = p.area; if (p.hrs) F('hrs').value = p.hrs; if (p.focal) F('focal').value = p.focal; } });
 // keep the sheet above the iPhone keyboard
 if (window.visualViewport) { const kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) + 'px'); visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb); }
+
+/* =====================================================================
+   🌅 Daily welcome — first open of each local day: "What do we focus on today?"
+   Never shown when the app opens on a task (notification link) or a focus session is running.
+   ===================================================================== */
+const CTX = {
+  work: { re: /work|עבוד|משרד/i, ic: '💼', name: () => L('At work', 'בעבודה') },
+  home: { re: /home|בית|house/i, ic: '🏠', name: () => L('At home', 'בבית') }
+};
+function ctxArea(k) { const a = data.areas.find(x => CTX[k].re.test(x) || CTX[k].re.test(tr(x))); return a || data.areas[k === 'work' ? 0 : 1] || data.areas[0]; }
+function storySecs(area) {   // same timing rules as the video: ~5 s a slide + a bit per listed task
+  try { const sl = storySlides(area); const ms = sl.reduce((t, x) => t + 5200 + ((x.html.match(/<li>/g) || []).length) * 900, 0); return Math.max(15, Math.round(ms / 5000) * 5); } catch (e) { return 30; }
+}
+function startOfDay() {
+  if (isGuest()) return;
+  const m = location.hash.match(/^#task=(\d+)/);
+  if (m) {   // opened from a notification about one task: straight to it
+    history.replaceState(null, '', location.pathname + location.search);
+    const it = data.items.find(x => x.row === Number(m[1]));
+    if (it) { store.set('ai.welcomeDay', todayIso()); setTimeout(() => openEdit(it), 80); }
+    return;
+  }
+  if (fs && !fs.endAt) return;                                             // a focus session is running — the timer comes first
+  if (!store.get('ai.welcomeOn', true) || store.get('ai.welcomeDay', '') === todayIso()) return;
+  if (story || document.querySelector('dialog[open]')) return;
+  openWelcome(true);
+}
+function openWelcome(daily) {
+  if (daily) store.set('ai.welcomeDay', todayIso());                       // counted as shown right away (skip / reopen won't bring it back today)
+  let w = $('#welcome');
+  if (!w) { w = document.createElement('div'); w.id = 'welcome'; w.className = 'welcome'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-labelledby', 'wcTitle'); document.body.appendChild(w); }
+  const h = new Date().getHours(), hello = h < 5 ? L('Good night', 'לילה טוב') : h < 12 ? L('Good morning', 'בוקר טוב') : h < 17 ? L('Good afternoon', 'צהריים טובים') : L('Good evening', 'ערב טוב');
+  const card = (k) => {
+    const a = ctxArea(k), open = data.items.filter(it => it.area === a && !isClosed(it));
+    const od = open.filter(it => horizon(it) === 'Overdue').length, td = open.filter(it => horizon(it) === 'Today').length, wk = open.filter(it => horizon(it) === 'This week').length;
+    const desc = od || td ? [td && L(`${td} today`, `${td} להיום`), od && L(`${od} overdue`, `${od} באיחור`)].filter(Boolean).join(' · ') : wk ? L(`${wk} later this week`, `${wk} בהמשך השבוע`) : L('Nothing urgent', 'אין משהו דחוף');
+    return `<button class="wc-card" data-wc="${k}" aria-label="${esc(CTX[k].name() + ' — ' + L('play the daily video', 'הפעלת הסרטון היומי'))}">
+      <span class="wc-ic" aria-hidden="true">${CTX[k].ic}</span>
+      <span class="wc-txt"><b>${CTX[k].name()}</b><small>${esc(desc)}</small></span>
+      <span class="wc-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg></span>
+      <span class="wc-dur">${L(`${storySecs(a)} sec`, `${storySecs(a)} שנ׳`)}</span></button>`;
+  };
+  w.innerHTML = `<div class="wc-in">
+    <p class="wc-date">${esc(today().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
+    <p class="wc-hello">${hello} ☀</p>
+    <h1 id="wcTitle">${L('What do we focus on today?', 'במה מתמקדים היום?')}</h1>
+    <div class="wc-cards">${card('work')}${card('home')}</div>
+    <button class="wc-skip" data-wc="skip">${L('Straight to my tasks ›', 'ישר למשימות ‹')}</button>
+    <p class="wc-note">${L('Turn this screen off in ☰ › Daily start screen', 'אפשר לכבות את המסך הזה ב-☰ › מסך פתיחה יומי')}</p></div>`;
+  w.hidden = false; document.body.classList.add('welcome-open');
+  setTimeout(() => { const b = w.querySelector('.wc-card'); if (b) b.focus({ preventScroll: true }); }, 50);
+}
+function closeWelcome() { const w = $('#welcome'); if (w) w.hidden = true; document.body.classList.remove('welcome-open'); }
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-wc]'); if (!b) return;
+  const k = b.dataset.wc; closeWelcome();
+  if (k === 'skip') { render(); return; }
+  playCtx(k);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#welcome') && !$('#welcome').hidden) { closeWelcome(); render(); } });
+function playCtx(k) {
+  const a = ctxArea(k);
+  storyAfter = () => openAfter(k);                                         // when it ends — or if stopped — offer a task to focus on
+  try { openStory(a); } catch (e) { storyAfter = null; openAfter(k); }     // if the video can't play, go on without blocking
+}
+/* after the video: pick a task from that context and start focus, switch context, or go to the main screen */
+function openAfter(k) {
+  const d = $('#dlgAfter'); d.dataset.ctx = k; afterRender(); if (!d.open) d.showModal();
+}
+function afterRender() {
+  const d = $('#dlgAfter'), k = d.dataset.ctx, a = ctxArea(k);
+  const open = data.items.filter(it => it.area === a && !isClosed(it));
+  const mine = dayRows().map(r => open.find(it => it.row === r)).filter(Boolean);
+  const urgent = open.filter(it => ['Overdue', 'Today', 'This week'].includes(horizon(it)) && !mine.includes(it)).sort((x, y) => sortOpen(x, y));
+  const nb = open.filter(it => !it.due && !mine.includes(it)).sort((x, y) => prioRank(x.prio) - prioRank(y.prio));
+  const list = mine.concat(urgent, nb).slice(0, 6);
+  const row = (it) => { const h = horizon(it), late = h === 'Overdue' ? dayDiff(today(), parse(it.due)) : 0;
+    return `<div class="af-row"><div class="af-t"><bdi>${esc(it.item)}</bdi><small>${inDay(it.row) ? '☀ ' + L('My day', 'שלי להיום') + ' · ' : ''}${!it.due ? '📒 ' + L('Notebook', 'פנקס') : late ? `<span class="c-late">${L(`${late}d late`, `באיחור ${late} ימ׳`)}</span>` : h === 'Today' ? L('Today', 'היום') : fmt(it.due, true)}</small></div>
+      <button class="btn primary af-go" data-afgo="${it.row}">▶ ${L('Focus', 'פוקוס')}</button></div>`; };
+  $('#afBody').innerHTML = `<div class="seg af-seg">${['work', 'home'].map(x => `<button type="button" class="${x === k ? 'on' : ''}" data-afctx="${x}" aria-pressed="${x === k}">${CTX[x].ic} ${CTX[x].name()}</button>`).join('')}</div>
+    <p class="af-q">${L('Pick a task and start focus time:', 'בחר משימה והתחל זמן פוקוס:')}</p>
+    ${list.length ? list.map(row).join('') : `<p class="hint">${L('No open tasks here — enjoy, or switch context.', 'אין כאן משימות פתוחות — תהנה, או החלף הקשר.')}</p>`}
+    <div class="sheet-actions"><button type="button" class="btn ghost" data-afreplay>↻ ${L('Watch again', 'לצפות שוב')}</button><span class="grow"></span><button type="button" class="btn primary" data-afmain>${L('To my tasks', 'למסך הראשי')}</button></div>`;
+}
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('[data-afctx]'); if (c) { $('#dlgAfter').dataset.ctx = c.dataset.afctx; afterRender(); return; }
+  const g = e.target.closest('[data-afgo]'); if (g) { const it = data.items.find(x => String(x.row) === g.dataset.afgo); $('#dlgAfter').close(); if (it) openFocusSetup(it); return; }
+  if (e.target.closest('[data-afmain]')) { const k = $('#dlgAfter').dataset.ctx; $('#dlgAfter').close(); const a = ctxArea(k); ui.tab = 'focus'; ui.area = a; ui.areas = []; store.set('ai.ui', ui); render(); scrollTo(0, 0); return; }
+  if (e.target.closest('[data-afreplay]')) { const k = $('#dlgAfter').dataset.ctx; $('#dlgAfter').close(); playCtx(k); }
+});
+$('#welcomeOn').addEventListener('change', (e) => { store.set('ai.welcomeOn', e.target.checked); toast(e.target.checked ? L('Daily start screen on', 'מסך הפתיחה היומי פועל') : L('Daily start screen off', 'מסך הפתיחה היומי כבוי')); });
 
 /* =====================================================================
    ⏱ Focus time — a quiet screen to work on one task.
@@ -2967,8 +3059,10 @@ function storyClick(e) {
   if (fwd) storyGo(s.i + 1); else if (back) storyGo(s.i - 1);
 }
 function storyKey(e) { if (!story) return; if (e.key === 'Escape') storyClose(); if (e.key === 'ArrowLeft') storyGo(story.i + (isHe() ? 1 : -1)); if (e.key === 'ArrowRight') storyGo(story.i + (isHe() ? -1 : 1)); }
+let storyAfter = null;   // what to show when the video ends or is stopped (set by the daily welcome)
 function storyClose() {
-  if (!story) return; clearTimeout(story.timer); clearTimeout(story.safety); clearTimeout(story.hold); clearTimeout(story.actT); clearTimeout(story.tickleT); story.tok++;
+  if (!story) return; const after = storyAfter; storyAfter = null; if (after) setTimeout(after, 60);
+  clearTimeout(story.timer); clearTimeout(story.safety); clearTimeout(story.hold); clearTimeout(story.actT); clearTimeout(story.tickleT); story.tok++;
   try { speechSynthesis.cancel(); } catch (e) { /* none */ }
   stSnd.stop(); story.el.remove(); story = null; document.body.classList.remove('story-open'); document.removeEventListener('keydown', storyKey);
 }
@@ -2986,6 +3080,7 @@ function renderPlayMenu() {
   const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll' && !isGuest();
   void inColl;   // new task / new Collection entry: the ＋ button next to ▶
   if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
+  if (!isGuest()) items.push(['welcome', '🌅', L('What do we focus on today?', 'במה מתמקדים היום?'), L('Work & home daily videos', 'הסרטונים היומיים — עבודה ובית')]);
   { const n = data.items.filter(it => areaOk(it.area) && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;   // the video follows the area(s) on screen
     items.push(['story:', '🎬', L(`What’s urgent · ${areaSelLabel()}`, `מה דחוף · ${areaSelLabel()}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); }
   if (!isGuest()) {
@@ -3007,6 +3102,7 @@ $('#playMenu').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-play]'); if (!b) return; const k = b.dataset.play; togglePlay(false);
   if (k === 'new') { isGuest() ? openSuggest() : openEdit(null); return; }
   if (k === 'review') { openReview(); return; }
+  if (k === 'welcome') { openWelcome(false); return; }
   if (k === 'newcoll') { openColl({ cat: ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat, status: 'want' }); return; }
   if (k.startsWith('story:')) { openStory(k.slice(6) || null); return; }
   if (k === 'report') { openReport(); return; }
@@ -3154,7 +3250,7 @@ function applyList(j) {
   ui.areas = (ui.areas || []).filter(a => data.areas.includes(a));
   if (isGuest() && (ui.tab === 'waiting')) ui.tab = 'focus';
   if (!settings.demo && remembered()) store.set('ai.cache', data);
-  setTimeout(() => { if (typeof fsRestore === 'function') fsRestore(); }, 0);
+  setTimeout(() => { if (typeof fsRestore === 'function') fsRestore(); if (typeof startOfDay === 'function') startOfDay(); }, 0);
 }
 function suggHtml() {
   const col = { Pending: '#B45309', Approved: '#15803D', Rejected: '#B91C1C' };
@@ -3453,7 +3549,7 @@ $('#lockDemo').addEventListener('click', startDemo);
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 61;
+const APP_VERSION = 62;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
