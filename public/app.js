@@ -1467,6 +1467,7 @@ function startOfDay() {
     return;
   }
   if (fs && !fs.endAt) return;                                             // a focus session is running — the timer comes first
+  if (store.get('aip.tourPending', false)) { store.set('aip.welcomeDay', todayIso()); setTimeout(startTour, 400); return; }   // brand-new copy: the tour first
   if (!store.get('aip.welcomeOn', true) || store.get('aip.welcomeDay', '') === todayIso()) return;
   if (story || document.querySelector('dialog[open]')) return;
   openWelcome(true);
@@ -3688,16 +3689,81 @@ document.addEventListener('click', async (e) => {
     const text = L('My Action Items app: ', 'האפליקציה שלי: ') + link;
     try { if (navigator.share) { await navigator.share({ text }); return; } } catch (x) { return; }
     try { await navigator.clipboard.writeText(link); toast(L('Link copied — send it to yourself', 'הקישור הועתק — שלח אותו לעצמך')); } catch (x) { prompt('', link); } return; }
-  if (k === 'go') { const w = wz; $('#dlgSetup').close(); wz = null;
+  if (k === 'go') { const w = wz; $('#dlgSetup').close(); wz = null; store.set('aip.tourPending', true);
     $('#lockUrlWrap').hidden = false; LK('url').value = w.url; LK('username').value = w.user; LK('password').value = w.pw; LK('remember').checked = true; frmLock.requestSubmit(); }
 });
+
+/* =====================================================================
+   🧭 Guided tour — spotlights the main parts of the app, one at a time
+   Starts by itself once after a new copy is set up; ☰ › Guided tour runs it again.
+   ===================================================================== */
+let tour = null;
+const TOUR = () => [
+  { t: L('Welcome! 👋', 'ברוכים הבאים! 👋'), d: L('A one-minute tour of the main things you can do. You can stop any time.', 'סיור של דקה על הדברים העיקריים באפליקציה. אפשר לעצור בכל רגע.') },
+  { el: '#kpis', t: L('Your day at a glance', 'היום שלך במבט אחד'), d: L('How many tasks are late, due today and this week. Tap a number to jump there.', 'כמה משימות באיחור, להיום והשבוע. לחיצה על מספר קופצת אליהן.') },
+  { el: '#tabs', t: L('Screens', 'מסכים'), d: L('<b>Focus</b> — what matters now · <b>Notebook</b> — tasks without a date, plus a Collection of restaurants, trips, recipes and wishes · <b>Week</b> — a calendar view · <b>More</b> — all, waiting, people, done.', '<b>פוקוס</b> — מה חשוב עכשיו · <b>פנקס</b> — משימות בלי תאריך, ואוסף של מסעדות, טיולים, מתכונים ומשאלות · <b>שבוע</b> — תצוגת לוח · <b>עוד</b> — הכול, ממתין, אנשים, בוצעו.') },
+  { el: '.area-row', t: L('Areas of life', 'תחומי חיים'), d: L('Tap an area to see only it. <b>Choose areas</b> shows several together — the counts and the video follow.', 'לחיצה על תחום מציגה רק אותו. <b>בחירת תחומים</b> מציגה כמה יחד — הספירות והסרטון מתאימים את עצמם.') },
+  { el: '.story-row', t: L('Today’s recap', 'תקציר היום'), d: L('A 30-second animated video of what’s urgent, told by a funny character.', 'סרטון מונפש של 30 שניות על מה שדחוף, עם דמות מצחיקה.') },
+  { el: '.myday, .empty-day', t: L('My day ☀', 'שלי להיום ☀'), d: L('Pick up to 3 tasks you intend to work on today — from ⋯ on a task. Due dates don’t change.', 'בחר עד 3 משימות שאתה מתכוון לעבוד עליהן היום — דרך ⋯ במשימה. התאריכים לא משתנים.') },
+  { el: '#list .card', t: L('A task', 'משימה'), d: L('Tap the circle when it’s done 🎉. Tap the task to edit it. <b>⋯</b> starts <b>Focus time</b>, defers to tomorrow or adds it to My day.', 'לחיצה על העיגול כשסיימת 🎉. לחיצה על המשימה פותחת עריכה. <b>⋯</b> מתחיל <b>זמן פוקוס</b>, דוחה למחר או מוסיף לשלי להיום.') },
+  { el: '#fab', t: L('Add a task', 'הוספת משימה'), d: L('Just type: “tomorrow 9:30 call the bank !1 ~1h” — date, time, priority and hours are picked up.', 'פשוט לכתוב: "מחר 9:30 להתקשר לבנק !1 ~1h" — התאריך, השעה, העדיפות והשעות מזוהים לבד.') },
+  { el: '#fabPlay', t: L('Quick actions', 'פעולות מהירות'), d: L('Calendar sync, the daily videos, a link to the Collection and the weekly review.', 'סנכרון מהיומן, הסרטונים היומיים, קישור לאוסף והסקירה השבועית.') },
+  { el: '#btnSearch', t: L('Search', 'חיפוש'), d: L('One search across tasks, the Notebook and the Collection.', 'חיפוש אחד במשימות, בפנקס ובאוסף.') },
+  { el: '#btnMenu', t: L('Menu', 'תפריט'), d: L('Areas, sharing with family, phone notifications, dark mode, font size — and this tour again.', 'תחומים, שיתוף עם המשפחה, התראות לטלפון, מצב כהה, גודל גופן — וגם הסיור הזה שוב.') },
+  { t: L('⏱ Focus time', '⏱ זמן פוקוס'), d: L('Pick a task › ⋯ › <b>Start focus</b>. A quiet screen with a timer; breaks don’t count, and the time can go into the task’s hours.', 'בוחרים משימה › ⋯ › <b>מתחילים פוקוס</b>. מסך שקט עם טיימר; הפסקות לא נספרות, והזמן יכול להיכנס לשעות של המשימה.') },
+  { t: L('That’s it! 🚀', 'זהו! 🚀'), d: L('Add your first task with ＋ below. Good luck!', 'הוסף את המשימה הראשונה עם ＋ למטה. בהצלחה!'), last: true }
+];
+function startTour() {
+  if (isGuest()) return;
+  document.querySelectorAll('dialog[open]').forEach(d => d.close()); closeWelcome && closeWelcome();
+  if (ui.tab !== 'focus') { ui.tab = 'focus'; store.set('aip.ui', ui); render(); }
+  store.set('aip.tourDone', true); store.set('aip.tourPending', false);
+  const steps = TOUR().filter(st => !st.el || document.querySelector(st.el));   // skip what isn't on screen (e.g. no tasks yet)
+  let el = $('#tour');
+  if (!el) { el = document.createElement('div'); el.id = 'tour'; el.className = 'tour'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-live', 'polite');
+    el.innerHTML = '<div class="tour-hole"></div><div class="tour-card"></div>'; document.body.appendChild(el); }
+  tour = { steps, i: 0, el }; el.hidden = false; document.body.classList.add('tour-open'); tourShow();
+}
+function tourShow() {
+  const st = tour.steps[tour.i], n = tour.steps.length, hole = tour.el.querySelector('.tour-hole'), card = tour.el.querySelector('.tour-card');
+  const target = st.el ? document.querySelector(st.el) : null;
+  card.innerHTML = `<div class="tour-step" dir="ltr">${tour.i + 1} / ${n}</div><h3>${st.t}</h3><p>${st.d}</p>
+    <div class="tour-dots">${tour.steps.map((x, k) => `<i class="${k === tour.i ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="tour-act">${st.last ? '' : `<button type="button" class="linkish" data-tour="end">${L('Skip the tour', 'דילוג על הסיור')}</button>`}<span class="grow"></span>
+      ${tour.i ? `<button type="button" class="btn ghost" data-tour="back">${L('Back', 'הקודם')}</button>` : ''}<button type="button" class="btn primary" data-tour="${st.last ? 'end' : 'next'}">${st.last ? L('Let’s start', 'יאללה מתחילים') : L('Next', 'הבא')}</button></div>`;
+  card.querySelector('[data-tour="' + (st.last ? 'end' : 'next') + '"]').focus({ preventScroll: true });
+  const place = () => {
+    if (!tour) return;
+    if (!target) { hole.style.cssText = 'top:50%;left:50%;width:0;height:0'; card.classList.add('center'); card.style.top = ''; card.style.left = ''; return; }
+    card.classList.remove('center');
+    const r = target.getBoundingClientRect(), pad = 6;
+    hole.style.cssText = `top:${r.top - pad}px;left:${r.left - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px`;
+    const ch = card.offsetHeight, cw = card.offsetWidth, below = r.bottom + 14 + ch < innerHeight - 8;
+    card.style.top = (below ? r.bottom + 14 : Math.max(8, r.top - 14 - ch)) + 'px';
+    card.style.left = Math.max(12, Math.min(innerWidth - cw - 12, r.left + r.width / 2 - cw / 2)) + 'px';
+  };
+  if (target) { const r = target.getBoundingClientRect(); if (r.top < 60 || r.bottom > innerHeight - 20) target.scrollIntoView({ block: 'center' }); }
+  requestAnimationFrame(place); tour.place = place;
+}
+function tourEnd() { if (!tour) return; tour.el.hidden = true; document.body.classList.remove('tour-open'); tour = null; }
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tour]'); if (!b || !tour) return;
+  const k = b.dataset.tour;
+  if (k === 'end') { tourEnd(); return; }
+  tour.i = Math.max(0, Math.min(tour.steps.length - 1, tour.i + (k === 'next' ? 1 : -1))); tourShow();
+});
+document.addEventListener('keydown', (e) => { if (!tour) return; if (e.key === 'Escape') tourEnd(); if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { const fwd = (e.key === 'ArrowLeft') === isHe(); tour.i = Math.max(0, Math.min(tour.steps.length - 1, tour.i + (fwd ? 1 : -1))); tourShow(); } });
+window.addEventListener('resize', () => tour && tour.place && tour.place());
+window.addEventListener('scroll', () => tour && tour.place && tour.place(), { passive: true });
+$('#btnTour').addEventListener('click', () => { $('#dlgMenu').close(); setTimeout(startTour, 150); });
+
 $('#lockSetup').addEventListener('click', openWizard);
 if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 64;
+const APP_VERSION = 65;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

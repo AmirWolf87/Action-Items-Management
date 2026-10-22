@@ -1191,3 +1191,14 @@ dialog.wz-sheet{padding:16px}
 .fm-art .mc-wrap{width:min(48vw,220px);height:min(80vw,366px)}
 .fm-art{margin-bottom:6vh}
 div.fm-buddy .mc-wrap{width:56px;height:94px}
+/* 🧭 guided tour */
+body.tour-open{overflow:hidden}
+.tour{position:fixed;inset:0;z-index:70}
+.tour-hole{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px rgba(8,12,24,.62);transition:all .3s ease;pointer-events:none;outline:2px solid rgba(255,255,255,.85);outline-offset:0}
+.tour-card{position:fixed;width:min(340px,calc(100vw - 24px));background:var(--card);color:var(--ink);border-radius:18px;padding:16px;box-shadow:0 18px 40px rgba(0,0,0,.35);transition:top .3s ease,left .3s ease}
+.tour-card.center{top:50%;left:50%;transform:translate(-50%,-50%)}
+.tour-step{font-size:12px;color:var(--muted);margin-bottom:2px}
+.tour-card h3{margin:0 0 6px;font-size:18px}.tour-card p{margin:0 0 10px;line-height:1.5;font-size:15px}
+.tour-dots{display:flex;gap:4px;margin-bottom:10px}.tour-dots i{width:6px;height:6px;border-radius:50%;background:var(--line)}.tour-dots i.on{background:var(--accent);width:16px;border-radius:4px}
+.tour-act{display:flex;align-items:center;gap:8px}.tour-act .btn{min-height:44px}.tour-act .linkish{font-size:14px;color:var(--muted);min-height:44px}
+@media (prefers-reduced-motion: reduce){.tour-hole,.tour-card{transition:none}}
