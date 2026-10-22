@@ -1162,3 +1162,9 @@ dialog.af-sheet{padding:16px}
 .af-t{flex:1;min-width:0}.af-t bdi{display:block;font-size:16px;font-weight:600}.af-t small{color:var(--muted);font-size:13px}
 .af-go{min-height:44px;white-space:nowrap}
 .seg button.on{background:var(--primary);color:var(--on-primary)}
+/* 🍽 kind-of-place filter (board + map) */
+.c-kinds{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:2px 0 10px;padding-bottom:2px}
+.c-kind{flex:0 0 auto;min-height:36px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:14px;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.c-kind i{font-style:normal;font-size:12px;color:var(--muted)}
+.c-kind.on{background:var(--focus-soft);color:var(--accent);border-color:transparent;font-weight:700}
+.c-kind.on i{color:var(--accent)}

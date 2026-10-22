@@ -1256,7 +1256,7 @@ function aiCall_(parts, tools) {
 }
 function aiExtract_(style, catName, raw, url, blocked) {
   const rules = {
-    food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence.',
+    food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence. base = the kind of place, ONE of: cafe, cart (coffee cart / food truck), bakery, italian, pizza, burger, diner, meat, asian, mexican, middle (middle-eastern / hummus / shawarma), fish, veg, street, bar, chef (chef / fine dining), other.',
     trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
     activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
     recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit (use judgment — the one the drink is built on, never "other" when it is clear). Prefer ONE of: gin, vodka, rum, tequila, whisky, brandy, pisco, cachaca, arak, campari, aperol, prosecco, sparkling (champagne / cava), wine, beer, liqueur, none (non-alcoholic). If none of these fits, write the short name of the spirit in Hebrew (e.g. "סאקה", "מזקל"). ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
@@ -1265,7 +1265,7 @@ function aiExtract_(style, catName, raw, url, blocked) {
     rules[style] + '\n' +
     'place = the most precise location to put a map pin: business/site name + street/area + city if known (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). If only a city or region is known, give that. Empty if unknown.\n' +
     'city = city / region. notes = 1-3 short lines with the useful facts (what to order, hours, price, tips) — no hashtags.\n' +
-    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":"","ing":""' : '') + '}\n\n' +
+    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":"","ing":""' : style === 'food' ? ',"base":""' : '') + '}\n\n' +
     'URL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 3000);
   const parts = [{ text: prompt }];
   const yt = /youtube\.com|youtu\.be/i.test(url);
@@ -1354,6 +1354,12 @@ const DRINK_BASES_ = [['pisco', /פיסקו|pisco/i], ['cachaca', /קשאסה|ק
   ['tequila', /טקילה|tequila|מרגריטה|margarita|פלומה|מזקל|mezcal/i], ['whisky', /וויסקי|ויסקי|whisk(e)?y|בורבון|bourbon|סקוטש|אולד פאשן|old fashioned/i],
   ['aperol', /אפרול|aperol/i], ['prosecco', /פרוסקו|prosecco|בליני|bellini|מימוזה|mimosa/i], ['sparkling', /שמפניה|קאווה|פרוסקו|prosecco|champagne|cava|ספריץ|spritz/i], ['wine', /יין|wine|סנגריה|sangria/i], ['beer', /בירה|beer|ipa\b|לאגר/i],
   ['campari', /קמפרי|campari|אמריקנו|americano|גריבלדי|garibaldi/i], ['liqueur', /ליקר|liqueur|אפרול|aperol|אמרטו|בייליס|קלואה/i], ['none', /ללא אלכוהול|נטול אלכוהול|מוקטייל|mocktail|non.?alcoholic|0%/i]];
+const FOOD_KINDS_ = [['cart', /עגלת קפה|עגלת|coffee cart|food truck|פודטראק/i], ['bakery', /מאפי|bakery|קונדיטור|גלידה|gelato|ice cream|קינוח|dessert/i], ['cafe', /בית קפה|קפה|café|cafe|coffee|espresso/i],
+  ['pizza', /פיצ|pizz/i], ['italian', /איטלק|ital|פסטה|pasta|trattoria|osteria/i], ['burger', /המבורגר|burger|בורגר/i], ['diner', /דיינר|diner|בראנץ|brunch|breakfast/i],
+  ['meat', /בשר|סטייק|steak|גריל|grill|מעשנ|bbq|אסאדו/i], ['asian', /סוש|sushi|אסי|asian|ראמן|ramen|תאי|thai|סינ|chinese|יפנ|japan|וייטנאמ|קוריאנ|korean|נודלס|noodle|הודי|indian/i],
+  ['mexican', /מקסיק|mexic|טאקו|taco|בוריטו/i], ['fish', /דגים|fish|seafood|פירות ים/i], ['veg', /טבעונ|vegan|צמחונ|vegetarian/i], ['middle', /חומוס|hummus|שווארמה|shawarma|פלאפל|falafel|לבנונ|קבב|kebab/i],
+  ['street', /אוכל רחוב|street food|סביח|סנדוויץ|sandwich/i], ['bar', /בר יין|wine bar|\bbar\b|פאב|pub|יקב|winery/i], ['chef', /שף|chef|גורמה|fine dining|tasting/i]];
+function foodKind_(text) { const t = String(text || ''); const f = FOOD_KINDS_.find(b => b[1].test(t)); return f ? f[0] : ''; }
 function drinkBase_(text) { const t = String(text || ''); const f = DRINK_BASES_.find(b => b[1].test(t)); return f ? f[0] : ''; }
 function linkInfo_(url, opt) {
   opt = opt || {};
@@ -1379,6 +1385,7 @@ function linkInfo_(url, opt) {
     if (!out.title) out.title = ruleTitle_(style, { caption: raw.caption, place: out.place, title: (raw.title || captionBits_(raw.caption).title).replace(/\s+on (Instagram|Facebook|TikTok)\b.*$/i, ''), capFirst: captionBits_(raw.caption).title, by: raw.by });
   }
   if (style === 'drink') { out.base = out.base || drinkBase_(out.title + ' ' + raw.title + ' ' + raw.caption); out.place = ''; }
+  if (style === 'food') out.base = out.base || foodKind_(out.title + ' ' + raw.title + ' ' + raw.caption);
   // a pin for the place (nearest match), so the map works right away
   if ((out.lat === null || out.lat === undefined) && (out.place || (style === 'food' || style === 'trip' || style === 'activity') && out.title)) {
     try {
