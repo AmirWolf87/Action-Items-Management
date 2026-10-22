@@ -34,6 +34,12 @@ It is stored only as a salted hash inside the script.
 - **Android (Chrome):** ⋮ › **Install app**.
 - **PC (Chrome / Edge):** install icon in the address bar.
 
+## Public copy (for other people's own data)
+`public/` is a copy anyone can set up for themselves — their tasks go to **their own** Google Sheet, nothing is shared with you.
+Link: https://amirwolf87.github.io/Action-Items-Management/public/ — on the sign-in screen: **🧭 First time? Set up your own copy**.
+It is generated from this app: after changing the root files run `python3 tools/build_public.py` (set `AI_TEMPLATE=<sheet>/copy` to offer a ready template).
+Your own app, data and settings are untouched; the two keep separate storage on the same device.
+
 ## Sharing with others (read-only guests)
 - ☰ › **Sharing & guests** › add a guest (e.g. *Neta*): her own **username** and password — you set and see both; only you can change the password (she can change her username in ☰ › *My account*). If she taps **Forgot password?** on the sign-in screen you get an alert and a **💬 WhatsApp** button in 📥 with her login ready to send, which areas she can see, and whether she can suggest items.
 - Tap **🔗 Invite** to copy a message with the link; send the password separately. The link fills in the sheet address for her.

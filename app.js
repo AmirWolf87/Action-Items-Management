@@ -21,6 +21,9 @@ const HORIZONS = ['Overdue', 'Today', 'This week', 'Next week', 'This month', 'L
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/* which build is running: 'personal' (the original) or 'public' (the copy anyone can set up for themselves) */
+const EDITION = (typeof window !== 'undefined' && window.AI_EDITION) || 'personal';
+const TEMPLATE_URL = (typeof window !== 'undefined' && window.AI_TEMPLATE) || '';   // a Google Sheet to copy ("…/copy"), when one exists
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
@@ -1585,6 +1588,7 @@ async function fsSync(force) {
 }
 function showFocus(intro, sound) {
   if (!fs) return;
+  if (EDITION === 'public' && !$('#fmBuddy').dataset.svg) { const b = $('#fmBuddy'); const d = document.createElement('div'); d.id = 'fmBuddy'; d.className = 'fm-buddy st-mascot'; d.dataset.svg = '1'; d.setAttribute('aria-hidden', 'true'); d.innerHTML = `<div class="mc-wrap">${mascotSvg(ST_CAST[0])}</div>`; b.replaceWith(d); }
   fs.min = false; fsSave();
   const m = $('#focusMode'); m.hidden = false; document.body.classList.add('focus-open');
   $('#fmTitle').innerHTML = `<bdi>${esc(fs.item)}</bdi>`;
@@ -1595,9 +1599,13 @@ function showFocus(intro, sound) {
 function fsIntro(sound) {
   const box = $('#fmIntro'), img = $('#fmIntroImg'), bub = $('#fmBubble');
   box.hidden = false; box.className = 'fm-intro'; bub.classList.remove('show'); $('#focusMode').classList.add('intro');
-  img.src = 'assets/focus/focus_intro.webp?t=' + Date.now();          // restart the animation (plays once)
+  const art = $('#fmArt'); if (art) art.remove();
+  if (EDITION === 'public') {          // the public copy uses one of the app's own drawn characters
+    img.hidden = true; const ch = ST_CAST[Math.floor(Math.random() * ST_CAST.length)];
+    const d = document.createElement('div'); d.id = 'fmArt'; d.className = 'st-mascot mood-hi fm-art'; d.innerHTML = `<div class="mc-wrap">${mascotSvg(ch, ST_OUTFITS.find(o => o.id === 'work'))}</div>`; box.insertBefore(d, img);
+  } else { img.hidden = false; img.src = 'assets/focus/focus_intro.webp?t=' + Date.now(); }          // restart the animation (plays once)
   let au = null;
-  if (sound) { try { au = new Audio('assets/focus/focus_intro.m4a'); au.volume = 0.8; au.play().catch(() => {}); } catch (e) { au = null; } }
+  if (sound && EDITION !== 'public') { try { au = new Audio('assets/focus/focus_intro.m4a'); au.volume = 0.8; au.play().catch(() => {}); } catch (e) { au = null; } }
   $('#fmMute').textContent = sound ? '🔊' : '🔇';
   $('#fmMute').onclick = () => { if (au) { au.muted = !au.muted; $('#fmMute').textContent = au.muted ? '🔇' : '🔊'; store.set('ai.focusSound', !au.muted); } };
   const end = () => { clearTimeout(t1); clearTimeout(t2); if (au) au.pause(); box.classList.add('out'); $('#focusMode').classList.remove('intro'); setTimeout(() => { box.hidden = true; img.removeAttribute('src'); }, 450); };
@@ -3581,10 +3589,115 @@ frmLock.addEventListener('submit', async (e) => {
 });
 $('#lockChangeUrl').addEventListener('click', () => { $('#lockUrlWrap').hidden = false; LK('url').focus(); });
 $('#lockDemo').addEventListener('click', startDemo);
+/* =====================================================================
+   🧭 Setup wizard — for someone starting their own copy (public edition)
+   Steps: own Google Sheet → script → deploy as web app → connect → username & password → areas
+   ===================================================================== */
+let wz = null;
+const SCRIPT_PATH = EDITION === 'public' ? 'ActionItems_Script.gs' : 'apps-script/ActionItems_Script.gs';
+const WZ_AREAS = [['Work', '💼'], ['Home', '🏠'], ['Personal', '🙂'], ['Family', '👨‍👩‍👧'], ['Finance', '💰'], ['Health', '🩺'], ['Studies', '🎓'], ['Reserve Duty', '🪖'], ['Sport', '🏃'], ['Hobbies', '🎨']];
+function openWizard() {
+  wz = { step: 0, url: '', user: '', pw: '', areas: ['Work', 'Home', 'Personal'], script: null, err: '' };
+  fetch(SCRIPT_PATH, { cache: 'no-cache' }).then(r => r.ok ? r.text() : null).then(t => { if (wz) wz.script = t; }).catch(() => {});   // ready before the copy tap (iPhone needs the copy inside the tap)
+  $('#dlgSetup').showModal(); wzRender();
+}
+function wzRender() {
+  const T = [L('Your sheet', 'הגיליון שלך'), L('The script', 'הסקריפט'), L('Publish', 'פרסום'), L('Connect', 'חיבור'), L('Sign-in', 'כניסה'), L('Areas', 'תחומים')];
+  const steps = `<ol class="wz-steps">${T.map((t, k) => `<li class="${k === wz.step ? 'on' : k < wz.step ? 'done' : ''}"><i>${k < wz.step ? '✓' : k + 1}</i><span>${t}</span></li>`).join('')}</ol>`;
+  const tip = (t) => `<p class="wz-tip">💡 ${t}</p>`;
+  let b = '';
+  if (wz.step === 0) b = `<h3>${L('Your own copy, your own data', 'עותק משלך, נתונים משלך')}</h3>
+    <p>${L('Your tasks live in a Google Sheet in <b>your</b> Google Drive. Nobody else — including whoever sent you this app — can see them.', 'המשימות שלך נשמרות בגיליון Google ב<b>דרייב שלך</b>. אף אחד אחר — גם לא מי ששלח לך את האפליקציה — לא רואה אותן.')}</p>
+    ${tip(L('Do steps 1–3 on a computer (about 10 minutes). The phone part comes at the end.', 'את שלבים 1–3 כדאי לעשות במחשב (כ-10 דקות). החלק של הטלפון מגיע בסוף.'))}
+    ${TEMPLATE_URL ? `<a class="btn primary wz-big" href="${esc(TEMPLATE_URL)}" target="_blank" rel="noopener">📄 ${L('Make my copy of the template', 'יצירת עותק של התבנית')}</a><p class="hint">${L('Google asks “Make a copy?” — tap <b>Make a copy</b>. The script is already inside, so you can skip step 2.', 'גוגל ישאל "ליצור עותק?" — לחץ <b>יצירת עותק</b>. הסקריפט כבר בפנים, אפשר לדלג על שלב 2.')}</p>`
+      : `<a class="btn primary wz-big" href="https://sheets.new" target="_blank" rel="noopener">📄 ${L('Open a new Google Sheet', 'פתיחת גיליון Google חדש')}</a><p class="hint">${L('Give it a name, e.g. “My tasks”. Keep the tab open.', 'תן לו שם, למשל "המשימות שלי". השאר את הלשונית פתוחה.')}</p>`}`;
+  else if (wz.step === 1) b = `<h3>${L('Add the script to the sheet', 'הוספת הסקריפט לגיליון')}</h3>
+    <ol class="wz-list"><li>${L('Tap the button to copy the script.', 'לחץ על הכפתור כדי להעתיק את הסקריפט.')}</li>
+      <li>${L('In the sheet: <b>Extensions › Apps Script</b>.', 'בגיליון: <b>תוספים › Apps Script</b> (<bdi dir="ltr">Extensions › Apps Script</bdi>).')}</li>
+      <li>${L('Delete everything in the editor, paste, and click 💾 <b>Save</b>.', 'מחק את כל מה שיש בעורך, הדבק, ולחץ 💾 <b>שמירה</b>.')}</li></ol>
+    <button type="button" class="btn primary wz-big" data-wz="copy">📋 ${L('Copy the script', 'העתקת הסקריפט')}</button>
+    <a class="linkish" href="${SCRIPT_PATH}" target="_blank" rel="noopener">${L('or open it as a file', 'או לפתוח אותו כקובץ')}</a>`;
+  else if (wz.step === 2) b = `<h3>${L('Publish it as a web app', 'פרסום כאפליקציית אינטרנט')}</h3>
+    <ol class="wz-list"><li>${L('In Apps Script: <b>Deploy › New deployment</b>.', 'ב-Apps Script: <bdi dir="ltr"><b>Deploy › New deployment</b></bdi> (פריסה › פריסה חדשה).')}</li>
+      <li>${L('Click ⚙ next to “Select type” › <b>Web app</b>.', 'לחץ ⚙ ליד <bdi dir="ltr">"Select type" › <b>Web app</b></bdi>.')}</li>
+      <li>${L('<b>Execute as: Me</b> · <b>Who has access: Anyone</b> › <b>Deploy</b>.', '<bdi dir="ltr"><b>Execute as: Me</b> · <b>Who has access: Anyone</b> › <b>Deploy</b></bdi>.')}</li>
+      <li>${L('<b>Authorize access</b> › choose your account.', '<bdi dir="ltr"><b>Authorize access</b></bdi> › בחר את החשבון שלך.')}</li>
+      <li>${L('If you see “Google hasn’t verified this app”: <b>Advanced › Go to … (unsafe) › Allow</b>. It is your own script, running in your own account.', 'אם מופיע <bdi dir="ltr">"Google hasn’t verified this app"</bdi>: <bdi dir="ltr"><b>Advanced › Go to … (unsafe) › Allow</b></bdi>. זה הסקריפט שלך, שרץ בחשבון שלך.')}</li>
+      <li>${L('Copy the <b>Web app URL</b> (ends with <code>/exec</code>).', 'העתק את ה-<bdi dir="ltr"><b>Web app URL</b></bdi> (נגמר ב-<code dir="ltr">/exec</code>).')}</li></ol>
+    ${tip(L('“Anyone” only lets the app reach it — every request still needs your password.', '"Anyone" רק מאפשר לאפליקציה להגיע אליו — כל בקשה עדיין דורשת את הסיסמה שלך.'))}`;
+  else if (wz.step === 3) b = `<h3>${L('Connect the app', 'חיבור האפליקציה')}</h3>
+    <label class="full">${L('Web app URL', 'כתובת ה-Web app')}<input id="wzUrl" inputmode="url" autocomplete="off" dir="ltr" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(wz.url)}"></label>
+    <p class="wz-err" id="wzErr">${esc(wz.err)}</p>`;
+  else if (wz.step === 4) b = wz.hasPw ? `<h3>${L('Sign in', 'כניסה')}</h3><p>${L('This sheet already has a password. Sign in with it.', 'לגיליון הזה כבר יש סיסמה. היכנס איתה.')}</p>
+      <label class="full">${L('Username', 'שם משתמש')}<input id="wzUser" autocapitalize="none" autocorrect="off" dir="ltr" value="${esc(wz.user)}"></label>
+      <label class="full">${L('Password', 'סיסמה')}<input id="wzPw" type="password" autocomplete="current-password"></label><p class="wz-err" id="wzErr">${esc(wz.err)}</p>`
+    : `<h3>${L('Choose your sign-in', 'בחר שם משתמש וסיסמה')}</h3>
+      <label class="full">${L('Username', 'שם משתמש')}<input id="wzUser" autocapitalize="none" autocorrect="off" spellcheck="false" dir="ltr" placeholder="dana" value="${esc(wz.user)}"></label>
+      <label class="full">${L('Password (8+ characters)', 'סיסמה (8 תווים לפחות)')}<input id="wzPw" type="password" autocomplete="new-password"></label>
+      <label class="full">${L('Password again', 'שוב את הסיסמה')}<input id="wzPw2" type="password" autocomplete="new-password"></label>
+      ${tip(L('Stored only as a hash inside your script. You can change it later from the sheet: ⚙ Action Items › App: set / change password.', 'נשמרת רק כ-hash בתוך הסקריפט שלך. אפשר לשנות בהמשך מהגיליון: ⚙ Action Items › App: set / change password.'))}<p class="wz-err" id="wzErr">${esc(wz.err)}</p>`;
+  else if (wz.step === 5) b = `<h3>${L('Which areas of life?', 'אילו תחומים?')}</h3><p class="hint">${L('Pick what fits — you can rename, add or reorder later in ☰ › Manage areas.', 'בחר מה שמתאים — אפשר לשנות, להוסיף ולסדר אחר כך ב-☰ › ניהול תחומים.')}</p>
+    <div class="wz-areas">${WZ_AREAS.map(([a, ic]) => `<button type="button" class="${wz.areas.includes(a) ? 'on' : ''}" data-wzarea="${esc(a)}" aria-pressed="${wz.areas.includes(a)}">${ic} ${esc(tr(a))}</button>`).join('')}</div><p class="wz-err" id="wzErr">${esc(wz.err)}</p>`;
+  else b = `<div class="wz-done"><b>🎉 ${L('All set!', 'הכול מוכן!')}</b><p>${L('To open it on your phone, send yourself this link — it connects that phone to your sheet:', 'כדי לפתוח בטלפון, שלח לעצמך את הקישור הזה — הוא מחבר את הטלפון לגיליון שלך:')}</p>
+    <button type="button" class="btn ghost wz-big" data-wz="phone">📲 ${L('Send the link to my phone', 'שליחת הקישור לטלפון')}</button>
+    <p class="hint">${L('On the phone: open the link in Safari › Share › <b>Add to Home Screen</b>.', 'בטלפון: פתח את הקישור ב-Safari › שיתוף › <b>הוסף למסך הבית</b>.')}</p></div>`;
+  const last = wz.step === 6;
+  $('#wzBody').innerHTML = steps + `<div class="wz-body">${b}</div><div class="sheet-actions">${wz.step && !last ? `<button type="button" class="btn ghost" data-wz="back">‹ ${L('Back', 'חזרה')}</button>` : ''}<span class="grow"></span>
+    ${last ? `<button type="button" class="btn primary" data-wz="go">${L('Open my app', 'לאפליקציה שלי')}</button>` : `<button type="button" class="btn primary" data-wz="next">${wz.step === 0 && TEMPLATE_URL ? L('I made a copy ›', 'יצרתי עותק ›') : wz.step === 4 || wz.step === 5 ? L('Continue ›', 'המשך ›') : L('Next ›', 'הבא ›')}</button>`}</div>`;
+}
+async function wzNext() {
+  const err = (m) => { wz.err = m; wzRender(); };
+  wz.err = '';
+  if (wz.step === 0 && TEMPLATE_URL) { wz.step = 2; wzRender(); return; }   // the template already contains the script
+  if (wz.step === 3) {
+    const u = cleanUrl($('#wzUrl').value); wz.url = u;
+    if (!validUrl(u)) return err(L('That isn’t a web-app URL — it should start with https://script.google.com/ and end with /exec.', 'זו לא כתובת Web app — היא צריכה להתחיל ב-https://script.google.com/ ולהיגמר ב-/exec.'));
+    $('#wzErr').textContent = L('Checking…', 'בודק…');
+    try { const j = await (await fetch(u)).json(); if (!j || !j.ok) throw new Error('bad'); wz.hasPw = !!j.passwordSet; }
+    catch (e) { return err(L('Couldn’t reach it. Check that “Who has access” is “Anyone”, and that you copied the newest deployment URL.', 'לא הצלחתי להגיע אליו. בדוק ש-"Who has access" הוא "Anyone" ושהעתקת את הכתובת של הפריסה האחרונה.')); }
+    wz.step = 4; wzRender(); return;
+  }
+  if (wz.step === 4) {
+    wz.user = ($('#wzUser').value || '').trim().toLowerCase(); wz.pw = $('#wzPw').value;
+    if (wz.hasPw) { wz.step = 6; wzRender(); return; }
+    if (!/^[a-z0-9._-]{3,30}$/.test(wz.user)) return err(L('Username: 3–30 English letters, numbers or . _ -', 'שם משתמש: 3–30 אותיות באנגלית, מספרים או . _ -'));
+    if (wz.pw.length < 8) return err(L('Password: at least 8 characters.', 'סיסמה: לפחות 8 תווים.'));
+    if (wz.pw !== $('#wzPw2').value) return err(L('The two passwords are different.', 'שתי הסיסמאות שונות.'));
+    wz.step = 5; wzRender(); return;
+  }
+  if (wz.step === 5) {
+    if (!wz.areas.length) return err(L('Pick at least one area.', 'בחר לפחות תחום אחד.'));
+    $('#wzErr').textContent = L('Setting up your sheet…', 'מכין את הגיליון שלך…');
+    try { const j = await (await fetch(wz.url, { method: 'POST', body: JSON.stringify({ action: 'initPassword', username: wz.user, password: wz.pw, areas: wz.areas }) })).json();
+      if (!j.ok) return err(j.error || L('Something went wrong', 'משהו השתבש')); }
+    catch (e) { return err(L('No connection to your sheet — try again.', 'אין חיבור לגיליון — נסה שוב.')); }
+    wz.step = 6; wzRender(); return;
+  }
+  wz.step++; wzRender();
+}
+document.addEventListener('click', async (e) => {
+  const a = e.target.closest('[data-wzarea]'); if (a && wz) { const k = a.dataset.wzarea; wz.areas = wz.areas.includes(k) ? wz.areas.filter(x => x !== k) : wz.areas.concat(k); wzRender(); return; }
+  const b = e.target.closest('#dlgSetup [data-wz]'); if (!b || !wz) return;
+  const k = b.dataset.wz;
+  if (k === 'next') { wzNext(); return; }
+  if (k === 'back') { wz.err = ''; wz.step = wz.step === 2 && TEMPLATE_URL ? 0 : wz.step - 1; wzRender(); return; }
+  if (k === 'copy') { if (!wz.script) { toast(L('Still loading — try again in a second', 'עדיין נטען — נסה שוב עוד שנייה')); return; }
+    try { await navigator.clipboard.writeText(wz.script); b.textContent = '✓ ' + L('Copied — now paste it in Apps Script', 'הועתק — עכשיו הדבק ב-Apps Script'); }
+    catch (x) { window.open(SCRIPT_PATH, '_blank'); } return; }
+  if (k === 'phone') { const link = location.origin + location.pathname + '#join=' + encodeURIComponent(wz.url) + '&u=' + encodeURIComponent(wz.user);
+    const text = L('My Action Items app: ', 'האפליקציה שלי: ') + link;
+    try { if (navigator.share) { await navigator.share({ text }); return; } } catch (x) { return; }
+    try { await navigator.clipboard.writeText(link); toast(L('Link copied — send it to yourself', 'הקישור הועתק — שלח אותו לעצמך')); } catch (x) { prompt('', link); } return; }
+  if (k === 'go') { const w = wz; $('#dlgSetup').close(); wz = null;
+    $('#lockUrlWrap').hidden = false; LK('url').value = w.url; LK('username').value = w.user; LK('password').value = w.pw; LK('remember').checked = true; frmLock.requestSubmit(); }
+});
+$('#lockSetup').addEventListener('click', openWizard);
+if (EDITION === 'public') document.documentElement.classList.add('ed-public');
+
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 63;
+const APP_VERSION = 64;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

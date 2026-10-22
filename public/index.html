@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Action Items</title>
+<meta name="theme-color" content="#26355D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Action Items">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="robots" content="noindex">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<script>try{var t=JSON.parse(localStorage.getItem('aip.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('aip.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
+<link rel="stylesheet" href="styles.css?v=64">
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <div class="top-title">
+      <h1 id="screenTitle" class="no-i18n">Action Items</h1>
+      <div class="sub"><span id="today"></span> <span id="sync" class="sync"></span><button type="button" class="sync-err" id="syncErr" hidden></button></div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn owner-only" id="btnPending" title="Suggestions waiting for approval" aria-label="Pending approvals" hidden>📥<span class="badge" id="pendingBadge"></span></button>
+      <button class="icon-btn" id="btnSearch" title="Search" aria-label="Search" aria-expanded="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2"/></svg></button>
+      <button class="icon-btn" id="btnMenu" title="Menu" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
+  </div>
+  <div class="guest-bar" id="guestBar" hidden></div>
+  <div class="kpis kpi-line" id="kpis"></div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="focus" class="on">Focus</button>
+  <button data-tab="notebook">📒 Notebook</button>
+  <button data-tab="week">Week</button>
+  <button class="tab-more" id="tabMore" aria-haspopup="menu" aria-expanded="false"><span class="no-i18n" id="tabMoreLbl">More</span> <span aria-hidden="true">▾</span></button>
+</nav>
+<div class="more-menu" id="moreMenu" role="menu" hidden>
+  <button data-tab="all" role="menuitem">All open</button>
+  <button data-tab="waiting" role="menuitem">Waiting</button>
+  <button data-tab="people" role="menuitem">People</button>
+  <button data-tab="done" role="menuitem">Done</button>
+</div>
+
+<div class="filters">
+  <div class="search-row" id="searchRow" hidden><input id="search" type="search" placeholder="Search…" autocomplete="off" enterkeyhint="search"></div>
+  <div class="area-row"><div class="chips" id="areaChips"></div><button type="button" class="area-pick" id="btnAreaPick" aria-label="Choose areas">Choose areas</button></div>
+</div>
+
+<main id="list" class="list"></main>
+
+<div class="bottom-bar" id="bottomBar">
+  <button class="fab add-btn" id="fab" aria-label="Add action item"><span aria-hidden="true">＋</span> <span class="no-i18n" id="fabLbl">Add a task</span></button>
+  <button class="fab fab-play" id="fabPlay" aria-label="Quick actions" aria-expanded="false" aria-controls="playMenu"><span>▶</span></button>
+</div>
+<div class="play-shade" id="playShade" hidden></div>
+<div class="play-menu" id="playMenu" hidden role="menu"></div>
+<div class="card-menu" id="cardMenu" role="menu" hidden></div>
+<div class="toast" id="toast"></div>
+
+<!-- Quick entry (bottom sheet) -->
+<dialog id="dlgQuick" class="sheet qa-sheet">
+  <form id="quickAdd" class="quick-add owner-only" autocomplete="off">
+    <div class="sheet-head"><h2>New task</h2><button type="button" class="icon-btn dark qa-help-btn" id="qaHelpBtn" aria-label="Help" aria-expanded="false">?</button><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+    <div class="qa-help" id="qaHelp" hidden>
+      <p>Type naturally — the app picks up:</p>
+      <ul class="no-i18n" id="qaHelpList"></ul>
+    </div>
+    <div class="qa-field"><input id="qa" placeholder="tomorrow 9:30 Send the report to Dana !1 ~2h" dir="auto" enterkeyhint="done"><button type="submit" class="btn primary" aria-label="Add">Add</button></div>
+    <div class="qa-preview" id="qaPreview"></div>
+    <button type="button" class="linkish qa-full" id="qaFull">Open the full editor ›</button>
+  </form>
+</dialog>
+
+<!-- Choose areas -->
+<dialog id="dlgAreaPick" class="sheet small">
+  <div class="sheet-head"><h2>Choose areas</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Pick one or more areas — tasks, counts and the summary video follow your choice.</p>
+  <div class="ap-list no-i18n" id="apList"></div>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="apAll">All areas</button><button type="button" class="btn ghost owner-only" id="apOrder">⇅ Order</button><span class="grow"></span><button type="button" class="btn primary" id="apDone">Show</button></div>
+</dialog>
+
+<!-- Setup wizard (own copy) -->
+<dialog id="dlgSetup" class="sheet wz-sheet">
+  <div class="sheet-head"><h2>Set up your own copy</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="wzBody" class="no-i18n"></div>
+</dialog>
+
+<!-- After the daily video -->
+<dialog id="dlgAfter" class="sheet af-sheet">
+  <div class="sheet-head"><h2>What now?</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="afBody" class="no-i18n"></div>
+</dialog>
+
+<!-- Weekly review -->
+<dialog id="dlgReview" class="sheet wr-sheet">
+  <div class="sheet-head"><h2>Weekly review</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="wrBody" class="no-i18n"></div>
+</dialog>
+
+<!-- Go through overdue -->
+<dialog id="dlgTriage" class="sheet tri-sheet">
+  <div class="sheet-head"><h2>Overdue — one at a time</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="triBody" class="no-i18n"></div>
+</dialog>
+
+<!-- Focus time: setup -->
+<dialog id="dlgFocusSetup" class="sheet small">
+  <div class="sheet-head"><h2>Focus time</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="fsBody" class="no-i18n"></div>
+</dialog>
+
+<!-- Focus time: full-screen work mode -->
+<div class="focus-mode" id="focusMode" hidden role="dialog" aria-modal="true" aria-labelledby="fmTitle">
+  <div class="fm-top">
+    <span class="fm-badge no-i18n" id="fmBadge"></span>
+    <span class="grow"></span>
+    <button type="button" class="fm-ic" id="fmClockBtn" aria-label="Show / hide the clock"></button>
+    <button type="button" class="fm-ic" id="fmMin" aria-label="Minimize"></button>
+  </div>
+  <div class="fm-center">
+    <h2 class="fm-title no-i18n" id="fmTitle"></h2>
+    <div class="fm-clock no-i18n" id="fmClock" aria-live="off"></div>
+    <div class="fm-plan no-i18n" id="fmPlan"></div>
+    <div class="fm-step no-i18n" id="fmStep" hidden></div>
+  </div>
+  <img class="fm-buddy" id="fmBuddy" src="assets/focus/focus_idle_small.webp" alt="" aria-hidden="true">
+  <div class="fm-actions no-i18n" id="fmActions"></div>
+  <div class="fm-layer no-i18n" id="fmLayer" hidden></div>
+  <div class="fm-intro" id="fmIntro" hidden>
+    <img id="fmIntroImg" alt="">
+    <div class="fm-bubble no-i18n" id="fmBubble" dir="ltr">It’s focus time!</div>
+    <div class="fm-intro-ctl"><button type="button" class="fm-ic" id="fmMute" aria-label="Sound"></button><button type="button" class="fm-ic" id="fmSkip" aria-label="Skip">✕</button></div>
+  </div>
+</div>
+
+<!-- Edit / add -->
+<dialog id="dlgEdit" class="sheet">
+  <form id="frmEdit" method="dialog">
+    <div class="sheet-head">
+      <h2 id="editTitle">New action item</h2>
+      <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
+    </div>
+    <label class="full">Action item<textarea name="item" rows="2" required dir="auto"></textarea></label>
+    <div class="grid">
+      <label>Status<select name="status"></select></label>
+      <label>Area<select name="area"></select></label>
+      <label>Priority<select name="prio"></select></label>
+      <label>Due date<input type="date" name="due"><span class="date-chips"><button type="button" data-qd="0">Today</button><button type="button" data-qd="1">Tomorrow</button><button type="button" data-qd="sun">Next week</button><button type="button" data-qd="7">+7</button></span></label>
+      <label>Start time (24h)<input type="text" name="time" class="time24" inputmode="numeric" placeholder="HH:MM" maxlength="5" autocomplete="off"></label>
+      <label>Topic<input name="topic" dir="auto"></label>
+      <label>Focal / who<input name="focal" list="peopleList" dir="auto"></label>
+      <label>Recurring<select name="rec"></select></label>
+      <label>Est. hours (duration)<input type="number" name="hrs" step="0.25" min="0" inputmode="decimal"></label>
+      <label>Done on<input type="date" name="done"></label>
+      <label>Actual hours<input type="number" name="acthrs" step="0.25" min="0" inputmode="decimal"></label>
+    </div>
+    <label class="full">Comments / next step<textarea name="com" rows="2" dir="auto"></textarea></label>
+    <div class="cl-box">
+      <div class="cl-head">Checklist <span id="clCount"></span></div>
+      <div id="clList"></div>
+      <div class="cl-add owner-only"><input id="clNew" placeholder="Add a step…" dir="auto"><button type="button" class="btn ghost" id="clAddBtn">＋</button></div>
+    </div>
+    <div class="wait-box owner-only" id="waitBox" hidden><span id="waitInfo"></span><button type="button" class="btn ghost" id="btnNudge">✉ Send a reminder</button></div>
+    <label class="remember owner-only"><input type="checkbox" name="private"> 🔒 Private — never shown to guests</label>
+    <div class="cal-box owner-only">
+      <label class="remember"><input type="checkbox" name="calOn"> 📅 Add to iPhone calendar</label>
+      <div id="calPick" hidden><select name="cal" aria-label="Calendar"></select><p class="hint" id="calNeedDate" hidden>Give it a due date — only dated items go to the calendar.</p></div>
+    </div>
+    <p class="hint" id="nextHint"></p>
+    <div class="sheet-actions">
+      <button type="button" class="btn danger" id="btnDelete">Delete</button>
+      <span class="grow"></span>
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+  <datalist id="peopleList"></datalist>
+</dialog>
+
+<!-- Settings -->
+<dialog id="dlgSettings" class="sheet">
+  <form id="frmSettings" method="dialog">
+    <div class="sheet-head">
+      <h2>Settings</h2>
+      <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
+    </div>
+    <p class="hint">The Web-app URL of your sheet's Apps Script (ends with /exec). Saved only on this device.</p>
+    <p class="hint">"Test in browser" should show {"ok":true,"app":"Action Items API"…}. A Google sign-in page means the deployment access isn't set to Anyone.</p>
+    <label class="full">Web-app URL<input name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="btnTest">Test in browser</button>
+      <button type="button" class="btn ghost" id="btnDemo">Try demo data</button>
+      <span class="grow"></span>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Weekly report -->
+<dialog id="dlgReport" class="sheet wide">
+  <div class="sheet-head">
+    <h2>Weekly report</h2>
+    <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
+  </div>
+  <div class="grid three">
+    <label>Week<select id="repWeek"><option value="1">Coming week</option><option value="0">This week</option></select></label>
+    <label>To (name)<input id="repName"></label>
+    <label>To (email)<input id="repEmail" type="email"></label>
+  </div>
+  <div class="rep-areas"><span>Areas in the email:</span><div class="chips" id="repAreas"></div></div>
+  <div class="rep-actions">
+    <button class="btn primary" id="repCopy">📋 Copy formatted email</button>
+    <a class="btn link" id="repOutlookWeb" target="_blank" rel="noopener">Outlook web</a>
+    <a class="btn link" id="repOutlookApp">Outlook app</a>
+    <a class="btn link" id="repGmail" target="_blank" rel="noopener">Gmail</a>
+  </div>
+  <p class="rep-status" id="repStatus" role="status" aria-live="polite"></p>
+  <p class="hint">Copy, open Outlook or Gmail (recipient and subject are filled in), click in the message body and paste (Ctrl+V / long-press › Paste).</p>
+  <div class="subject" id="repSubject"></div>
+  <div class="preview" id="repPreview" dir="ltr"></div>
+</dialog>
+
+<!-- Lock screen -->
+<div id="lock" class="lock" hidden>
+  <form id="frmLock" class="lock-card" autocomplete="on">
+    <button type="button" class="lang-btn lock-lang" data-lang-toggle>עב</button>
+    <img src="icons/icon.svg" alt="" class="lock-logo">
+    <h1>Action Items</h1>
+    <p class="lock-sub">Sign in to continue</p>
+    <label class="full" id="lockUrlWrap" hidden>Web-app URL (first time on this device)
+      <input name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" inputmode="url">
+    </label>
+    <label class="full">Username<input name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required dir="ltr"></label>
+    <label class="full">Password<input name="password" type="password" autocomplete="current-password" required></label>
+    <label class="remember"><input type="checkbox" name="remember"> Remember on this device</label>
+    <button type="submit" class="btn primary block" id="btnUnlock">Unlock</button>
+    <p class="lock-err" id="lockErr"></p>
+    <p class="lock-info" id="lockInfo"></p>
+    <div class="lock-links">
+      <button type="button" class="linkish" id="lockForgot">Forgot password?</button>
+      <button type="button" class="linkish" id="lockChangeUrl">Change sheet URL</button>
+      <button type="button" class="linkish" id="lockDemo">Try demo</button>
+    </div>
+    <button type="button" class="btn ghost block lock-setup" id="lockSetup">🧭 First time? Set up your own copy</button>
+  </form>
+</div>
+
+<!-- Actual hours -->
+<dialog id="dlgHours" class="sheet small">
+  <form method="dialog" id="frmHours">
+    <div class="sheet-head"><h2>Nice work! ✓</h2><button type="button" class="icon-btn dark" value="cancel" id="hoursX" aria-label="Close">✕</button></div>
+    <p class="hint" id="hoursTitle" dir="auto"></p>
+    <label class="full">How many hours did it actually take?<input type="number" name="h" step="0.25" min="0" inputmode="decimal"></label>
+    <div class="quick" id="hoursQuick"></div>
+    <div class="sheet-actions"><button type="button" class="btn ghost" id="hoursSkip">Skip</button><span class="grow"></span><button type="submit" class="btn primary">Save</button></div>
+  </form>
+</dialog>
+
+<!-- Generic confirm -->
+<dialog id="dlgConfirm" class="sheet small">
+  <div class="sheet-head"><h2 id="cfTitle"></h2></div>
+  <p id="cfMsg" class="cf-msg" dir="auto"></p>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="cfNo"></button><span class="grow"></span><button type="button" class="btn primary" id="cfYes"></button></div>
+</dialog>
+
+<!-- Calendar export -->
+<dialog id="dlgIcs" class="sheet small">
+  <div class="sheet-head"><h2>Export week to Outlook</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint" id="icsRange"></p>
+  <div class="rep-areas"><span>Areas:</span><div class="chips" id="icsAreas"></div></div>
+  <label class="remember"><input type="checkbox" id="icsSlot" checked> Give items without a start time a slot from 09:00</label>
+  <label class="remember"><input type="checkbox" id="icsAlarm" checked> Reminder 15 minutes before</label>
+  <p class="hint" id="icsCount"></p>
+  <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary" id="icsGo">⬇ Download .ics</button></div>
+  <p class="hint">Outlook (PC): double-click the file › Save &amp; Close / Import. Outlook web: Calendar › Add calendar › Upload from file. iPhone: tap the file › Add All.</p>
+</dialog>
+
+<!-- Notifications -->
+<dialog id="dlgNotify" class="sheet wide">
+  <div class="sheet-head"><h2>Phone notifications</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div class="ntfy-box">
+    <b>One-time phone setup</b>
+    <ol>
+      <li>Install the free <b>ntfy</b> app (App Store / Google Play).</li>
+      <li>In ntfy tap <b>+</b>, subscribe to this topic (server <i>ntfy.sh</i>) and allow notifications:</li>
+    </ol>
+    <div class="topic-row"><code id="ntTopic"></code><button type="button" class="btn ghost" id="ntCopy">Copy</button></div>
+    <p class="hint">The topic name works like a password for your notifications — don't share it.</p>
+    <details class="nt-token" id="ntTokenBox">
+      <summary>🔑 ntfy account token <span id="ntTokenState"></span></summary>
+      <p class="hint">Without an account, ntfy.sh limits messages per sending address — and Google's servers are shared by everyone, so the free daily limit is often already used up ("429 limit reached"). A free ntfy.sh account gives you your own limit:</p>
+      <ol class="hint">
+        <li>Sign up free at <a href="https://ntfy.sh/signup" target="_blank" rel="noopener">ntfy.sh/signup</a>.</li>
+        <li>Go to <a href="https://ntfy.sh/account" target="_blank" rel="noopener">ntfy.sh/account</a> › Access tokens › Create access token (no expiry).</li>
+        <li>Paste it here (starts with tk_) and press Save below.</li>
+      </ol>
+      <div class="pw-row"><input id="ntToken" placeholder="tk_…" autocomplete="off" autocapitalize="none" spellcheck="false" dir="ltr"><button type="button" class="btn ghost" id="ntTokenClear">Remove</button></div>
+      <p class="hint">The phone app doesn't need to sign in — it stays subscribed to the same topic.</p>
+    </details>
+    <label class="remember"><input type="checkbox" id="ntFallback" checked> If a push fails, send it to my email instead</label>
+    <div class="nt-tools">
+      <button type="button" class="btn ghost" id="ntDirect">📲 Test from this device</button>
+      <a class="btn ghost" id="ntWeb" target="_blank" rel="noopener">🌐 See messages on ntfy.sh</a>
+      <button type="button" class="btn ghost" id="ntDiag">🩺 Check status</button>
+    </div>
+    <div class="nt-diag" id="ntDiagOut" hidden></div>
+  </div>
+  <label class="full">Notification content
+    <select id="ntDetail"><option value="titles">Show item titles</option><option value="counts">Counts only (more private)</option></select>
+  </label>
+  <h3 class="nt-h">Suggestions from guests</h3>
+  <div class="sugg-row">
+    <label class="remember"><input type="checkbox" id="ntSugOn" checked> Notify me when someone suggests a new item</label>
+    <select id="ntSugCh"><option value="push">📱 Push</option><option value="email">✉ Email</option><option value="both">Both</option></select>
+  </div>
+  <h3 class="nt-h">Schedules</h3>
+  <div id="ntRules"></div>
+  <div class="sheet-actions">
+    <button type="button" class="btn ghost" id="ntAdd">＋ Add schedule</button>
+    <span class="grow"></span>
+    <button type="button" class="btn primary" id="ntSave">Save</button>
+  </div>
+  <p class="hint" id="ntStatus"></p>
+</dialog>
+
+<!-- Menu -->
+<dialog id="dlgMenu" class="sheet small menu">
+  <div class="sheet-head"><h2>Menu</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div class="menu-kpis no-i18n" id="menuKpis"></div>
+  <button class="menu-item" id="btnStory">🎬 <span>Summary video</span></button>
+  <button class="menu-item" id="btnRefresh">⟳ <span>Refresh</span></button>
+  <button class="menu-item" data-lang-toggle id="btnLangMenu">🌐 <span class="no-i18n" id="langMenuLbl">עברית</span></button>
+  <button class="menu-item owner-only" id="btnReview">🗓 <span>Weekly review</span></button>
+  <button class="menu-item owner-only" id="btnReport">✉ <span>Weekly report</span></button>
+  <button class="menu-item owner-only" id="btnNotify">🔔 <span>Phone notifications</span></button>
+  <button class="menu-item owner-only" id="btnShare">👥 <span>Sharing &amp; guests</span></button>
+  <button class="menu-item owner-only" id="btnPending2">📥 <span>Suggestions to approve</span></button>
+  <button class="menu-item owner-only" id="btnAreas">🏷 <span>Manage areas</span></button>
+  <button class="menu-item owner-only" id="btnOrder">⇅ <span>Order of areas</span></button>
+  <button class="menu-item owner-only" id="btnStats">📊 <span>Statistics</span></button>
+  <button class="menu-item owner-only" id="btnSiri">🎙 <span>Siri (add by voice)</span></button>
+  <button class="menu-item owner-only" id="btnImport">📆 <span>Import from calendar</span></button>
+  <button class="menu-item owner-only" id="btnAi">✨ <span>Smart reading (AI)</span></button>
+  <button class="menu-item owner-only" id="btnCal">📅 <span>iPhone calendar</span></button>
+  <button class="menu-item owner-only" id="btnFeed">📅 <span>Outlook calendar sync</span></button>
+  <button class="menu-item owner-only" id="btnMaint">🗄 <span>Archive &amp; backup</span></button>
+  <div class="theme-row"><span>🔠 <span>Font size</span></span><div class="seg no-i18n" id="fontSeg"><button type="button" data-font-set="s" class="fs-s">Small</button><button type="button" data-font-set="m">Medium</button><button type="button" data-font-set="l" class="fs-l">Large</button></div></div>
+  <label class="theme-row wc-toggle"><span>🌅 <span>Daily start screen</span></span><input type="checkbox" id="welcomeOn" class="switch" checked></label>
+  <div class="theme-row"><span>🌓 <span>Appearance</span></span><div class="seg" id="themeSeg"><button type="button" data-theme-set="auto">Auto</button><button type="button" data-theme-set="light">Light</button><button type="button" data-theme-set="dark">Dark</button></div></div>
+  <button class="menu-item" id="btnSettings">⚙ <span>Sheet connection</span></button>
+  <button class="menu-item" id="btnAccount">👤 <span>My account</span></button>
+  <button class="menu-item" id="btnLock">🔒 <span>Lock the app</span></button>
+  <p class="app-ver" id="appVer"></p>
+</dialog>
+
+<!-- Reorder areas -->
+<dialog id="dlgOrder" class="sheet small">
+  <div class="sheet-head"><h2>Order of areas</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Drag ☰ (or use the arrows) to set the order. It applies to the area tabs on the main screen and in the Notebook.</p>
+  <ul class="ord-list" id="ordList"></ul>
+  <p class="hint" id="ordStatus"></p>
+  <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn ghost" data-close>Cancel</button><button type="button" class="btn primary" id="ordSave">Save</button></div>
+</dialog>
+
+<!-- Siri -->
+<dialog id="dlgSiri" class="sheet wide">
+  <div class="sheet-head"><h2>🎙 Add items with Siri</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="siriBody" class="no-i18n"></div>
+</dialog>
+
+<!-- iPhone calendar -->
+<dialog id="dlgCal" class="sheet wide">
+  <div class="sheet-head"><h2>📅 iPhone calendar</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="calBody" class="no-i18n"></div>
+</dialog>
+
+<!-- Collection entry -->
+<dialog id="dlgColl" class="sheet">
+  <form id="frmColl" autocomplete="off">
+    <div class="sheet-head"><h2>💡 <span class="no-i18n" id="collHead"></span></h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+    <div class="c-note no-i18n" id="collNote" hidden></div>
+    <label class="full">Name<input name="title" dir="auto" required></label>
+    <label class="full">Category<select id="collCat"></select></label>
+    <div id="collPlaceRow" class="c-place">
+      <label class="full">Place<div class="pw-row"><input name="place" dir="auto" autocomplete="off" placeholder="Tel Aviv, Galilee…"><button type="button" class="btn ghost" id="collHere">📍 Here</button></div></label>
+      <div class="ac-list no-i18n" id="placeAc" hidden></div>
+      <p class="hint no-i18n" id="collGeo"></p>
+    </div>
+    <label class="full" id="collBaseRow" hidden><span id="collBaseLbl" class="no-i18n">Base</span><select id="collBase"></select><input id="collBaseNew" class="no-i18n" dir="auto" maxlength="30" autocomplete="off" placeholder="סאקה, מזקל, ורמוט…" hidden></label>
+    <label class="full" id="collIngRow" hidden>Other ingredients<input id="collIng" dir="auto" autocomplete="off" placeholder="קמפרי, ורמוט אדום…"></label>
+    <div id="collForRow" class="c-for"><label class="full">For whom<input name="for" dir="auto"></label><div class="chips no-i18n" id="collForChips"></div></div>
+    <label class="full">Recommended by<input name="by" dir="auto"></label>
+    <label class="full">Link (Instagram, TikTok, YouTube, Maps, website…)<div class="pw-row"><input name="link" type="url" dir="ltr" inputmode="url" placeholder="https://…"><button type="button" class="btn ghost" id="collOpen" hidden>🔗</button></div></label>
+    <div class="c-fill"><button type="button" class="btn ghost no-i18n" id="collFill" hidden>✨ Fill from link</button><img id="collImg" class="c-prev" alt="" hidden referrerpolicy="no-referrer" onerror="this.hidden=true"></div>
+    <div id="collTry" class="c-try">
+      <div class="seg no-i18n" id="collStatus"></div>
+      <div class="c-starpick" id="collStars"></div>
+    </div>
+    <label class="full">Notes<textarea name="notes" rows="4" dir="auto"></textarea></label>
+    <div class="sheet-actions"><button type="button" class="btn danger" id="collDelete">Delete</button><span class="grow"></span><button type="submit" class="btn primary" id="collSaveBtn">Save</button></div>
+  </form>
+</dialog>
+
+<!-- Collection categories -->
+<dialog id="dlgCollCats" class="sheet small">
+  <div class="sheet-head"><h2>Collection categories</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Rename, reorder or add categories. “Recommendations” have “tried it” and stars, “Wishes” have “for whom”, “Notes” are plain text. 🗺 = show on the map.</p>
+  <ul class="ord-list cc-list" id="ccList"></ul>
+  <h3 class="nt-h">✨ Ideas — tap to add</h3>
+  <div class="c-ideas no-i18n" id="ccIdeas"></div>
+  <p class="hint" id="ccStatus"></p>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="ccAdd">＋ Add category</button><span class="grow"></span><button type="button" class="btn primary" id="ccSave">Save</button></div>
+</dialog>
+
+<!-- Import from calendar -->
+<dialog id="dlgImport" class="sheet wide">
+  <div class="sheet-head"><h2>📆 New in your calendars</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Events from your iPhone calendars (yours and the shared ones). Choose what becomes a task — what you decline won’t be offered again.</p>
+  <div class="ci-top">
+    <button type="button" class="btn primary" id="ciRun">🔄 Sync now</button>
+    <button type="button" class="btn ghost" id="ciRefresh">↻ Refresh list</button>
+    <button type="button" class="chip" id="ciAllToggle"></button>
+  </div>
+  <p class="hint no-i18n" id="ciLast"></p>
+  <div id="ciList" class="no-i18n"></div>
+  <div id="ciIgnore" class="ci-ignore no-i18n"></div>
+  <details class="cal-guide" id="ciGuideBox"><summary>One-time iPhone setup — the “Import calendar” shortcut</summary><div id="ciGuide" class="no-i18n"></div></details>
+</dialog>
+
+<!-- ✨ AI settings -->
+<dialog id="dlgAi" class="sheet small">
+  <div class="sheet-head"><h2>✨ Smart reading (AI)</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">With a free Google Gemini key, links are read by AI: a restaurant gets “name, city”, a trip gets the trail or spring name, an activity a short description — and YouTube videos are actually watched. Without a key, simpler rules are used.</p>
+  <ol class="hint ai-steps">
+    <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with your Google account.</li>
+    <li>Tap “Create API key” and copy it (starts with AIza).</li>
+    <li>Paste it here and tap Save.</li>
+  </ol>
+  <div class="pw-row"><input id="aiKey" dir="ltr" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="AIza…"><button type="button" class="btn primary" id="aiSave">Save</button></div>
+  <p class="hint" id="aiStatus"></p>
+  <div class="sheet-actions"><button type="button" class="btn danger" id="aiRemove">Remove key</button></div>
+  <p class="hint">The key is kept only in your sheet’s script (never in the app). The free tier is plenty for personal use.</p>
+</dialog>
+
+<!-- Sharing & guests -->
+<dialog id="dlgShare" class="sheet wide">
+  <div class="sheet-head"><h2>Sharing &amp; guests</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Guests open the same app with their own password. They only see the areas you choose, never items marked 🔒 Private, and can't change anything. If allowed, they can suggest items — you approve them in 📥.</p>
+  <div id="guestList"></div>
+  <form id="frmGuest" class="guest-form">
+    <h3 class="nt-h" id="guestFormTitle">Add a guest</h3>
+    <input type="hidden" name="id">
+    <div class="grid">
+      <label>Name<input name="name" required placeholder="e.g. Dana" dir="auto"></label>
+      <label>Username<input name="guser" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="e.g. neta" dir="ltr"></label>
+      <label>Password<span class="pw-row"><input name="gpw" type="text" autocomplete="off" placeholder="at least 6 characters" dir="ltr"><button type="button" class="btn ghost" id="gpwGen" title="Generate">🎲</button></span></label>
+    </div>
+    <label class="full">WhatsApp number (optional)<input name="gphone" type="tel" placeholder="050-1234567" dir="ltr" autocomplete="off"></label>
+    <div class="rep-areas"><span>Can see:</span><div class="chips" id="guestAreas"></div></div>
+    <div class="rep-areas"><span>💡 Collection:</span><div class="chips no-i18n" id="guestColl"></div></div>
+    <label class="remember"><input type="checkbox" name="canSuggest" checked> Can suggest new items (you approve them)</label>
+    <label class="remember"><input type="checkbox" name="on" checked> Access active</label>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="guestCancel" hidden>Cancel edit</button>
+      <span class="grow"></span>
+      <button type="submit" class="btn primary" id="guestSave">Add guest</button>
+    </div>
+  </form>
+  <p class="rep-status" id="shareStatus" role="status"></p>
+</dialog>
+
+<!-- Pending approvals -->
+<dialog id="dlgPending" class="sheet wide">
+  <div class="sheet-head"><h2>Suggestions to approve</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="pendingList"></div>
+</dialog>
+
+<!-- Guest: suggest an item -->
+<dialog id="dlgSuggest" class="sheet small">
+  <form id="frmSuggest">
+    <div class="sheet-head"><h2>Suggest an action item</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+    <label class="full">What needs doing?<textarea name="item" rows="2" required dir="auto"></textarea></label>
+    <div class="grid">
+      <label>Area<select name="area"></select></label>
+      <label>Priority<select name="prio"><option value="1 - High">1 - High</option><option value="2 - Medium" selected>2 - Medium</option><option value="3 - Low">3 - Low</option></select></label>
+      <label>Due date<input type="date" name="due"><span class="date-chips"><button type="button" data-qd="0">Today</button><button type="button" data-qd="1">Tomorrow</button><button type="button" data-qd="sun">Next week</button><button type="button" data-qd="7">+7</button></span></label>
+    </div>
+    <label class="full">Comments<textarea name="com" rows="2" dir="auto"></textarea></label>
+    <p class="hint">It will be added after approval.</p>
+    <div class="sheet-actions"><span class="grow"></span><button type="submit" class="btn primary">Send suggestion</button></div>
+  </form>
+</dialog>
+
+<!-- Choose area (quick add) -->
+<dialog id="dlgArea" class="sheet small">
+  <div class="sheet-head"><h2>Which area?</h2></div>
+  <p class="hint">I couldn't tell where this belongs:</p>
+  <p class="cf-msg" id="areaItem" dir="auto"></p>
+  <label class="full">Area<select id="areaPick"></select></label>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="areaCancel">Cancel</button><span class="grow"></span><button type="button" class="btn primary" id="areaOk">Add</button></div>
+</dialog>
+
+<!-- Manage areas -->
+<dialog id="dlgAreas" class="sheet wide">
+  <div class="sheet-head"><h2>Manage areas</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Add, rename, reorder or remove areas. Renaming updates all items, guests and schedules. The number shows open items in each area. Keywords help quick add recognise the area.</p>
+  <div id="areaRows"></div>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="areaAdd">＋ Add area</button><span class="grow"></span><button type="button" class="btn primary" id="areasSave">Save</button></div>
+  <p class="rep-status" id="areasStatus"></p>
+</dialog>
+<dialog id="dlgMoveArea" class="sheet small">
+  <div class="sheet-head"><h2>Move items</h2></div>
+  <p class="cf-msg" id="moveMsg" dir="auto"></p>
+  <label class="full">Area<select id="movePick"></select></label>
+  <div class="sheet-actions"><button type="button" class="btn ghost" id="moveCancel">Cancel</button><span class="grow"></span><button type="button" class="btn primary" id="moveOk">Move &amp; remove area</button></div>
+</dialog>
+
+<!-- My account -->
+<dialog id="dlgAccount" class="sheet small">
+  <form id="frmAccount" autocomplete="off">
+    <div class="sheet-head"><h2>My account</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+    <p class="hint" id="accHint"></p>
+    <label class="full">Username<input name="newUsername" type="text" autocapitalize="none" spellcheck="false" dir="ltr" required></label>
+    <div id="accPw">
+      <label class="full">New password (leave empty to keep)<input name="newPassword" type="password" autocomplete="new-password" dir="ltr"></label>
+      <label class="full">Repeat new password<input name="newPassword2" type="password" autocomplete="new-password" dir="ltr"></label>
+    </div>
+    <div class="sheet-actions"><span class="grow"></span><button type="submit" class="btn primary">Save</button></div>
+    <p class="rep-status" id="accStatus"></p>
+  </form>
+</dialog>
+
+<!-- Statistics -->
+<dialog id="dlgStats" class="sheet wide">
+  <div class="sheet-head"><h2>Statistics</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="statsBody"><p class="hint">Loading…</p></div>
+</dialog>
+
+<!-- Calendar subscription -->
+<dialog id="dlgFeed" class="sheet wide">
+  <div class="sheet-head"><h2>Outlook calendar sync</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <p class="hint">Subscribe once and your action items appear in Outlook as a separate "Action Items" calendar that updates by itself (Outlook refreshes subscribed calendars every few hours).</p>
+  <div id="feedBody"><p class="hint">Loading…</p></div>
+</dialog>
+
+<!-- Archive & backup -->
+<dialog id="dlgMaint" class="sheet small">
+  <div class="sheet-head"><h2>Archive &amp; backup</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="maintBody"><p class="hint">Loading…</p></div>
+</dialog>
+
+<script>window.AI_EDITION = 'public'; window.AI_TEMPLATE = "";</script>
+<script src="i18n.js?v=64"></script>
+<script src="app.js?v=64"></script>
+</body>
+</html>

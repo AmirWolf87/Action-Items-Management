@@ -14,7 +14,7 @@
 <script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('ai.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
-<link rel="stylesheet" href="styles.css?v=63">
+<link rel="stylesheet" href="styles.css?v=64">
 </head>
 <body>
 <header class="top">
@@ -82,6 +82,12 @@
   <p class="hint">Pick one or more areas — tasks, counts and the summary video follow your choice.</p>
   <div class="ap-list no-i18n" id="apList"></div>
   <div class="sheet-actions"><button type="button" class="btn ghost" id="apAll">All areas</button><button type="button" class="btn ghost owner-only" id="apOrder">⇅ Order</button><span class="grow"></span><button type="button" class="btn primary" id="apDone">Show</button></div>
+</dialog>
+
+<!-- Setup wizard (own copy) -->
+<dialog id="dlgSetup" class="sheet wz-sheet">
+  <div class="sheet-head"><h2>Set up your own copy</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
+  <div id="wzBody" class="no-i18n"></div>
 </dialog>
 
 <!-- After the daily video -->
@@ -240,6 +246,7 @@
       <button type="button" class="linkish" id="lockChangeUrl">Change sheet URL</button>
       <button type="button" class="linkish" id="lockDemo">Try demo</button>
     </div>
+    <button type="button" class="btn ghost block lock-setup" id="lockSetup">🧭 First time? Set up your own copy</button>
   </form>
 </div>
 
@@ -547,7 +554,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=63"></script>
-<script src="app.js?v=63"></script>
+<script src="i18n.js?v=64"></script>
+<script src="app.js?v=64"></script>
 </body>
 </html>

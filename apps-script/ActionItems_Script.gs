@@ -5,11 +5,9 @@
  * Paste into: Extensions › Apps Script (replace everything), Save, reload the sheet.
  */
 function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('✉ Manager Report')
-    .addItem('Copy formatted email for Outlook', 'showOutlookDialog')
-    .addItem('Create formatted Gmail draft', 'createManagerDraft')
-    .addSeparator()
+  const m = EDITION === 'public' ? SpreadsheetApp.getUi().createMenu('⚙ Action Items').addItem('Set up this sheet for the app', 'setupSheet')
+    : SpreadsheetApp.getUi().createMenu('✉ Manager Report').addItem('Copy formatted email for Outlook', 'showOutlookDialog').addItem('Create formatted Gmail draft', 'createManagerDraft');
+  m.addSeparator()
     .addItem('App: set / change password', 'setAppPassword')
     .addItem('App: turn on phone notifications', 'enableNotifications')
     .addItem('App: turn off phone notifications', 'disableNotifications')
@@ -162,6 +160,7 @@ const API_NCOLS = 27;
 const API_HEADS = { time: 'Start Time', private: 'Private', checklist: 'Checklist', wsince: 'Waiting Since', cal: 'iPhone Calendar' };
 function ensureCols_(sh) { if (sh.getMaxColumns() < API_NCOLS) sh.insertColumnsAfter(sh.getMaxColumns(), API_NCOLS - sh.getMaxColumns()); }
 const APP_URL = 'https://amirwolf87.github.io/Action-Items-Management/';
+const EDITION = 'personal';   // the public template build sets 'public'
 const API_DATES = ['due', 'created', 'done', 'wsince'];
 
 /* ---------- password (stored only as a salted SHA-256 hash) ---------- */
@@ -204,7 +203,7 @@ const cleanUser_ = (u) => String(u || '').trim().toLowerCase();
 function authenticate_(user, pw) {
   const props = PropertiesService.getScriptProperties();
   const salt = props.getProperty('PW_SALT'), h = props.getProperty('PW_HASH');
-  if (!salt || !h) return { err: 'No password set yet — in the sheet: ✉ Manager Report › App: set / change password' };
+  if (!salt || !h) return { err: EDITION === 'public' ? 'No password set yet — finish the setup wizard in the app (🧭 on the sign-in screen)' : 'No password set yet — in the sheet: ✉ Manager Report › App: set / change password' };
   user = cleanUser_(user);
   if (!user) return { err: 'Please sign in with your username and password' };
   const cache = CacheService.getScriptCache();
@@ -221,6 +220,52 @@ function authenticate_(user, pw) {
 }
 
 /* Opening the URL in a browser only shows that the API is alive — never any data */
+/* ---------- first run: build the tabs the app needs in an empty spreadsheet (never touches existing tabs) ---------- */
+const SETUP_HEAD_ = ['Action Item', 'Status', 'Area', 'Priority', 'Due Date', '', '', 'Topic', 'Focal / Who', 'Created', 'Est. Hours', 'Recurring', '', 'Done On', 'Actual Hours', 'Comments',
+  '', '', '', '', '', '', 'Start Time', 'Private', 'Checklist', 'Waiting Since', 'iPhone Calendar'];
+function ensureSetup_() {
+  const ss = SpreadsheetApp.getActive(); let made = [];
+  if (!ss.getSheetByName(API_SHEET)) {
+    const sh = ss.getSheetByName('Sheet1') && ss.getSheets().length === 1 && ss.getSheetByName('Sheet1').getLastRow() === 0 ? ss.getSheetByName('Sheet1').setName(API_SHEET) : ss.insertSheet(API_SHEET);
+    if (sh.getMaxRows() < API_LAST) sh.insertRowsAfter(sh.getMaxRows(), API_LAST - sh.getMaxRows());
+    if (sh.getMaxColumns() < API_NCOLS) sh.insertColumnsAfter(sh.getMaxColumns(), API_NCOLS - sh.getMaxColumns());
+    sh.getRange(1, 1).setValue('Action Items').setFontSize(16).setFontWeight('bold');
+    sh.getRange(2, 1).setValue('Managed by the Action Items app — edit in the app; rows 6 and below hold the items.').setFontColor('#6B7280');
+    sh.getRange(5, 1, 1, SETUP_HEAD_.length).setValues([SETUP_HEAD_]).setFontWeight('bold').setBackground('#26355D').setFontColor('#FFFFFF');
+    sh.setFrozenRows(5); sh.setColumnWidth(1, 320);
+    made.push(API_SHEET);
+  }
+  if (!ss.getSheetByName('Lists')) {
+    const l = ss.insertSheet('Lists');
+    l.getRange('B4').setValue('Areas').setFontWeight('bold'); l.getRange('E4').setValue('People').setFontWeight('bold');
+    l.getRange(5, 2, 3, 1).setValues([['Work'], ['Home'], ['Personal']]); l.getRange('E5').setValue('Me');
+    made.push('Lists');
+  }
+  if (!ss.getSheetByName('Manager Report')) {
+    const r = ss.insertSheet('Manager Report');
+    r.getRange('B3:B5').setValues([['Manager'], ['From'], ['Area']]).setFontWeight('bold'); r.getRange('D3').setValue('Email').setFontWeight('bold');
+    r.getRange('C5').setValue('Work'); made.push('Manager Report');
+  }
+  return made;
+}
+function setupSheet() {
+  const made = ensureSetup_();
+  SpreadsheetApp.getUi().alert(made.length ? 'Ready. Created: ' + made.join(', ') + '.\nNext: Deploy › New deployment › Web app (Execute as: Me · Who has access: Anyone).' : 'This sheet is already set up.');
+}
+/* the very first password can be set from the app's setup wizard — only while none exists */
+function initPassword_(req) {
+  const p = PropertiesService.getScriptProperties();
+  if (p.getProperty('PW_HASH')) throw new Error('A password is already set — sign in, or change it from the sheet menu');
+  const user = cleanUser_(req.username), pw = String(req.password || '');
+  if (!/^[a-z0-9._-]{3,30}$/.test(user)) throw new Error('Username: 3-30 letters/numbers/._-');
+  if (pw.length < 8) throw new Error('Password: at least 8 characters');
+  const salt = Utilities.getUuid();
+  p.setProperties({ PW_SALT: salt, PW_HASH: hash_(pw, salt), OWNER_USER: user });
+  ensureSetup_();
+  if (Array.isArray(req.areas) && req.areas.length) saveAreas_({ areas: req.areas, renames: {}, moveTo: {} });
+  return { user: user };
+}
+
 function doGet(e) {
   const p = PropertiesService.getScriptProperties();
   if (e && e.parameter && e.parameter.feed) {                 // Outlook / Google Calendar subscription
@@ -228,7 +273,7 @@ function doGet(e) {
     if (!f.token || e.parameter.feed !== f.token) return ContentService.createTextOutput('Not found');
     return ContentService.createTextOutput(buildFeed_(f)).setMimeType(ContentService.MimeType.ICAL);
   }
-  return json_({ ok: true, app: 'Action Items API', passwordSet: !!p.getProperty('PW_HASH') });
+  return json_({ ok: true, app: 'Action Items API', passwordSet: !!p.getProperty('PW_HASH'), edition: EDITION });
 }
 
 function doPost(e) {
@@ -237,6 +282,7 @@ function doPost(e) {
   if (req.action === 'calImport') { try { return json_(calImport_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message }); } }
   if (req.action === 'calFeed' || req.action === 'calAck') { try { return json_(req.action === 'calFeed' ? calFeed_(req) : calAck_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message, events: [] }); } }
   if (req.action === 'siriAdd') { try { return json_(siriAdd_(req)); } catch (err) { return json_({ ok: false, message: 'שגיאה: ' + err.message, error: err.message }); } }   // own key, no password
+  if (req.action === 'initPassword') { try { return withLock_(() => json_(Object.assign({ ok: true }, initPassword_(req)))); } catch (err) { return json_({ ok: false, error: err.message }); } }
   if (req.action === 'forgot') { try { forgotPassword_(req.username); } catch (e) { console.error(e); } return json_({ ok: true }); }   // no sign-in needed; never reveals if the user exists
   const who = authenticate_(req.username, req.password);
   if (who.err) return json_({ ok: false, auth: true, error: who.err });
