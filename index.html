@@ -14,7 +14,7 @@
 <script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('ai.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
-<link rel="stylesheet" href="styles.css?v=72">
+<link rel="stylesheet" href="styles.css?v=73">
 </head>
 <body>
 <header class="top">
@@ -455,10 +455,10 @@
   <p class="hint">With a free Google Gemini key, links are read by AI: a restaurant gets “name, city”, a trip gets the trail or spring name, an activity a short description — and YouTube videos are actually watched. Without a key, simpler rules are used.</p>
   <ol class="hint ai-steps">
     <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with your Google account.</li>
-    <li>Tap “Create API key” and copy it (starts with AIza).</li>
+    <li>Tap “Create API key” and copy it (starts with AQ. or AIza).</li>
     <li>Paste it here and tap Save.</li>
   </ol>
-  <div class="pw-row"><input id="aiKey" dir="ltr" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="AIza…"><button type="button" class="btn primary" id="aiSave">Save</button></div>
+  <div class="pw-row"><input id="aiKey" dir="ltr" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="AQ.… / AIza…"><button type="button" class="btn primary" id="aiSave">Save</button></div>
   <p class="hint" id="aiStatus"></p>
   <div class="sheet-actions"><button type="button" class="btn danger" id="aiRemove">Remove key</button></div>
   <p class="hint">The key is kept only in your sheet’s script (never in the app). The free tier is plenty for personal use.</p>
@@ -571,7 +571,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=72"></script>
-<script src="app.js?v=72"></script>
+<script src="i18n.js?v=73"></script>
+<script src="app.js?v=73"></script>
 </body>
 </html>

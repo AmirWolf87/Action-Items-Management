@@ -1375,8 +1375,13 @@ function aiCall_(parts, tools) {
     const body = { contents: [{ role: 'user', parts: parts }], generationConfig: { temperature: 0.2 } };
     if (tools) body.tools = tools; else body.generationConfig.responseMimeType = 'application/json';
     try {
-      const r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key),
-        { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
+      // the key goes in the x-goog-api-key header (works for both the old "AIza…" and the new "AQ.…" keys); old style ?key= as a fallback
+      const base = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
+      let r = UrlFetchApp.fetch(base, { method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key }, payload: JSON.stringify(body), muteHttpExceptions: true });
+      if (r.getResponseCode() === 401 || r.getResponseCode() === 403) {
+        const r2 = UrlFetchApp.fetch(base + '?key=' + encodeURIComponent(key), { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
+        if (r2.getResponseCode() < 300) r = r2;
+      }
       const code = r.getResponseCode(), txt = r.getContentText();
       if (code === 404) continue;                                   // model name not available → try the next
       if (code >= 300) return { error: 'AI ' + code + ': ' + String(txt).slice(0, 160) };
