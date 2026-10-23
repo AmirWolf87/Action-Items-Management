@@ -309,8 +309,8 @@ function doPost(e) {
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
       case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text, fields: req.fields })));
-      case 'collDesign': return json_(collDesign_(req.name, req.kind));
-      case 'placeCheck': return json_(placeCheck_(req));
+      case 'collDesign': { const r = collDesign_(req.name, req.kind); if (!r.ok) r.error = r.message; return json_(r); }
+      case 'placeCheck': { const r = placeCheck_(req); if (!r.ok) r.error = r.message; return json_(r); }
       case 'getAi': { const k = aiKey_(); return json_({ ok: true, hasKey: !!k, hint: k ? k.slice(0, 4) + '…' + k.slice(-4) : '' }); }
       case 'saveAi': { const k = String(req.key || '').trim(); if (k) PropertiesService.getScriptProperties().setProperty('GEMINI_KEY', k); else PropertiesService.getScriptProperties().deleteProperty('GEMINI_KEY'); return json_(Object.assign({ ok: true, hasKey: !!k }, k ? aiTest_() : {})); }
       case 'testAi': return json_(Object.assign({ ok: true }, aiTest_()));
@@ -1359,6 +1359,15 @@ function ruleTitle_(style, raw) {
 }
 /* ---- optional AI (Google Gemini, free key) ---- */
 function aiKey_() { return PropertiesService.getScriptProperties().getProperty('GEMINI_KEY') || ''; }
+/* the JSON inside the AI's answer — tolerant of ```json fences, [1] citation marks (web search) and trailing commas */
+function aiJson_(text) {
+  const t = String(text || '').replace(/```(?:json)?/gi, '');
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a < 0 || b <= a) return { error: 'AI: the answer had no data (' + t.slice(0, 80).replace(/\s+/g, ' ') + ')' };
+  const raw = t.slice(a, b + 1);
+  try { return JSON.parse(raw); } catch (e) { /* try a cleaned copy */ }
+  try { return JSON.parse(raw.replace(/\s*\[\d+(?:,\s*\d+)*\]/g, '').replace(/,\s*([}\]])/g, '$1')); } catch (e) { return { error: 'AI: unreadable answer — try again' }; }
+}
 function aiCall_(parts, tools) {
   const key = aiKey_(); if (!key) return null;
   const models = [PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
@@ -1373,8 +1382,7 @@ function aiCall_(parts, tools) {
       if (code >= 300) return { error: 'AI ' + code + ': ' + String(txt).slice(0, 160) };
       const j = JSON.parse(txt), out = (((j.candidates || [])[0] || {}).content || {}).parts || [];
       const text = out.map(p => p.text || '').join('');
-      const m = text.match(/\{[\s\S]*\}/); if (!m) return { error: 'AI: no JSON' };
-      return JSON.parse(m[0]);
+      return aiJson_(text);
     } catch (e) { return { error: 'AI: ' + e.message }; }
   }
   return { error: 'AI: no model available' };
