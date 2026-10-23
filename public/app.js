@@ -534,6 +534,10 @@ function collMatches(en) {
    t = text | choice (o = options) | long (free text) | mono (chords / tabs / code — fixed-width, line breaks kept) | number | url */
 const TPL_T = [['text', 'Short text', 'טקסט קצר'], ['choice', 'Choice', 'בחירה מרשימה'], ['long', 'Long text', 'טקסט ארוך'], ['mono', 'Chords / tabs (fixed width)', 'אקורדים / טאבים (רוחב קבוע)'], ['number', 'Number', 'מספר'], ['url', 'Link', 'קישור']];
 const TPL_PRESETS = [
+  { id: 'food', em: '🍽', n: ['Restaurants & cafés', 'מסעדות ובתי קפה'], re: /(?!)/,
+    tpl: () => ({ view: 'cards', fields: [
+      { k: 'kosher', l: L('Kosher', 'כשרות'), t: 'choice', o: isHe() ? ['כשר', 'כשר למהדרין', 'לא כשר'] : ['Kosher', 'Kosher (strict)', 'Not kosher'] },
+      { k: 'shabbat', l: L('Shabbat', 'שבת'), t: 'choice', o: isHe() ? ['פתוח בשבת', 'סגור בשבת'] : ['Open on Shabbat', 'Closed on Shabbat'] }] }) },
   { id: 'music', em: '🎸', n: ['Music / guitar', 'מוזיקה / גיטרה'], re: /גיטר|guitar|אוקולל|ukulele|פסנתר|piano|נגינ|מוזיק|music|אקורד|chord|תופים|drums|כינור|violin|\bבס\b|bass|songs|שירים לנגן/i,
     tpl: () => ({ view: 'list', group: 'type', want: L('🎯 To learn', '🎯 ללמוד'), done: L('🎶 I can play it', '🎶 יודע לנגן'), fields: [
       { k: 'type', l: L('Type', 'סוג'), t: 'choice', o: isHe() ? ['שיר', 'אקורדים', 'טאבים', 'תווים', 'תיאוריה', 'תרגיל', 'טכניקה'] : ['Song', 'Chords', 'Tabs', 'Sheet music', 'Theory', 'Exercise', 'Technique'] },
@@ -574,7 +578,7 @@ const TPL_PRESETS = [
       { k: 'type', l: L('Type', 'סוג'), t: 'choice', o: isHe() ? ['כוח', 'אירובי', 'גמישות', 'יוגה', 'HIIT', 'מתיחות'] : ['Strength', 'Cardio', 'Mobility', 'Yoga', 'HIIT', 'Stretching'] },
       { k: 'time', l: L('Duration', 'משך'), t: 'text' }, { k: 'gear', l: L('Equipment', 'ציוד'), t: 'text' }, { k: 'plan', l: L('Sets / steps', 'סטים / שלבים'), t: 'long' }],
       find: [{ l: '▶ YouTube', u: 'https://www.youtube.com/results?search_query={q}+workout' }] }) }];
-const tplPresetFor = (c) => { const st = catStyleC(c); if (st === 'drink' || st === 'food') return null; const n = String((c && c.name) || '') + ' ' + String((c && c.id) || ''); return TPL_PRESETS.find(p => p.re.test(n)) || null; };
+const tplPresetFor = (c) => { const st = catStyleC(c); if (st === 'drink') return null; if (st === 'food') return TPL_PRESETS.find(p => p.id === 'food'); const n = String((c && c.name) || '') + ' ' + String((c && c.id) || ''); return TPL_PRESETS.find(p => p.re.test(n)) || null; };
 /* the category's template: saved one › automatic one by name › none (drinks / restaurants have their own built-in look) */
 function catTpl(c) {
   if (!c) return null;
@@ -912,7 +916,7 @@ async function initCollMap() {
     const c = catOf(en.cat), i = catIdx(en.cat), w = statusWords(c.kind);
     const icon = window.L.divIcon({ className: '', html: `<div class="c-pin ${en.status === 'tried' ? 'done' : ''}" style="--c-ink:${C_INK[i % C_INK.length]}"><span>${(catStyleC(c) === 'food' && foodOf(foodType(en)) || [0, catEmoji(c)])[1]}</span></div>`, iconSize: [36, 44], iconAnchor: [18, 42], popupAnchor: [0, -38] });
     const m = window.L.marker([Number(en.lat), Number(en.lng)], { icon, title: en.title }).addTo(collMap);
-    m.bindPopup(`<div class="c-pop" dir="auto"><b>${esc(en.title)}</b><div>${esc(c.name)}${catStyleC(c) === 'food' && foodOf(foodType(en)) ? ' · ' + esc(L(foodOf(foodType(en))[2], foodOf(foodType(en))[3])) : ''}</div>${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}<div>${en.status === 'tried' ? w.tried : w.want}</div>${en.place ? `<div>📍 ${esc(en.place)}</div>` : ''}${en.by ? `<div>👤 ${esc(en.by)}</div>` : ''}${en.notes ? `<div class="c-pop-n">${esc(en.notes.slice(0, 140))}</div>` : ''}<button data-copen="${esc(en.id)}">${L('Details', 'פרטים')}</button>${en.link ? ` <button data-clink="${esc(en.link)}">🔗</button>` : ''}</div>`);
+    m.bindPopup(`<div class="c-pop" dir="auto"><b>${esc(en.title)}</b><div>${esc(c.name)}${catStyleC(c) === 'food' && foodOf(foodType(en)) ? ' · ' + esc(L(foodOf(foodType(en))[2], foodOf(foodType(en))[3])) : ''}</div>${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}${tplChips(en, catTpl(c)) ? `<div class="tp-chips" style="margin:4px 0">${tplChips(en, catTpl(c))}</div>` : ''}<div>${en.status === 'tried' ? w.tried : w.want}</div>${en.place ? `<div>📍 ${esc(en.place)}</div>` : ''}${en.by ? `<div>👤 ${esc(en.by)}</div>` : ''}${en.notes ? `<div class="c-pop-n">${esc(en.notes.slice(0, 140))}</div>` : ''}<button data-copen="${esc(en.id)}">${L('Details', 'פרטים')}</button>${en.link ? ` <button data-clink="${esc(en.link)}">🔗</button>` : ''}</div>`);
     m._cid = en.id; return m;
   });
   collMap.on('popupopen', (ev) => {
@@ -4153,7 +4157,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 68;
+const APP_VERSION = 69;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
