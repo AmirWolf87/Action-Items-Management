@@ -1203,3 +1203,4 @@ body.tour-open{overflow:hidden}
 .tour-act{display:flex;align-items:center;gap:8px}.tour-act .btn{min-height:44px}.tour-act .linkish{font-size:14px;color:var(--muted);min-height:44px}
 @media (prefers-reduced-motion: reduce){.tour-hole,.tour-card{transition:none}}
 .fm-card .fm-row .fm-btn.main{max-width:none}
+.fm-discard{display:block;margin:14px auto 0;border:0;background:none;color:#FCA5A5;font-size:14.5px;font-weight:600;min-height:44px;cursor:pointer;padding:6px 10px}

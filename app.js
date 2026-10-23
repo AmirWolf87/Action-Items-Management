@@ -1661,6 +1661,7 @@ document.addEventListener('click', async (e) => {
   if (k === 'ack') { fs.planAck = true; fsSave(); fsLayer(''); return; }
   if (k === 'end' || k === 'done') { fsFinish(k === 'done'); return; }
   if (k === 'save') { fsCommit(); return; }
+  if (k === 'discard') { fsDiscard(); return; }
   if (k === 'back') { fs.endAt = 0; fs.finishing = ''; fsSave(); fsLayer(''); fsRender(); return; }
 });
 $('#fmClockBtn').addEventListener('click', () => { if (!fs) return; fs.clock = { full: 'nosec', nosec: 'hidden', hidden: 'full' }[fs.clock || 'full']; store.set('ai.focusClock', fs.clock); fsSave(); fsRender(); });
@@ -1675,8 +1676,20 @@ function fsFinish(taskDone) {
     ${long ? `<p class="fm-warn">${L('That’s long — forgot to stop? You can fix it:', 'זה ארוך — אולי שכחת לעצור? אפשר לתקן:')}</p>` : ''}
     <label class="fm-fix">${L('Minutes worked', 'דקות עבודה')} <input type="number" id="fmMins" min="0" max="1440" step="1" inputmode="numeric" value="${mins}"></label>
     <label class="fm-chk"><input type="checkbox" id="fmAdd" checked> ${had ? L(`Add to actual hours (now ${had} h)`, `להוסיף לשעות בפועל (כרגע ${had} ש׳)`) : L('Save as actual hours', 'לשמור בשעות בפועל')}</label>
-    <div class="fm-row"><button class="fm-btn main" data-fm="save">${taskDone ? L('Save & complete', 'שמור וסמן כהושלמה') : L('Save', 'שמור')}</button><button class="fm-btn" data-fm="back">${L('Back to the session', 'חזרה למקטע')}</button></div></div>`);
+    <div class="fm-row"><button class="fm-btn main" data-fm="save">${taskDone ? L('Save & complete', 'שמור וסמן כהושלמה') : L('Save', 'שמור')}</button><button class="fm-btn" data-fm="back">${L('Back to the session', 'חזרה למקטע')}</button></div>
+    <button class="fm-discard" data-fm="discard">🗑 ${taskDone ? L('Delete this focus time (still mark the task done)', 'מחיקת זמן הריכוז הזה (המשימה עדיין תסומן כהושלמה)') : L('Delete this focus time', 'מחיקת זמן הריכוז הזה')}</button></div>`);
   fsRender();
+}
+/* throw the session away: no hours, no Focus Log line — as if it never happened */
+async function fsDiscard() {
+  const ok = await confirmBox(L('Delete this focus time?', 'למחוק את זמן הריכוז?'), L('It won’t be counted anywhere — not in the task’s hours and not in the focus log.', 'הוא לא ייחשב בשום מקום — לא בשעות של המשימה ולא ביומן הריכוז.'), L('Delete', 'מחיקה'), L('Keep', 'השאר'));
+  if (!ok || !fs) return;
+  const sess = fs, it = data.items.find(x => x.row === sess.row), taskDone = sess.finishing === 'done';
+  fs = null; store.set('ai.focus', null); clearInterval(fsTick); fsLayer(''); $('#focusMode').hidden = true; document.body.classList.remove('focus-open'); fsBanner();
+  if (!settings.demo) api('POST', { action: 'focusEnd', id: sess.id }).catch(() => {});      // ends it on other devices too, without a log line
+  focusRemote = null;
+  if (taskDone && it) { lastTap = { x: innerWidth / 2, y: innerHeight / 2 }; await toggleDone(it); return; }   // the normal completion (asks for hours as usual)
+  toast(L('Focus time deleted', 'זמן הריכוז נמחק'));
 }
 async function fsCommit() {
   const mins = Math.max(0, Math.round(Number($('#fmMins').value) || 0)), add = $('#fmAdd').checked, taskDone = fs.finishing === 'done';
@@ -3808,7 +3821,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 66;
+const APP_VERSION = 67;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
