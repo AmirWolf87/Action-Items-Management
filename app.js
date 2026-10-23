@@ -2303,7 +2303,25 @@ $('#btnSettings').addEventListener('click', openSettings);
 $('#btnRefresh').addEventListener('click', () => load());
 $('#btnReport').addEventListener('click', openReport);
 $('#btnNotify').addEventListener('click', openNotify);
-$('#btnMenu').addEventListener('click', () => $('#dlgMenu').showModal());
+$('#btnMenu').addEventListener('click', openMenu);
+/* ☰ the menu is grouped: tap a group to open it (one at a time); the last open group is remembered for the session */
+function openMenu() {
+  let last = ''; try { last = sessionStorage.getItem('ai.menuGrp') || ''; } catch (e) { /* ignore */ }
+  document.querySelectorAll('#dlgMenu .menu-grp').forEach(d => {
+    d.open = d.dataset.grp === last && getComputedStyle(d).display !== 'none';
+    const names = [...d.querySelectorAll('.mg-body .menu-item, .mg-body .theme-row')].filter(x => getComputedStyle(x).display !== 'none').map(x => (x.querySelector('span span') || x.querySelector('span') || x).textContent.trim()).filter(Boolean);
+    const sub = d.querySelector('[data-mgsub]'); if (sub) sub.textContent = names.slice(0, 3).join(' · ') + (names.length > 3 ? ' …' : '');
+  });
+  const pend = (typeof pending !== 'undefined' ? pending.length : 0) + (typeof pwReq !== 'undefined' ? pwReq.length : 0);
+  const ag = document.querySelector('#dlgMenu [data-grp=areas] summary'); if (ag) { let dot = ag.querySelector('.mg-dot'); if (!dot) { dot = document.createElement('b'); dot.className = 'mg-dot no-i18n'; ag.appendChild(dot); } dot.textContent = pend || ''; dot.hidden = !pend || isGuest(); }
+  $('#dlgMenu').showModal();
+}
+document.querySelectorAll('#dlgMenu .menu-grp').forEach(d => d.addEventListener('toggle', () => {
+  if (!d.open) return;
+  document.querySelectorAll('#dlgMenu .menu-grp').forEach(o => { if (o !== d) o.open = false; });   // one group at a time (older iPhones ignore name=)
+  try { sessionStorage.setItem('ai.menuGrp', d.dataset.grp); } catch (e) { /* ignore */ }
+  setTimeout(() => d.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
+}));
 $('#dlgMenu').addEventListener('click', (e) => { if (e.target.closest('.menu-item')) $('#dlgMenu').close(); });
 $('#btnShare').addEventListener('click', openShare);
 $('#btnStats').addEventListener('click', openStats);
@@ -4273,7 +4291,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 73;
+const APP_VERSION = 74;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

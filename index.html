@@ -14,7 +14,7 @@
 <script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('ai.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
-<link rel="stylesheet" href="styles.css?v=73">
+<link rel="stylesheet" href="styles.css?v=74">
 </head>
 <body>
 <header class="top">
@@ -332,30 +332,62 @@
 <dialog id="dlgMenu" class="sheet small menu">
   <div class="sheet-head"><h2>Menu</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
   <div class="menu-kpis no-i18n" id="menuKpis"></div>
-  <button class="menu-item" id="btnTour">🧭 <span>Guided tour</span></button>
-  <button class="menu-item" id="btnStory">🎬 <span>Summary video</span></button>
-  <button class="menu-item" id="btnRefresh">⟳ <span>Refresh</span></button>
-  <button class="menu-item" data-lang-toggle id="btnLangMenu">🌐 <span class="no-i18n" id="langMenuLbl">עברית</span></button>
-  <button class="menu-item owner-only" id="btnReview">🗓 <span>Weekly review</span></button>
-  <button class="menu-item owner-only" id="btnReport">✉ <span>Weekly report</span></button>
-  <button class="menu-item owner-only" id="btnNotify">🔔 <span>Phone notifications</span></button>
-  <button class="menu-item owner-only" id="btnShare">👥 <span>Sharing &amp; guests</span></button>
-  <button class="menu-item owner-only" id="btnPending2">📥 <span>Suggestions to approve</span></button>
-  <button class="menu-item owner-only" id="btnAreas">🏷 <span>Manage areas</span></button>
-  <button class="menu-item owner-only" id="btnOrder">⇅ <span>Order of areas</span></button>
-  <button class="menu-item owner-only" id="btnStats">📊 <span>Statistics</span></button>
-  <button class="menu-item owner-only" id="btnSiri">🎙 <span>Siri (add by voice)</span></button>
-  <button class="menu-item owner-only" id="btnImport">📆 <span>Import from calendar</span></button>
-  <button class="menu-item owner-only" id="btnAi">✨ <span>Smart reading (AI)</span></button>
-  <button class="menu-item owner-only" id="btnCal">📅 <span>iPhone calendar</span></button>
-  <button class="menu-item owner-only" id="btnFeed">📅 <span>Outlook calendar sync</span></button>
-  <button class="menu-item owner-only" id="btnMaint">🗄 <span>Archive &amp; backup</span></button>
-  <div class="theme-row"><span>🔠 <span>Font size</span></span><div class="seg no-i18n" id="fontSeg"><button type="button" data-font-set="s" class="fs-s">Small</button><button type="button" data-font-set="m">Medium</button><button type="button" data-font-set="l" class="fs-l">Large</button></div></div>
-  <label class="theme-row wc-toggle"><span>🌅 <span>Daily start screen</span></span><input type="checkbox" id="welcomeOn" class="switch" checked></label>
-  <div class="theme-row"><span>🌓 <span>Appearance</span></span><div class="seg" id="themeSeg"><button type="button" data-theme-set="auto">Auto</button><button type="button" data-theme-set="light">Light</button><button type="button" data-theme-set="dark">Dark</button></div></div>
-  <button class="menu-item" id="btnSettings">⚙ <span>Sheet connection</span></button>
-  <button class="menu-item" id="btnAccount">👤 <span>My account</span></button>
-  <button class="menu-item" id="btnLock">🔒 <span>Lock the app</span></button>
+  <div class="menu-top">
+    <button class="menu-item" id="btnRefresh">⟳ <span>Refresh</span></button>
+    <button class="menu-item" data-lang-toggle id="btnLangMenu">🌐 <span class="no-i18n" id="langMenuLbl">עברית</span></button>
+  </div>
+  <details class="menu-grp" name="menugrp" data-grp="plan">
+    <summary>📋 <span>Planning &amp; reports</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <div class="mg-body">
+      <button class="menu-item owner-only" id="btnReview">🗓 <span>Weekly review</span></button>
+      <button class="menu-item" id="btnStory">🎬 <span>Summary video</span></button>
+      <button class="menu-item owner-only" id="btnStats">📊 <span>Statistics</span></button>
+      <button class="menu-item owner-only" id="btnReport">✉ <span>Weekly report</span></button>
+    </div>
+  </details>
+  <details class="menu-grp owner-only" name="menugrp" data-grp="areas">
+    <summary>🏷 <span>Areas &amp; sharing</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <div class="mg-body">
+      <button class="menu-item owner-only" id="btnAreas">🏷 <span>Manage areas</span></button>
+      <button class="menu-item owner-only" id="btnOrder">⇅ <span>Order of areas</span></button>
+      <button class="menu-item owner-only" id="btnShare">👥 <span>Sharing &amp; guests</span></button>
+      <button class="menu-item owner-only" id="btnPending2">📥 <span>Suggestions to approve</span></button>
+    </div>
+  </details>
+  <details class="menu-grp owner-only" name="menugrp" data-grp="cal">
+    <summary>📅 <span>Calendars &amp; Siri</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <div class="mg-body">
+      <button class="menu-item owner-only" id="btnImport">📆 <span>Import from calendar</span></button>
+      <button class="menu-item owner-only" id="btnCal">📅 <span>iPhone calendar</span></button>
+      <button class="menu-item owner-only" id="btnFeed">📅 <span>Outlook calendar sync</span></button>
+      <button class="menu-item owner-only" id="btnSiri">🎙 <span>Siri (add by voice)</span></button>
+    </div>
+  </details>
+  <details class="menu-grp" name="menugrp" data-grp="look">
+    <summary>🎨 <span>Display</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <div class="mg-body">
+      <div class="theme-row"><span>🌓 <span>Appearance</span></span><div class="seg" id="themeSeg"><button type="button" data-theme-set="auto">Auto</button><button type="button" data-theme-set="light">Light</button><button type="button" data-theme-set="dark">Dark</button></div></div>
+      <div class="theme-row"><span>🔠 <span>Font size</span></span><div class="seg no-i18n" id="fontSeg"><button type="button" data-font-set="s" class="fs-s">Small</button><button type="button" data-font-set="m">Medium</button><button type="button" data-font-set="l" class="fs-l">Large</button></div></div>
+      <label class="theme-row wc-toggle"><span>🌅 <span>Daily start screen</span></span><input type="checkbox" id="welcomeOn" class="switch" checked></label>
+    </div>
+  </details>
+  <details class="menu-grp" name="menugrp" data-grp="set">
+    <summary>⚙ <span>Settings &amp; connections</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <div class="mg-body">
+      <button class="menu-item owner-only" id="btnNotify">🔔 <span>Phone notifications</span></button>
+      <button class="menu-item owner-only" id="btnAi">✨ <span>Smart reading (AI)</span></button>
+      <button class="menu-item" id="btnSettings">⚙ <span>Sheet connection</span></button>
+      <button class="menu-item owner-only" id="btnMaint">🗄 <span>Archive &amp; backup</span></button>
+    </div>
+  </details>
+  <details class="menu-grp" name="menugrp" data-grp="me">
+    <summary>👤 <span>Account &amp; help</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <div class="mg-body">
+      <button class="menu-item" id="btnTour">🧭 <span>Guided tour</span></button>
+      <button class="menu-item" id="btnAccount">👤 <span>My account</span></button>
+      <button class="menu-item" id="btnLock">🔒 <span>Lock the app</span></button>
+    </div>
+  </details>
   <p class="app-ver" id="appVer"></p>
 </dialog>
 
@@ -571,7 +603,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=73"></script>
-<script src="app.js?v=73"></script>
+<script src="i18n.js?v=74"></script>
+<script src="app.js?v=74"></script>
 </body>
 </html>
