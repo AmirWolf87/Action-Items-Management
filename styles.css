@@ -1202,3 +1202,4 @@ body.tour-open{overflow:hidden}
 .tour-dots{display:flex;gap:4px;margin-bottom:10px}.tour-dots i{width:6px;height:6px;border-radius:50%;background:var(--line)}.tour-dots i.on{background:var(--accent);width:16px;border-radius:4px}
 .tour-act{display:flex;align-items:center;gap:8px}.tour-act .btn{min-height:44px}.tour-act .linkish{font-size:14px;color:var(--muted);min-height:44px}
 @media (prefers-reduced-motion: reduce){.tour-hole,.tour-card{transition:none}}
+.fm-card .fm-row .fm-btn.main{max-width:none}

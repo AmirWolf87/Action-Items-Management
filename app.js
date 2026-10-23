@@ -1565,6 +1565,8 @@ function fsSetupRender() {
     ${f.plan === -1 || ![25, 45, 0].includes(f.plan) ? `<label class="fs-custom">${L('Minutes', 'דקות')}<input type="number" id="fsMin" min="5" max="240" step="5" inputmode="numeric" value="${f.plan > 0 ? f.plan : 60}"></label>` : ''}
     <label class="remember"><input type="checkbox" id="fsIntro" ${f.intro ? 'checked' : ''}> ${L('Short intro with the character', 'פתיח קצר עם הדמות')}</label>
     <label class="remember"><input type="checkbox" id="fsSound" ${f.sound ? 'checked' : ''}> ${L('Intro sound', 'צליל בפתיח')}</label>
+    <label class="remember"><input type="checkbox" id="fsNote" ${store.get('ai.focusNotify', true) ? 'checked' : ''}> ${L('Notify me if I leave the app', 'הודעה אם יוצאים מהאפליקציה')}</label>
+    <p class="hint">${L('Leaving the app pauses focus; if the screen just turns off while the app is open, timing goes on.', 'יציאה מהאפליקציה משהה את הריכוז; אם המסך פשוט נכבה כשהאפליקציה פתוחה — המדידה ממשיכה.')}</p>
     ${other ? `<p class="fs-warn">⚠ ${L(`A session is running on another device: “${esc(other.item)}”. Starting here will end it there.`, `יש מקטע פעיל במכשיר אחר: "${esc(other.item)}". התחלה כאן תסיים אותו שם.`)}</p>` : ''}
     <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary fs-go" id="fsGo">▶ ${L('Start focus', 'מתחילים פוקוס')}</button></div>`;
 }
@@ -1576,6 +1578,8 @@ async function fsStart() {
   const f = fsSetup; if (!f) return;
   let plan = f.plan; if (plan === -1 || ![25, 45, 0].includes(plan)) plan = Math.max(5, Math.min(240, Number(($('#fsMin') || {}).value) || 60));
   f.intro = $('#fsIntro').checked; f.sound = $('#fsSound').checked;
+  const wantNote = $('#fsNote').checked; store.set('ai.focusNotify', wantNote);
+  if (wantNote && 'Notification' in window && Notification.permission === 'default') { try { Notification.requestPermission().catch(() => {}); } catch (e) { /* older Safari */ } }
   store.set('ai.focusPlan', [25, 45, 0].includes(plan) ? plan : -1); store.set('ai.focusIntro', f.intro); store.set('ai.focusSound', f.sound);
   fs = { id: DEV + '-' + Date.now(), row: f.it.row, item: f.it.item, device: DEV, start: fsNow(), plan, paused: 0, pauseAt: 0, endAt: 0, planAck: false, clock: store.get('ai.focusClock', 'full'), min: false };
   fsSave(); $('#dlgFocusSetup').close();
@@ -1652,7 +1656,8 @@ document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-fm]'); if (!b || !fs) return;
   const k = b.dataset.fm;
   if (k === 'pause') { if (!fs.pauseAt) fs.pauseAt = fsNow(); fsLayer(''); fsSave(); fsRender(); fsSync(); return; }
-  if (k === 'resume') { if (fs.pauseAt) { fs.paused += fsNow() - fs.pauseAt; fs.pauseAt = 0; } fsSave(); fsRender(); fsSync(); return; }
+  if (k === 'resume') { if (fs.pauseAt) { fs.paused += fsNow() - fs.pauseAt; fs.pauseAt = 0; } fs.autoPaused = 0; fsLayer(''); fsSave(); fsRender(); fsSync(); return; }
+  if (k === 'countaway') { fs.pauseAt = 0; fs.autoPaused = 0; fsLayer(''); fsSave(); fsRender(); fsSync(); return; }
   if (k === 'ack') { fs.planAck = true; fsSave(); fsLayer(''); return; }
   if (k === 'end' || k === 'done') { fsFinish(k === 'done'); return; }
   if (k === 'save') { fsCommit(); return; }
@@ -1690,7 +1695,7 @@ async function fsCommit() {
 function fsRestore() {
   if (isGuest()) return;
   fs = store.get('ai.focus', null);
-  if (fs && !fs.endAt) { if (fs.min) fsBanner(); else showFocus(); return; }
+  if (fs && !fs.endAt) { if (fs.autoPaused) { showFocus(); fsAwayPrompt(); return; } if (fs.min) fsBanner(); else showFocus(); return; }
   if (fs && fs.endAt) { showFocus(); fsFinish(fs.finishing === 'done'); return; }
   const r = focusRemote;
   if (r && r.device !== DEV && Date.now() - Number(r.beat || r.start || 0) < 12 * 3600e3 && !$('#fsRemote')) {
@@ -1700,7 +1705,47 @@ function fsRestore() {
     $('#fsTake').onclick = () => { fs = { id: r.id, row: r.row, item: r.item, device: DEV, start: r.start, plan: r.plan, paused: r.paused || 0, pauseAt: r.pauseAt || 0, endAt: 0, planAck: false, clock: store.get('ai.focusClock', 'full') }; fsSave(); b.remove(); fsSync(true); showFocus(); };
   }
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && fs) fsRender(); });
+/* leaving the app during focus:
+   · the screen went dark by itself while the app was open (no touch for a while) → timing goes on
+   · you switched to another app / went home right after using it → focus pauses at that moment,
+     an optional phone notification says so, and coming back asks whether to continue */
+let fsLastInput = Date.now();
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { fsLastInput = Date.now(); }, { passive: true, capture: true }));
+const FS_IDLE_MS = 20000;   // shorter than the shortest iPhone auto-lock (30 s)
+function fsAway() {
+  if (!fs || fs.endAt || fs.pauseAt) return;
+  const now = fsNow();
+  if (now - fsLastInput >= FS_IDLE_MS) { fs.darkAt = now; fsSave(); return; }      // the screen just turned off — keep counting
+  fs.pauseAt = now; fs.autoPaused = now; fsSave(); fsSync();
+  if (store.get('ai.focusNotify', true)) fsNotify();
+}
+function fsNotify() {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted' || !navigator.serviceWorker) return;
+    navigator.serviceWorker.ready.then(r => r.showNotification(L('⏸ Focus paused', '⏸ מצב ריכוז הושהה'), {
+      body: L(`You left the app — “${fs.item}” is paused. Tap to come back and continue.`, `יצאת מהאפליקציה — "${fs.item}" הושהה. הקש כדי לחזור ולהמשיך.`),
+      tag: 'focus-away', renotify: true, icon: 'icons/icon-192.png', data: { url: location.href.split('#')[0] }
+    })).catch(() => {});
+  } catch (e) { /* not supported here */ }
+}
+function fsClearNote() { try { navigator.serviceWorker && navigator.serviceWorker.ready.then(r => r.getNotifications({ tag: 'focus-away' }).then(ns => ns.forEach(n => n.close()))).catch(() => {}); } catch (e) { /* none */ } }
+function fsAwayPrompt() {
+  if (!fs || !fs.autoPaused || fs.endAt) return;
+  const mins = Math.max(1, Math.round((fsNow() - fs.autoPaused) / 60000));
+  if ($('#focusMode').hidden) showFocus();
+  fsLayer(`<div class="fm-card"><b>⏸ ${L('Focus was paused', 'מצב ריכוז הופסק')}</b>
+    <p>${L(`You left the app ${fmtMin(mins)} ago, so the timer stopped then.`, `יצאת מהאפליקציה לפני ${fmtMin(mins)}, אז הטיימר נעצר באותו רגע.`)}<br><bdi>${esc(fs.item)}</bdi></p>
+    <div class="fm-row"><button class="fm-btn main" data-fm="resume">▶ ${L('Continue focus', 'להמשיך מצב ריכוז')}</button></div>
+    <div class="fm-row"><button class="fm-btn" data-fm="countaway">${L(`I was working on it — count those ${fmtMin(mins)}`, `עבדתי על המשימה — לספור גם את ${fmtMin(mins)}`)}</button><button class="fm-btn" data-fm="end">${L('End session', 'סיום מקטע')}</button></div></div>`);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { fsAway(); return; }
+  fsLastInput = Date.now(); fsClearNote();
+  if (!fs) return;
+  if (fs.darkAt) { delete fs.darkAt; fsSave(); }
+  if (fs.autoPaused) fsAwayPrompt(); else fsRender();
+});
+window.addEventListener('pagehide', fsAway);
 
 /* ---------- events ---------- */
 document.addEventListener('click', (e) => {
@@ -3763,7 +3808,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 65;
+const APP_VERSION = 66;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
