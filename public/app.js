@@ -774,7 +774,7 @@ function tplList(cat, list) {
     return `<div class="ct-item tp-item ${open ? 'open' : ''} ${done ? 'done' : ''}">
       <button class="ct-row" data-ctr="${esc(en.id)}" aria-expanded="${open}">
         <span class="ct-name" dir="auto"><b>${esc(en.title)}</b>${sub && xv(en, sub.k) ? `<small> · ${esc(xv(en, sub.k))}</small>` : ''}</span>
-        <span class="ct-meta">${tplChips(en, tpl, [tpl.group, sub && sub.k])}${done && cat.kind !== 'note' ? '<span class="ct-ok">✓</span>' : ''}${(tpl.fields || []).some(f => f.t === 'mono' && xv(en, f.k)) ? '<span title="chords">🎼</span>' : ''}${en.link ? (ctIsVideo(en.link) ? '<span>▶</span>' : '<span>🔗</span>') : ''}</span>
+        <span class="ct-meta">${aliveTag(en)}${tplChips(en, tpl, [tpl.group, sub && sub.k])}${done && cat.kind !== 'note' ? '<span class="ct-ok">✓</span>' : ''}${(tpl.fields || []).some(f => f.t === 'mono' && xv(en, f.k)) ? '<span title="chords">🎼</span>' : ''}${en.link ? (ctIsVideo(en.link) ? '<span>▶</span>' : '<span>🔗</span>') : ''}</span>
         <span class="ct-chev">⌄</span></button>
       ${open ? `<div class="ct-detail">
         ${en.img ? `<img class="ct-img" src="${esc(en.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
@@ -782,7 +782,7 @@ function tplList(cat, list) {
         ${en.notes ? `<div class="ct-notes" dir="auto">${esc(en.notes)}</div>` : ''}
         ${en.by ? `<p class="ct-by">👤 ${esc(en.by)}</p>` : ''}
         <div class="ct-actions">${en.link ? `<button class="btn ${ctIsVideo(en.link) ? 'primary' : 'ghost'}" data-clink="${esc(en.link)}">${ctIsVideo(en.link) ? L('▶ Watch', '▶ לסרטון') : L('🔗 Open link', '🔗 לקישור')}</button>` : ''}${tplFind(en, tpl)}
-          ${collRO() ? '' : `${cat.kind !== 'note' ? `<button class="btn ghost" data-cdone="${esc(en.id)}">${done ? esc(w.want) : esc(w.tried)}</button>` : ''}<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
+          ${aliveBtn(en)}${collRO() ? '' : `${cat.kind !== 'note' ? `<button class="btn ghost" data-cdone="${esc(en.id)}">${done ? esc(w.want) : esc(w.tried)}</button>` : ''}<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
       </div>` : ''}</div>`;
   };
   const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
@@ -834,7 +834,7 @@ function tplTable(cat, list) {
       ${en.img ? `<img class="ct-img" src="${esc(en.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
       ${tplDetail(en, tpl)}${en.notes ? `<div class="ct-notes" dir="auto">${esc(en.notes)}</div>` : ''}${en.by ? `<p class="ct-by">👤 ${esc(en.by)}</p>` : ''}
       <div class="ct-actions">${en.link ? `<button class="btn ghost" data-clink="${esc(en.link)}">${ctIsVideo(en.link) ? L('▶ Watch', '▶ לסרטון') : L('🔗 Open link', '🔗 לקישור')}</button>` : ''}${tplFind(en, tpl)}
-        ${collRO() ? '' : `${cat.kind !== 'note' ? `<button class="btn ghost" data-cdone="${esc(en.id)}">${done ? esc(w.want) : esc(w.tried)}</button>` : ''}<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div></div></td></tr>`;
+        ${aliveBtn(en)}${collRO() ? '' : `${cat.kind !== 'note' ? `<button class="btn ghost" data-cdone="${esc(en.id)}">${done ? esc(w.want) : esc(w.tried)}</button>` : ''}<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div></div></td></tr>`;
   }).join('');
   const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
   if (!rows.length) return `<div class="c-table">${add}<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div></div>`;
@@ -879,6 +879,7 @@ function collCard(en) {
   const c = catOf(en.cat), i = catIdx(en.cat), w = statusWordsC(c), done = en.status === 'tried', tpl = catTpl(c);
   const mono = tpl && tpl.fields.find(f => f.t === 'mono' && xv(en, f.k)), chips = tplChips(en, tpl);
   const fk = catStyleC(c) === 'food' ? foodOf(foodType(en)) : null;
+  const alive = aliveTag(en);
   const meta = [fk ? fk[1] + ' ' + esc(L(fk[2], fk[3])) : '', c.map && en.place ? '📍 ' + esc(en.place) : '', c.kind === 'wish' && en.for ? '🎁 ' + L('for ', 'בשביל ') + esc(en.for) : '', en.by ? '👤 ' + esc(en.by) : ''].filter(Boolean).join(' · ');
   const stamp = c.kind !== 'note' && done ? `<span class="c-stamp">${w.tried}</span>` : '';
   return `<article class="c-card ${done ? 'done' : ''} kind-${c.kind}" data-cid="${esc(en.id)}" style="--c-bg:${C_PAL[i % C_PAL.length]};--c-ink:${C_INK[i % C_INK.length]}">
@@ -887,10 +888,10 @@ function collCard(en) {
     <h4 dir="auto">${esc(en.title)}</h4>
     ${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}
     ${meta ? `<div class="c-meta" dir="auto">${meta}</div>` : ''}
-    ${chips ? `<div class="tp-chips">${chips}</div>` : ''}
+    ${chips || alive ? `<div class="tp-chips">${alive}${chips}</div>` : ''}
     ${mono ? `<pre class="tp-mono tp-peek" dir="ltr">${esc(xv(en, mono.k).split('\n').slice(0, 5).join('\n'))}</pre>` : ''}
     ${en.notes ? `<p class="c-notes" dir="auto">${esc(en.notes)}</p>` : ''}
-    ${en.link || (en.lat !== null && en.lat !== undefined && en.lat !== '') ? `<div class="c-actions">${en.link ? `<button data-clink="${esc(en.link)}">🔗 ${L('Link', 'קישור')}</button>` : ''}${en.lat !== null && en.lat !== undefined && en.lat !== '' ? `<button data-cpin="${esc(en.id)}">🗺 ${L('On the map', 'במפה')}</button>` : ''}</div>` : ''}
+    ${en.link || (en.lat !== null && en.lat !== undefined && en.lat !== '') || aliveBtn(en) ? `<div class="c-actions">${en.link ? `<button data-clink="${esc(en.link)}">🔗 ${L('Link', 'קישור')}</button>` : ''}${en.lat !== null && en.lat !== undefined && en.lat !== '' ? `<button data-cpin="${esc(en.id)}">🗺 ${L('On the map', 'במפה')}</button>` : ''}${aliveBtn(en) ? `<button data-calive="${esc(en.id)}">${L('✅ Still there?', '✅ עדיין קיים?')}</button>` : ''}</div>` : ''}
   </article>`;
 }
 /* ---- map (Leaflet + OpenStreetMap, loaded only when needed) ---- */
@@ -904,6 +905,48 @@ function loadLeaflet() {
   });
   return leafletP;
 }
+/* pins that share one rough spot (e.g. only "ראשון לציון" is known) are spread around it, so every place shows */
+function spreadPins(list) {
+  const groups = {}, pos = {};
+  list.forEach(en => { const k = Number(en.lat).toFixed(4) + ',' + Number(en.lng).toFixed(4); (groups[k] = groups[k] || []).push(en); });
+  Object.values(groups).forEach(g => {
+    const lat0 = Number(g[0].lat), lng0 = Number(g[0].lng);
+    if (g.length < 2) { pos[g[0].id] = [lat0, lng0, false]; return; }
+    g.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const vague = g.some(en => !/\d/.test(en.place || ''));            // no street number → only the town / area is known
+    const R = vague ? 700 + 110 * Math.min(g.length, 25) : 30 + 6 * g.length;   // metres
+    g.forEach((en, i) => {                                              // sunflower spiral: even spread, same spot every time
+      const r = R * Math.sqrt((i + 0.5) / g.length), a = i * 2.39996;
+      pos[en.id] = [lat0 + r * Math.cos(a) / 111320, lng0 + r * Math.sin(a) / (111320 * Math.cos(lat0 * Math.PI / 180)), vague];
+    });
+  });
+  return pos;
+}
+/* ✅ is the place still there? (web search through the AI) — the answer is kept with the entry */
+const aliveOf = (en) => xv(en, '_alive');
+function aliveTag(en) {
+  const a = aliveOf(en), d = xv(en, '_chk'); if (!a) return '';
+  const when = d ? ' · ' + d.slice(8, 10) + '/' + d.slice(5, 7) : '';
+  return a === 'closed' ? `<span class="al-tag closed">⛔ ${L('Closed', 'נסגר')}${when}</span>` : a === 'open' ? `<span class="al-tag open">✓ ${L('Still open', 'עדיין קיים')}${when}</span>` : '';
+}
+const aliveBtn = (en) => collRO() || settings.demo || !catOf(en.cat).map ? '' : `<button type="button" class="btn ghost" data-calive="${esc(en.id)}">${L('✅ Still there?', '✅ עדיין קיים?')}</button>`;
+const aliveBusy = {};
+async function collAlive(id) {
+  const en = coll.find(x => x.id === id); if (!en || aliveBusy[id]) return;
+  const c = catOf(en.cat), tpl = catTpl(c);
+  aliveBusy[id] = 1; document.querySelectorAll(`[data-calive="${CSS.escape(id)}"]`).forEach(b => { b.disabled = true; b.textContent = L('🔎 Checking…', '🔎 בודק…'); });
+  toast(L(`🔎 Checking “${en.title}” on the web…`, `🔎 בודק את "${en.title}" באינטרנט…`));
+  let r = null;
+  try { r = await api('POST', { action: 'placeCheck', cat: c.id, catName: c.name, title: en.title, place: en.place || '', link: en.link || '', notes: String(en.notes || '').slice(0, 800), base: en.base || '', fields: tpl ? tpl.fields : null, x: en.x || {} }); } catch (e) { r = { ok: false, message: e.message }; }
+  delete aliveBusy[id];
+  if (!r || !r.ok) { toast((r && r.message) || L('The check did not work', 'הבדיקה לא הצליחה')); render(); return; }
+  const state = !r.found ? 'unknown' : r.closed ? 'closed' : 'open';
+  const nx = Object.assign({}, en, { x: Object.assign({}, en.x || {}, { _alive: state, _chk: iso(today()) }) });
+  await collStore(nx);
+  toast(state === 'closed' ? L(`⛔ “${en.title}” looks permanently closed`, `⛔ נראה ש"${en.title}" נסגר`) + (r.issues[0] ? ' — ' + r.issues[0] : '')
+    : state === 'open' ? L(`✓ “${en.title}” is still open`, `✓ "${en.title}" עדיין קיים`) + (r.issues.length ? L(' — some details changed, open it and tap 🔎 to update', ' — חלק מהפרטים השתנו, פתח ולחץ 🔎 לעדכון') : '')
+    : L('🤷 Couldn’t find it for sure — add the city or a link', '🤷 לא מצאתי בוודאות — הוסף עיר או קישור'));
+}
 async function initCollMap() {
   const box = document.getElementById('collMap'); if (!box) return;
   try { await loadLeaflet(); } catch (e) { box.innerHTML = `<p class="hint" style="padding:16px">${L('The map could not load — check the internet connection.', 'המפה לא נטענה — בדוק את החיבור לאינטרנט.')}</p>`; return; }
@@ -912,17 +955,19 @@ async function initCollMap() {
   box.innerHTML = '';
   collMap = window.L.map(box, { zoomControl: true, attributionControl: true });
   window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(collMap);
+  const spot = spreadPins(collPins);
   const markers = collPins.map(en => {
-    const c = catOf(en.cat), i = catIdx(en.cat), w = statusWords(c.kind);
-    const icon = window.L.divIcon({ className: '', html: `<div class="c-pin ${en.status === 'tried' ? 'done' : ''}" style="--c-ink:${C_INK[i % C_INK.length]}"><span>${(catStyleC(c) === 'food' && foodOf(foodType(en)) || [0, catEmoji(c)])[1]}</span></div>`, iconSize: [36, 44], iconAnchor: [18, 42], popupAnchor: [0, -38] });
-    const m = window.L.marker([Number(en.lat), Number(en.lng)], { icon, title: en.title }).addTo(collMap);
-    m.bindPopup(`<div class="c-pop" dir="auto"><b>${esc(en.title)}</b><div>${esc(c.name)}${catStyleC(c) === 'food' && foodOf(foodType(en)) ? ' · ' + esc(L(foodOf(foodType(en))[2], foodOf(foodType(en))[3])) : ''}</div>${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}${tplChips(en, catTpl(c)) ? `<div class="tp-chips" style="margin:4px 0">${tplChips(en, catTpl(c))}</div>` : ''}<div>${en.status === 'tried' ? w.tried : w.want}</div>${en.place ? `<div>📍 ${esc(en.place)}</div>` : ''}${en.by ? `<div>👤 ${esc(en.by)}</div>` : ''}${en.notes ? `<div class="c-pop-n">${esc(en.notes.slice(0, 140))}</div>` : ''}<button data-copen="${esc(en.id)}">${L('Details', 'פרטים')}</button>${en.link ? ` <button data-clink="${esc(en.link)}">🔗</button>` : ''}</div>`);
+    const c = catOf(en.cat), i = catIdx(en.cat), w = statusWordsC(c), sp = spot[en.id] || [Number(en.lat), Number(en.lng), false], closed = aliveOf(en) === 'closed';
+    const icon = window.L.divIcon({ className: '', html: `<div class="c-pin ${en.status === 'tried' ? 'done' : ''} ${sp[2] ? 'approx' : ''} ${closed ? 'closed' : ''}" style="--c-ink:${C_INK[i % C_INK.length]}"><span>${(catStyleC(c) === 'food' && foodOf(foodType(en)) || [0, catEmoji(c)])[1]}</span></div>`, iconSize: [36, 44], iconAnchor: [18, 42], popupAnchor: [0, -38] });
+    const m = window.L.marker([sp[0], sp[1]], { icon, title: en.title }).addTo(collMap);
+    m.bindPopup(`<div class="c-pop" dir="auto"><b>${esc(en.title)}</b><div>${esc(c.name)}${catStyleC(c) === 'food' && foodOf(foodType(en)) ? ' · ' + esc(L(foodOf(foodType(en))[2], foodOf(foodType(en))[3])) : ''}</div>${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}${tplChips(en, catTpl(c)) ? `<div class="tp-chips" style="margin:4px 0">${tplChips(en, catTpl(c))}</div>` : ''}<div>${en.status === 'tried' ? w.tried : w.want}</div>${aliveTag(en) ? `<div>${aliveTag(en)}</div>` : ''}${en.place ? `<div>📍 ${esc(en.place)}${sp[2] ? `<br><small class="c-approx">${L('Approximate spot — no exact address', 'מיקום משוער — אין כתובת מדויקת')}</small>` : ''}</div>` : ''}${en.by ? `<div>👤 ${esc(en.by)}</div>` : ''}${en.notes ? `<div class="c-pop-n">${esc(en.notes.slice(0, 140))}</div>` : ''}<button data-copen="${esc(en.id)}">${L('Details', 'פרטים')}</button>${en.link ? ` <button data-clink="${esc(en.link)}">🔗</button>` : ''}${collRO() || settings.demo ? '' : ` <button data-calive="${esc(en.id)}">${L('✅ Still there?', '✅ עדיין קיים?')}</button>`}</div>`);
     m._cid = en.id; return m;
   });
   collMap.on('popupopen', (ev) => {
     const el = ev.popup.getElement(); if (!el) return;
     el.querySelectorAll('[data-copen]').forEach(b => { b.onclick = () => { const en = coll.find(x => x.id === b.dataset.copen); if (en) openColl(en); }; });
     el.querySelectorAll('[data-clink]').forEach(b => { b.onclick = () => window.open(b.dataset.clink, '_blank', 'noopener'); });
+    el.querySelectorAll('[data-calive]').forEach(b => { b.onclick = () => collAlive(b.dataset.calive); });
   });
   if (markers.length) collMap.fitBounds(window.L.featureGroup(markers).getBounds().pad(0.25), { maxZoom: 14 });
   else collMap.setView([31.8, 35.0], 7);
@@ -1031,7 +1076,7 @@ async function collCheckWeb() {
     base: $('#collBase').value === NEW_BASE ? '' : $('#collBase').value, fields: tpl ? tpl.fields : null, x: tplFormRead() }); } catch (e) { r = { ok: false, message: e.message }; }
   btn.disabled = false; collFormUi();
   if (!r || !r.ok) { box.className = 'ck-box warn'; box.innerHTML = `<p>${esc((r && r.message) || L('The check did not work.', 'הבדיקה לא הצליחה.'))}</p>`; return; }
-  ckRes = r; ckRender();
+  ckRes = r; f.dataset.alive = !r.found ? '' : r.closed ? 'closed' : 'open'; ckRender();
 }
 function ckRender() {
   const r = ckRes, f = $('#frmColl'), c = catOf($('#collCat').value), tpl = catTpl(c), box = $('#collCheckBox');
@@ -1165,7 +1210,7 @@ function openColl(en) {
   { const st0 = catStyleC(catOf($('#collCat').value)); fillBaseSelect(en.base || (st0 === 'food' && (en.title || en.notes) ? guessFood([en.title, en.notes].join(' ')) : ''), st0); $('#collBase').dataset.style = st0; } $('#collIng').value = en.ing || '';
   f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0; f._x = Object.assign({}, en.x || {}); $('#collTplRow').dataset.cat = '';
   f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = en._pin || ''; f.dataset.img = en.img || ''; f.dataset.autoTitle = en._auto || ''; f.dataset.geo = en._geo || '';
-  $('#collNote').hidden = true; $('#collCheckBox').hidden = true; ckRes = null; $('#placeAc').hidden = true; $('#collGeo').classList.remove('warn');
+  $('#collNote').hidden = true; $('#collCheckBox').hidden = true; ckRes = null; f.dataset.alive = ''; $('#placeAc').hidden = true; $('#collGeo').classList.remove('warn');
   [...f.elements].forEach(el => { if (el.name || el.id === 'collCat') el.disabled = ro; });
   $('#collSaveBtn').hidden = ro; $('#collDelete').hidden = ro || !en.id; $('#collHere').hidden = ro;
   collFormUi(); $('#dlgColl').showModal();
@@ -1236,6 +1281,7 @@ $('#frmColl').addEventListener('submit', async (e) => {
     lat: f.dataset.manual ? Number(f.dataset.lat) : (collEditing && f.dataset.lat !== '' ? collEditing.lat : null), lng: f.dataset.manual ? Number(f.dataset.lng) : (collEditing && f.dataset.lat !== '' ? collEditing.lng : null) });
   { const tpl = catTpl(c), x = Object.assign({}, (collEditing && collEditing.x) || {}), got = tplFormRead();
     if (tpl) tpl.fields.forEach(fd => { if (got[fd.k]) x[fd.k] = got[fd.k]; else delete x[fd.k]; });
+    if (f.dataset.alive) { x._alive = f.dataset.alive; x._chk = iso(today()); }
     en.x = x; }
   if (!f.dataset.manual) { delete en.lat; delete en.lng; }
   $('#dlgColl').close(); if (ui.collCat !== '*') ui.collCat = en.cat; await collStore(en);
@@ -2206,6 +2252,7 @@ document.addEventListener('click', (e) => {
   if (t.closest('[data-cfsheet]')) { openCollFilter(); return; }
   const cfx = t.closest('[data-cfx]'); if (cfx) { cfToggle(cfx.dataset.cfx, cfx.dataset.cfv || ''); render(); return; }
   const ctp = t.closest('[data-ctpl]'); if (ctp) { openTplEditor(ctp.dataset.ctpl); return; }
+  const cal = t.closest('[data-calive]'); if (cal) { e.stopPropagation(); collAlive(cal.dataset.calive); return; }
   const cdn = t.closest('[data-cdone]'); if (cdn) { const en = coll.find(x => x.id === cdn.dataset.cdone); if (en && !collRO()) { const nx = Object.assign({}, en, { status: en.status === 'tried' ? 'want' : 'tried' }); if (nx.status === 'tried') celebrate(); collStore(nx); } return; }
   const ck = t.closest('[data-ckind]');
   if (ck) { const k = ck.dataset.ckind, cur = ((ui.collKind || {})[ui.collCat] || []).slice(); const next = k === '*' ? [] : cur.includes(k) ? cur.filter(x => x !== k) : cur.concat(k);
@@ -4226,7 +4273,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 70;
+const APP_VERSION = 71;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

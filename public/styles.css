@@ -1296,3 +1296,10 @@ body.tour-open{overflow:hidden}
 .ck-src{font-size:12px;color:var(--muted)}.ck-src a{color:inherit}
 #collCheckBox .ck-row{flex-direction:row;margin:0}
 #collCheckBox .ck-row input{width:18px;height:18px;min-height:0;padding:0}
+/* ✅ still there? + spread pins */
+.al-tag{font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.al-tag.open{background:color-mix(in srgb,#16A34A 14%,var(--card));color:#15803D}
+.al-tag.closed{background:color-mix(in srgb,#DC2626 14%,var(--card));color:#B91C1C}
+.c-pin.approx{border-style:dashed;opacity:.9}
+.c-pin.closed{filter:grayscale(1);opacity:.6}
+.c-approx{color:#B45309}
