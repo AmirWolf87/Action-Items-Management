@@ -308,7 +308,8 @@ function doPost(e) {
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
-      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text })));
+      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text, fields: req.fields })));
+      case 'collDesign': return json_(collDesign_(req.name, req.kind));
       case 'getAi': { const k = aiKey_(); return json_({ ok: true, hasKey: !!k, hint: k ? k.slice(0, 4) + '…' + k.slice(-4) : '' }); }
       case 'saveAi': { const k = String(req.key || '').trim(); if (k) PropertiesService.getScriptProperties().setProperty('GEMINI_KEY', k); else PropertiesService.getScriptProperties().deleteProperty('GEMINI_KEY'); return json_(Object.assign({ ok: true, hasKey: !!k }, k ? aiTest_() : {})); }
       case 'testAi': return json_(Object.assign({ ok: true }, aiTest_()));
@@ -944,7 +945,7 @@ function saveAreas_(req) {
  *  Stored in its own "Collection" tab, separate from the action items.
  * ===================================================================== */
 const COLL_SHEET = 'Collection';
-const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng', 'Image', 'Base', 'Ingredients'];
+const COLL_HEAD = ['ID', 'Category', 'Title', 'Notes', 'Link', 'Place', 'Recommended by', 'Status', 'Rating', 'Added', 'Updated', 'For', 'Lat', 'Lng', 'Image', 'Base', 'Ingredients', 'Extra'];
 const COLL_DEFAULT_CATS_ = [
   { id: 'food', name: '🍽 מסעדות', kind: 'try', map: true }, { id: 'trip', name: '🧭 טיולים', kind: 'try', map: true },
   { id: 'activity', name: '🎯 פעילויות', kind: 'try', map: true }, { id: 'recipe', name: '🍳 מתכונים', kind: 'try', map: false },
@@ -962,10 +963,54 @@ function collCats_() {
 }
 function collSaveCats_(cats) {
   const clean = (cats || []).map(c => ({ id: String(c.id || Utilities.getUuid().slice(0, 6)).replace(/[^\w-]/g, '').slice(0, 20) || Utilities.getUuid().slice(0, 6),
-    name: String(c.name || '').trim().slice(0, 40), kind: ['note', 'wish'].indexOf(c.kind) >= 0 ? c.kind : 'try', map: !!c.map && c.kind !== 'note' })).filter(c => c.name).slice(0, 20);
+    name: String(c.name || '').trim().slice(0, 40), kind: ['note', 'wish'].indexOf(c.kind) >= 0 ? c.kind : 'try', map: !!c.map && c.kind !== 'note', tpl: tplClean_(c.tpl) })).filter(c => c.name).slice(0, 20);
+  clean.forEach(c => { if (!c.tpl) delete c.tpl; });
   if (!clean.length) throw new Error('Keep at least one category');
   PropertiesService.getScriptProperties().setProperty('COLL_CATS', JSON.stringify(clean));
   return clean;
+}
+/* 🧩 a category's template: which details each entry saves and how the category looks (kept small and safe) */
+const TPL_TYPES_ = ['text', 'choice', 'long', 'mono', 'number', 'url'];
+function tplClean_(t) {
+  if (!t || typeof t !== 'object' || !Array.isArray(t.fields)) return null;
+  const S = (v, n) => String(v === undefined || v === null ? '' : v).replace(/[<>]/g, '').trim().slice(0, n);
+  const seen = {};
+  const fields = t.fields.slice(0, 12).map(f => {
+    let k = S(f && f.k, 16).replace(/[^\w]/g, '') || ('f' + Utilities.getUuid().slice(0, 5));
+    while (seen[k]) k += '_'; seen[k] = 1;
+    const o = { k: k, l: S(f.l, 30), t: TPL_TYPES_.indexOf(f.t) >= 0 ? f.t : 'text' };
+    if (o.t === 'choice') o.o = (Array.isArray(f.o) ? f.o : []).map(x => S(x, 30)).filter(String).slice(0, 20);
+    if (f.ph) o.ph = S(f.ph, 60);
+    return o;
+  }).filter(f => f.l);
+  const out = { view: ['cards', 'table', 'list'].indexOf(t.view) >= 0 ? t.view : 'cards', fields: fields };
+  if (t.group && fields.some(f => f.k === t.group && f.t === 'choice')) out.group = t.group;
+  if (t.want) out.want = S(t.want, 24); if (t.done) out.done = S(t.done, 24);
+  const find = (Array.isArray(t.find) ? t.find : []).filter(x => x && /^https:\/\/[^\s<>"]+$/i.test(String(x.u || ''))).slice(0, 3).map(x => ({ l: S(x.l, 30) || '🔎', u: String(x.u).slice(0, 300) }));
+  if (find.length) out.find = find;
+  return out;
+}
+/* ✨ ask the AI to design a template for a new category (e.g. "🎸 גיטרה" → type / artist / key / capo / chords & tabs) */
+function collDesign_(name, kind) {
+  if (!aiKey_()) return { ok: false, message: 'ה-AI לא מוגדר (☰ › AI)' };
+  const prompt = 'Someone keeps a personal collection list named "' + String(name || '').slice(0, 40) + '" (' + (kind === 'wish' ? 'wishes' : 'recommendations / things to try or learn') + ').\n' +
+    'Design the details each entry should save, in the language of the name (Hebrew if Hebrew). Name, link, notes and a picture already exist — do NOT add them.\n' +
+    'Return 3-6 fields. Field types: text (short), choice (o = 3-8 options), long (free text), mono (fixed-width text that keeps line breaks — chords, tabs, code, sheet notation), number, url.\n' +
+    'Use choice for the main "type" of entry when it helps grouping. view: "list" for study / practice / reference material, "cards" for visual things, "table" for many short facts.\n' +
+    'group = the key of the choice field to group by (or ""). want / done = short labels with an emoji for "not yet" / "done" (e.g. "🎯 ללמוד" / "🎶 יודע לנגן").\n' +
+    'find = 0-2 search links for the entry, https only, with {q} where the entry name goes (e.g. {"l":"▶ YouTube","u":"https://www.youtube.com/results?search_query={q}"}).\n' +
+    'Return ONLY JSON: {"view":"","group":"","want":"","done":"","fields":[{"k":"short_latin_key","l":"label","t":"text","o":[]}],"find":[]}';
+  const r = aiCall_([{ text: prompt }], null);
+  if (!r) return { ok: false, message: 'No key' };
+  if (r.error) return { ok: false, message: r.error };
+  const tpl = tplClean_(r);
+  return tpl && tpl.fields.length ? { ok: true, tpl: tpl } : { ok: false, message: 'AI: no template' };
+}
+/* the template's values of one entry (JSON in the "Extra" column) */
+function extraClean_(x) {
+  const out = {}; if (!x || typeof x !== 'object') return out;
+  Object.keys(x).slice(0, 12).forEach(k => { const kk = String(k).replace(/[^\w]/g, '').slice(0, 16); const v = String(x[k] === null || x[k] === undefined ? '' : x[k]).slice(0, 6000); if (kk && v.trim()) out[kk] = v; });
+  return out;
 }
 function collSheet_() {
   const ss = SpreadsheetApp.getActive();
@@ -988,7 +1033,7 @@ function collRead_() {
   return sh.getRange(2, 1, n, COLL_HEAD.length).getValues().filter(r => r[0] && r[2]).map(r => ({
     id: String(r[0]), cat: String(r[1]), title: String(r[2]), notes: String(r[3]), link: String(r[4]), place: String(r[5]),
     by: String(r[6]), status: String(r[7]) === 'tried' ? 'tried' : 'want', rating: Number(r[8]) || 0, added: d(r[9]), updated: d(r[10]),
-    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]), img: String(r[14] || ''), base: String(r[15] || ''), ing: String(r[16] || '') }));
+    for: String(r[11] || ''), lat: r[12] === '' ? null : Number(r[12]), lng: r[13] === '' ? null : Number(r[13]), img: String(r[14] || ''), base: String(r[15] || ''), ing: String(r[16] || ''), x: (function () { try { return r[17] ? JSON.parse(r[17]) : {}; } catch (e) { return {}; } })() }));
 }
 /* one-time: put well-known classics (IBA official recipes) into the drinks category, skipping names already there */
 const SEED_DRINKS_ = [
@@ -1128,7 +1173,7 @@ function collSave_(e) {
   const out = { id: e.id ? String(e.id) : Utilities.getUuid().slice(0, 12), cat: String(e.cat || '').slice(0, 20), title: String(e.title).trim().slice(0, 200),
     notes: String(e.notes || '').slice(0, 3000), link: /^https?:\/\//i.test(link) ? link.slice(0, 500) : '', place: String(e.place || '').slice(0, 120),
     by: String(e.by || '').slice(0, 60), status: e.status === 'tried' ? 'tried' : 'want', rating: Math.max(0, Math.min(5, Number(e.rating) || 0)), added: e.added || today, updated: today,
-    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '', img: /^https:\/\//i.test(String(e.img || '')) ? String(e.img).slice(0, 1000) : '', base: String(e.base || '').slice(0, 30), ing: String(e.ing || '').trim().slice(0, 300) };
+    for: String(e.for || '').slice(0, 60), lat: null, lng: null, geo: '', img: /^https:\/\//i.test(String(e.img || '')) ? String(e.img).slice(0, 1000) : '', base: String(e.base || '').slice(0, 30), ing: String(e.ing || '').trim().slice(0, 300), x: extraClean_(e.x) };
   const n = sh.getLastRow() - 1;
   const ids = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(r => String(r[0])) : [];
   const i = ids.indexOf(out.id);
@@ -1143,7 +1188,7 @@ function collSave_(e) {
     else { const g = collLocate_(out.link, out.place); if (g) { out.lat = g.lat; out.lng = g.lng; out.geo = g.how; } else out.geo = (out.place || out.link) ? 'none' : ''; }
   }
   const row = [out.id, out.cat, out.title, out.notes, out.link, out.place, out.by, out.status, out.rating || '', out.added, out.updated, out.for,
-    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng, out.img, out.base, out.ing];
+    out.lat === null ? '' : out.lat, out.lng === null ? '' : out.lng, out.img, out.base, out.ing, Object.keys(out.x).length ? JSON.stringify(out.x) : ''];
   if (i >= 0) sh.getRange(i + 2, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
   return out;
 }
@@ -1300,7 +1345,7 @@ function aiCall_(parts, tools) {
   }
   return { error: 'AI: no model available' };
 }
-function aiExtract_(style, catName, raw, url, blocked) {
+function aiExtract_(style, catName, raw, url, blocked, fields) {
   const rules = {
     food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence. base = the kind of place, ONE of: cafe, cart (coffee cart / food truck), bakery, italian, pizza, burger, diner, meat, asian, mexican, middle (middle-eastern / hummus / shawarma), fish, veg, street, bar, chef (chef / fine dining), other.',
     trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
@@ -1311,12 +1356,15 @@ function aiExtract_(style, catName, raw, url, blocked) {
     rules[style] + '\n' +
     'place = the most precise location to put a map pin: business/site name + street/area + city if known (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). If only a city or region is known, give that. Empty if unknown.\n' +
     'city = city / region. notes = 1-3 short lines with the useful facts (what to order, hours, price, tips) — no hashtags.\n' +
-    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":"","ing":""' : style === 'food' ? ',"base":""' : '') + '}\n\n' +
-    'URL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 3000);
+    (fields && fields.length ? 'x = the details this list keeps for every entry (empty string when unknown): ' + fields.map(f => f.k + ' = ' + f.l + (f.t === 'choice' ? ' (ONE of: ' + f.o.join(' / ') + ')' : f.t === 'mono' ? ' (copy chords / tabs / notation EXACTLY as written, keep every line break and space)' : f.t === 'number' ? ' (a number)' : '')).join('; ') + '\n' : '') +
+    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":"","ing":""' : style === 'food' ? ',"base":""' : '') + (fields && fields.length ? ',"x":{' + fields.map(f => '"' + f.k + '":""').join(',') + '}' : '') + '}\n\n' +
+    'URL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 6000);
   const parts = [{ text: prompt }];
   const yt = /youtube\.com|youtu\.be/i.test(url);
   if (yt && String(raw.caption || '').length < 120) parts.push({ file_data: { file_uri: url } });   // let the AI watch a short / under-described video
-  return aiCall_(parts, blocked ? [{ url_context: {} }, { google_search: {} }] : null);
+  // chords / tabs live in the page body (not in its preview) → let the AI open the page itself
+  const wantsPage = !yt && /^https?:\/\//i.test(url) && fields && fields.some(f => f.t === 'mono');
+  return aiCall_(parts, blocked ? [{ url_context: {} }, { google_search: {} }] : wantsPage ? [{ url_context: {} }] : null);
 }
 function linkGather_(url, pasted) {
   let final = url;
@@ -1330,7 +1378,7 @@ function linkGather_(url, pasted) {
   const host = (final.match(/^https?:\/\/([^/?#]+)/i) || [])[1] || '';
   const raw = { url: final, source: host.replace(/^www\./, ''), title: '', caption: '', place: '', by: '', img: '', lat: null, lng: null };
   const fill = (o) => { Object.keys(o || {}).forEach(k => { if (o[k] !== undefined && o[k] !== null && o[k] !== '' && (raw[k] === '' || raw[k] === null)) raw[k] = o[k]; }); };
-  if (pasted) fill({ caption: String(pasted).slice(0, 4000) });
+  if (pasted) fill({ caption: String(pasted).slice(0, 8000) });
   if (/google\.[a-z.]+\/maps|maps\.google|goo\.gl\/maps|maps\.app/i.test(final)) {
     const u = decodeURIComponent(final);
     const pl = u.match(/\/place\/([^/@?]+)/); if (pl) fill({ title: pl[1].replace(/\+/g, ' '), place: pl[1].replace(/\+/g, ' ') });
@@ -1411,20 +1459,21 @@ function linkInfo_(url, opt) {
   opt = opt || {};
   url = String(url || '').trim();
   if (!/^https?:\/\//i.test(url) && !opt.text) throw new Error('Not a link');
-  const raw = /^https?:\/\//i.test(url) ? linkGather_(url, opt.text) : { url: '', source: 'text', title: '', caption: String(opt.text).slice(0, 4000), place: '', by: '', img: '', lat: null, lng: null };
+  const raw = /^https?:\/\//i.test(url) ? linkGather_(url, opt.text) : { url: '', source: 'text', title: '', caption: String(opt.text).slice(0, 8000), place: '', by: '', img: '', lat: null, lng: null };
   if (!raw.place) raw.place = captionBits_(raw.caption).place;
   const style = catStyle_(opt.cat, opt.catName);
   const out = { url: raw.url || url, source: raw.source, title: '', notes: captionBits_(raw.caption).notes, place: raw.place, by: raw.by, img: /^https:\/\//i.test(raw.img || '') ? raw.img : '', lat: raw.lat, lng: raw.lng, style: style, ai: false };
   if (raw.maps) { out.title = raw.title; }
   else {
     let ai = null;
-    if (aiKey_() && (raw.caption || raw.title || raw.blocked)) ai = aiExtract_(style, opt.catName || style, raw, raw.url || url, raw.blocked);
+    if (aiKey_() && (raw.caption || raw.title || raw.blocked)) ai = aiExtract_(style, opt.catName || style, raw, raw.url || url, raw.blocked, (tplClean_({ fields: opt.fields || [] }) || {}).fields);
     if (ai && !ai.error) {
       out.ai = true;
       out.title = String(ai.title || '').trim();
       if (ai.place && style !== 'drink' && style !== 'recipe') out.place = String(ai.place).trim();
       if (ai.base) out.base = String(ai.base).trim().toLowerCase();
       if (ai.ing) out.ing = String(ai.ing).trim().slice(0, 300);
+      if (ai.x && typeof ai.x === 'object') { const ok = {}; (tplClean_({ fields: opt.fields || [] }) || { fields: [] }).fields.forEach(f => { let v = ai.x[f.k]; if (v === undefined || v === null || v === '') return; v = String(v); if (f.t === 'choice' && f.o.length && f.o.indexOf(v) < 0) { const m = f.o.find(o => o.toLowerCase() === v.toLowerCase()); if (m) v = m; } ok[f.k] = v.slice(0, 6000); }); out.x = ok; }
       if (ai.notes && (!out.notes || out.notes.length < 20)) out.notes = String(ai.notes).trim();
       else if (ai.notes) out.summary = String(ai.notes).trim();
     } else if (ai && ai.error) out.aiError = ai.error;

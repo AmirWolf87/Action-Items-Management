@@ -1204,3 +1204,76 @@ body.tour-open{overflow:hidden}
 @media (prefers-reduced-motion: reduce){.tour-hole,.tour-card{transition:none}}
 .fm-card .fm-row .fm-btn.main{max-width:none}
 .fm-discard{display:block;margin:14px auto 0;border:0;background:none;color:#FCA5A5;font-size:14.5px;font-weight:600;min-height:44px;cursor:pointer;padding:6px 10px}
+
+/* ---------- 📚 Collection v2: a shelf of categories, one tool row inside, smart templates ---------- */
+.cs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:700px){.cs-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:1100px){.cs-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.cs-tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:start;min-height:118px;padding:14px;border-radius:18px;cursor:pointer;
+  border:1px solid color-mix(in srgb,var(--c-ink) 22%,transparent);background:color-mix(in srgb,var(--c-ink) 11%,var(--card));color:var(--ink);transition:transform .12s;font:inherit}
+.cs-tile:active{transform:scale(.97)}
+.cs-tile b{font-size:16px;line-height:1.25;color:var(--c-ink);overflow-wrap:anywhere}
+.cs-em{font-size:30px;line-height:1;margin-bottom:4px}
+.cs-n{font-size:12.5px;color:var(--muted);font-weight:700}
+.cs-peek{font-size:12px;color:var(--muted);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:auto}
+.cs-add{background:transparent;border:1.5px dashed var(--line);--c-ink:var(--muted)}
+.cs-add .cs-em{color:var(--muted)}
+.cs-tools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px}
+.cs-h{font-size:15px;margin:4px 0 10px}.cs-h i{font-style:normal;color:var(--muted)}
+.c-head{display:flex;align-items:center;gap:8px;margin:6px 0 10px;flex-wrap:wrap}
+.c-head h3{margin:0;font-size:18px;display:flex;align-items:center;gap:6px;color:var(--c-ink,var(--ink));min-width:0}
+.c-head h3 i{font-style:normal;font-size:13px;color:var(--muted);font-weight:700}
+.c-head .grow{flex:1}
+.c-back{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;min-width:40px;height:40px;font-size:22px;line-height:1;cursor:pointer;padding:0 10px;font-weight:700}
+.c-head .c-view{align-self:center}
+.c-head .c-view button{padding:6px 10px;font-size:15px}
+.c-vl{display:none;font-size:13px;margin-inline-start:4px}
+@media (min-width:700px){.c-vl{display:inline}}
+.c-fbtn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;height:38px;padding:0 12px;font-weight:700;font-size:13.5px;cursor:pointer;white-space:nowrap}
+.c-fbtn.on{border-color:var(--primary,var(--accent));color:var(--primary,var(--accent))}
+.c-fbtn i{font-style:normal;background:var(--primary,var(--accent));color:#fff;border-radius:999px;padding:0 6px;font-size:11.5px;margin-inline-start:4px}
+.c-active{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:-2px 0 10px}
+.c-af{border:0;background:color-mix(in srgb,var(--primary,var(--accent)) 14%,var(--card));color:var(--primary,var(--accent));border-radius:999px;padding:5px 10px;font-size:12.5px;font-weight:700;cursor:pointer}
+.c-af b{margin-inline-start:4px;opacity:.7}
+.cf-sec{margin:4px 0 14px}.cf-sec h4{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.cf-sec .c-kinds{margin:0;padding:0;border:0}
+/* template details on cards / rows */
+.tp-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 12px 0}
+.tp-chip{font-size:11.5px;border-radius:999px;padding:2px 8px;background:color-mix(in srgb,var(--c-ink,var(--muted)) 10%,var(--card));color:var(--ink);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tp-chip.ch{color:var(--c-ink,var(--ink));font-weight:700}
+.tp-chip small{color:var(--muted);font-size:10.5px}
+.ct-meta .tp-chip{font-size:11px}
+.tp-mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;line-height:1.45;white-space:pre;overflow-x:auto;background:color-mix(in srgb,var(--ink) 5%,var(--card));border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;text-align:left;-webkit-overflow-scrolling:touch}
+.tp-peek{margin:8px 12px 0;font-size:11px;max-height:6.5em;overflow:hidden;padding:6px 8px}
+.tp-block{margin:0 0 10px}.tp-block h5{margin:0 0 4px;font-size:12px;color:var(--muted)}
+.tp-long{white-space:pre-line;font-size:14px;line-height:1.5}
+.ct-name small{color:var(--muted);font-weight:500}
+.tp-table td{vertical-align:top}
+/* entry window: the category's own fields */
+.tp-form{display:flex;flex-direction:column;gap:10px}
+.tp-f{display:flex;flex-direction:column;gap:4px}
+.tp-l{font-size:13px;font-weight:600}
+.tp-opts{display:flex;flex-wrap:wrap;gap:6px}
+.tp-mono-in{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:13px;white-space:pre;overflow-x:auto;text-align:left}
+/* template editor */
+.tp-sec{margin:0 0 16px}.tp-sec h4{margin:0 0 8px;font-size:14px}
+.tp-sec .chips{display:flex;flex-wrap:wrap;gap:6px}
+.tp-ai{border-color:var(--primary,var(--accent));color:var(--primary,var(--accent));font-weight:700}
+.tp-two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.tp-two label{display:flex;flex-direction:column;gap:4px;font-size:12.5px}
+.tp-fields{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:8px}
+.tp-frow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.tp-fl{flex:1 1 140px;min-width:0}.tp-ft{flex:0 1 170px;width:auto}
+.tp-fo{flex:1 1 100%}
+.c-head{flex-wrap:nowrap}
+.c-head h3{flex:1;overflow:hidden}
+.c-ht{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-tools2{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.c-tools2 .grow{flex:1}
+.c-tools2 .c-view button{padding:6px 12px;font-size:15px}
+.tp-item .ct-row{flex-wrap:wrap;row-gap:4px}
+.tp-item .ct-name{flex:1 1 calc(100% - 40px)}
+.tp-item .ct-meta{order:3;flex:1 1 100%;justify-content:flex-start;flex-wrap:wrap}
+.tp-form label.full,.tp-form .tp-f{margin:0}
+.tp-frow .cc-btns{display:flex;gap:2px;margin-inline-start:auto}
+.tp-ft{flex:1 1 120px}

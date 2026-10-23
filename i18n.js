@@ -23,7 +23,7 @@ const HE = {
   'Priority': 'עדיפות', 'Due date': 'תאריך יעד', 'Start time': 'שעת התחלה', 'Start time (24h)': 'שעת התחלה (24 שעות)', 'HH:MM': 'HH:MM', 'Topic': 'נושא', 'Focal / who': 'אחראי',
   'Recurring': 'חוזרת', 'Est. hours (duration)': 'שעות מוערכות (משך)', 'Done on': 'בוצע בתאריך', 'Actual hours': 'שעות בפועל',
   'Comments / next step': 'הערות / צעד הבא', '🔒 Private — never shown to guests': '🔒 פרטי — לא יוצג לאורחים',
-  'Delete': 'מחיקה', 'Cancel': 'ביטול', 'Save': 'שמירה',
+  'Delete': 'מחיקה', 'Cancel': 'ביטול', 'Save': 'שמירה', 'Clear all': 'נקה הכל', '↺ Automatic': '↺ אוטומטי',
   // hours / confirm
   'Nice work! ✓': 'כל הכבוד! ✓', 'How many hours did it actually take?': 'כמה שעות זה לקח בפועל?', 'Skip': 'דלג',
   'Update the plan?': 'לעדכן את התכנון?', 'Check your estimate': 'בדוק את ההערכה',

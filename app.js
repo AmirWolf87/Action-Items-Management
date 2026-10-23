@@ -520,7 +520,6 @@ function fillBaseSelect(cur, style) {
   $('#collBaseNew').placeholder = food ? L('Georgian, Ethiopian…', 'גאורגי, אתיופי…') : 'סאקה, מזקל, ורמוט…';
   $('#collBase').value = cur || ''; $('#collBaseNew').hidden = true; $('#collBaseNew').value = '';
 }
-const collLayout = (c) => (ui.collLayout || {})[c.id] || (catStyleC(c) === 'drink' ? 'table' : 'board');
 let ctOpen = {};
 function statusWords(kind) {
   return kind === 'wish' ? { want: L('🎁 Wish', '🎁 משאלה'), tried: L('🎉 Came true', '🎉 הוגשמה'), fWant: L('Open', 'פתוחות'), fTried: L('Came true', 'הוגשמו') }
@@ -530,62 +529,266 @@ function collMatches(en) {
   const q = search.trim().toLowerCase();
   return !q || [en.title, en.notes, en.place, en.by, en.for].join(' ').toLowerCase().includes(q);
 }
-function renderCollection() {
-  const allMode = ui.collCat === '*';
-  if (!allMode && !collCats.find(c => c.id === ui.collCat)) ui.collCat = collCats.length ? collCats[0].id : '*';
-  const cat = allMode ? null : catOf(ui.collCat), kind = cat ? cat.kind : 'mixed';
-  const counts = Object.fromEntries(collCats.map(c => [c.id, coll.filter(x => x.cat === c.id).length]));
-  const chip = (id, label, n, i) => `<button class="c-chip ${ui.collCat === id ? 'on' : ''}" data-ccat="${esc(id)}" ${i >= 0 ? `style="--c-bg:${C_PAL[i % C_PAL.length]};--c-ink:${C_INK[i % C_INK.length]}"` : ''}>${label}${n ? `<i>${n}</i>` : ''}</button>`;
-  const chips = chip('*', '✨ ' + L('All', 'הכל'), coll.length, -1) + collCats.map((c, i) => chip(c.id, esc(c.name), counts[c.id], i)).join('') +
-    (collRO() ? '' : `<button class="c-chip c-add" data-ccats="new">＋ ${L('Category', 'קטגוריה')}</button><button class="c-chip c-edit" data-ccats title="${esc(L('Edit categories', 'עריכת קטגוריות'))}">✏️</button>`);
-  const visCats = allMode ? collCats : [cat];
-  const canMap = visCats.some(c => c.map);
-  const view = canMap && ui.collView === 'map' ? 'map' : 'board';
-  const toggle = canMap ? `<div class="c-view"><button class="${view === 'board' ? 'on' : ''}" data-cview="board">▦ ${L('Board', 'לוח')}</button><button class="${view === 'map' ? 'on' : ''}" data-cview="map">🗺 ${L('Map', 'מפה')}</button></div>` : '';
-  let list = coll.filter(x => (allMode ? collCats.some(c => c.id === x.cat) : x.cat === cat.id) && collMatches(x));
-  let kindBar = '';
-  if (!allMode && catStyleC(cat) === 'food' && list.length) {        // 🍽 filter by kind of place — works on the board and on the map
-    const cnt = {}; list.forEach(x => { const k = foodType(x) || '_'; cnt[k] = (cnt[k] || 0) + 1; });
-    const keys = C_FOOD.map(b => b[0]).filter(k => cnt[k]).concat(Object.keys(cnt).filter(k => k !== '_' && !C_FOOD.some(b => b[0] === k))).concat(cnt._ ? ['_'] : []);
-    const sel = (ui.collKind || {})[cat.id] || [];
-    const on = sel.filter(k => cnt[k]);
-    if (on.length) list = list.filter(x => on.includes(foodType(x) || '_'));
-    if (keys.length > 1) kindBar = `<div class="c-kinds" role="group" aria-label="${esc(L('Kind of place', 'סוג המקום'))}"><button class="c-kind ${on.length ? '' : 'on'}" data-ckind="*" aria-pressed="${!on.length}">${L('All kinds', 'כל הסוגים')}</button>${keys.map(k => { const b = k === '_' ? ['_', '❔', 'No kind', 'בלי סוג'] : foodOf(k); return `<button class="c-kind ${on.includes(k) ? 'on' : ''}" data-ckind="${esc(k)}" aria-pressed="${on.includes(k)}">${b[1]} ${esc(L(b[2], b[3]))} <i>${cnt[k]}</i></button>`; }).join('')}</div>`;
+/* ---------- 🧩 smart category templates — each category decides which details are saved and how they look ----------
+   tpl = { view:'cards'|'table'|'list', group:'<field key>', want:'…', done:'…', fields:[{k,l,t,o?,ph?}], find:[{l,u}] }
+   t = text | choice (o = options) | long (free text) | mono (chords / tabs / code — fixed-width, line breaks kept) | number | url */
+const TPL_T = [['text', 'Short text', 'טקסט קצר'], ['choice', 'Choice', 'בחירה מרשימה'], ['long', 'Long text', 'טקסט ארוך'], ['mono', 'Chords / tabs (fixed width)', 'אקורדים / טאבים (רוחב קבוע)'], ['number', 'Number', 'מספר'], ['url', 'Link', 'קישור']];
+const TPL_PRESETS = [
+  { id: 'music', em: '🎸', n: ['Music / guitar', 'מוזיקה / גיטרה'], re: /גיטר|guitar|אוקולל|ukulele|פסנתר|piano|נגינ|מוזיק|music|אקורד|chord|תופים|drums|כינור|violin|\bבס\b|bass|songs|שירים לנגן/i,
+    tpl: () => ({ view: 'list', group: 'type', want: L('🎯 To learn', '🎯 ללמוד'), done: L('🎶 I can play it', '🎶 יודע לנגן'), fields: [
+      { k: 'type', l: L('Type', 'סוג'), t: 'choice', o: isHe() ? ['שיר', 'אקורדים', 'טאבים', 'תווים', 'תיאוריה', 'תרגיל', 'טכניקה'] : ['Song', 'Chords', 'Tabs', 'Sheet music', 'Theory', 'Exercise', 'Technique'] },
+      { k: 'artist', l: L('Artist / source', 'אמן / מקור'), t: 'text' }, { k: 'key', l: L('Key / tuning', 'סולם / כיוונון'), t: 'text', ph: 'Am · Standard' },
+      { k: 'capo', l: L('Capo', 'קאפו'), t: 'number' }, { k: 'level', l: L('Level', 'רמה'), t: 'choice', o: isHe() ? ['מתחיל', 'בינוני', 'מתקדם'] : ['Beginner', 'Intermediate', 'Advanced'] },
+      { k: 'body', l: L('Chords / tabs / notes', 'אקורדים / טאבים / תווים'), t: 'mono' }],
+      find: [{ l: '🎸 Ultimate Guitar', u: 'https://www.ultimate-guitar.com/search.php?search_type=title&value={q}' }, { l: '▶ YouTube', u: 'https://www.youtube.com/results?search_query={q}+guitar' }] }) },
+  { id: 'books', em: '📚', n: ['Books', 'ספרים'], re: /ספר|book|קריא|reading/i,
+    tpl: () => ({ view: 'cards', want: L('📖 To read', '📖 לקרוא'), done: L('✓ Read', '✓ קראתי'), fields: [
+      { k: 'author', l: L('Author', 'סופר/ת'), t: 'text' }, { k: 'genre', l: L('Genre', 'ז׳אנר'), t: 'choice', o: isHe() ? ['רומן', 'מתח', 'עיון', 'ביוגרפיה', 'פנטזיה', 'ילדים', 'עסקים', 'היסטוריה'] : ['Novel', 'Thriller', 'Non-fiction', 'Biography', 'Fantasy', 'Kids', 'Business', 'History'] },
+      { k: 'pages', l: L('Pages', 'עמודים'), t: 'number' }, { k: 'quote', l: L('A line I liked', 'משפט שאהבתי'), t: 'long' }],
+      find: [{ l: '🔎 Google', u: 'https://www.google.com/search?q={q}+book' }] }) },
+  { id: 'screen', em: '🎬', n: ['Movies & series', 'סרטים וסדרות'], re: /סרט|סדר[הו]ת?|movie|film|series|tv\b|נטפליקס|netflix/i,
+    tpl: () => ({ view: 'cards', group: 'type', want: L('🍿 To watch', '🍿 לראות'), done: L('✓ Watched', '✓ ראינו'), fields: [
+      { k: 'type', l: L('Type', 'סוג'), t: 'choice', o: isHe() ? ['סרט', 'סדרה', 'דוקו', 'אנימציה'] : ['Movie', 'Series', 'Documentary', 'Animation'] },
+      { k: 'where', l: L('Where to watch', 'איפה רואים'), t: 'choice', o: ['Netflix', 'Disney+', 'Apple TV', 'HBO Max', 'Prime Video', 'yes', 'HOT', isHe() ? 'קולנוע' : 'Cinema'] },
+      { k: 'year', l: L('Year', 'שנה'), t: 'number' }, { k: 'genre', l: L('Genre', 'ז׳אנר'), t: 'text' }],
+      find: [{ l: '▶ Trailer', u: 'https://www.youtube.com/results?search_query={q}+trailer' }] }) },
+  { id: 'trip', em: '🧭', n: ['Trips & hikes', 'טיולים'], re: /טיול|מסלול|מעיי|hike|trail|trip/i,
+    tpl: () => ({ view: 'cards', group: 'region', fields: [
+      { k: 'region', l: L('Region', 'אזור'), t: 'choice', o: isHe() ? ['צפון', 'גליל וגולן', 'מרכז', 'ירושלים', 'דרום', 'מדבר', 'חו״ל'] : ['North', 'Galilee & Golan', 'Center', 'Jerusalem', 'South', 'Desert', 'Abroad'] },
+      { k: 'length', l: L('Length', 'משך / אורך'), t: 'text', ph: L('2 hours · 5 km', '2 שעות · 5 ק״מ') },
+      { k: 'level', l: L('Difficulty', 'רמת קושי'), t: 'choice', o: isHe() ? ['קל', 'בינוני', 'קשה'] : ['Easy', 'Medium', 'Hard'] },
+      { k: 'season', l: L('Best season', 'עונה מומלצת'), t: 'choice', o: isHe() ? ['כל השנה', 'חורף', 'אביב', 'קיץ', 'סתיו'] : ['All year', 'Winter', 'Spring', 'Summer', 'Autumn'] },
+      { k: 'water', l: L('Water / kids / dogs', 'מים / ילדים / כלבים'), t: 'text' }] }) },
+  { id: 'recipe', em: '🍳', n: ['Recipes', 'מתכונים'], re: /מתכו|recipe|בישול|אפייה|baking|קינוח/i,
+    tpl: () => ({ view: 'cards', fields: [
+      { k: 'time', l: L('Time', 'זמן הכנה'), t: 'text', ph: L('40 min', '40 דק׳') }, { k: 'serves', l: L('Serves', 'מנות'), t: 'number' },
+      { k: 'level', l: L('Difficulty', 'רמת קושי'), t: 'choice', o: isHe() ? ['קל', 'בינוני', 'מאתגר'] : ['Easy', 'Medium', 'Challenging'] },
+      { k: 'ingr', l: L('Ingredients', 'מצרכים'), t: 'long' }],
+      find: [{ l: '▶ YouTube', u: 'https://www.youtube.com/results?search_query={q}+מתכון' }] }) },
+  { id: 'learn', em: '🎓', n: ['Learning', 'לימוד'], re: /קורס|לימוד|ללמוד|course|learn|study|שפה|language|תיאורי|theory|הרצא|lecture/i,
+    tpl: () => ({ view: 'list', group: 'topic', want: L('📌 To learn', '📌 ללמוד'), done: L('✓ Learned', '✓ למדתי'), fields: [
+      { k: 'topic', l: L('Topic', 'נושא'), t: 'text' }, { k: 'src', l: L('Source', 'מקור'), t: 'choice', o: isHe() ? ['סרטון', 'מאמר', 'קורס', 'ספר', 'פודקאסט'] : ['Video', 'Article', 'Course', 'Book', 'Podcast'] },
+      { k: 'level', l: L('Level', 'רמה'), t: 'choice', o: isHe() ? ['בסיסי', 'בינוני', 'מתקדם'] : ['Basic', 'Intermediate', 'Advanced'] }, { k: 'sum', l: L('Summary / key points', 'סיכום / נקודות חשובות'), t: 'long' }] }) },
+  { id: 'workout', em: '🏋️', n: ['Workouts', 'אימונים'], re: /אימונ|כושר|workout|gym|fitness|יוגה|yoga|ריצה|running|פילאטיס/i,
+    tpl: () => ({ view: 'list', group: 'type', want: L('💪 To try', '💪 לנסות'), done: L('✓ Done it', '✓ עשיתי'), fields: [
+      { k: 'type', l: L('Type', 'סוג'), t: 'choice', o: isHe() ? ['כוח', 'אירובי', 'גמישות', 'יוגה', 'HIIT', 'מתיחות'] : ['Strength', 'Cardio', 'Mobility', 'Yoga', 'HIIT', 'Stretching'] },
+      { k: 'time', l: L('Duration', 'משך'), t: 'text' }, { k: 'gear', l: L('Equipment', 'ציוד'), t: 'text' }, { k: 'plan', l: L('Sets / steps', 'סטים / שלבים'), t: 'long' }],
+      find: [{ l: '▶ YouTube', u: 'https://www.youtube.com/results?search_query={q}+workout' }] }) }];
+const tplPresetFor = (c) => { const st = catStyleC(c); if (st === 'drink' || st === 'food') return null; const n = String((c && c.name) || '') + ' ' + String((c && c.id) || ''); return TPL_PRESETS.find(p => p.re.test(n)) || null; };
+/* the category's template: saved one › automatic one by name › none (drinks / restaurants have their own built-in look) */
+function catTpl(c) {
+  if (!c) return null;
+  if (c.tpl && Array.isArray(c.tpl.fields)) return c.tpl;
+  const p = tplPresetFor(c); if (!p) return null;
+  c._auto = c._auto || p.tpl(); return c._auto;
+}
+const tplField = (tpl, k) => tpl && (tpl.fields || []).find(f => f.k === k);
+const xv = (en, k) => { const v = en && en.x && en.x[k]; return v === undefined || v === null ? '' : String(v); };
+function tplQuery(en, tpl) {
+  const extra = (tpl.fields || []).filter(f => f.t === 'text').map(f => xv(en, f.k)).find(Boolean) || '';
+  return encodeURIComponent((en.title + ' ' + extra).trim()).replace(/%20/g, '+');
+}
+/* short details shown on a card / row: choices as chips, short text with its label */
+function tplChips(en, tpl, skip) {
+  if (!tpl) return '';
+  return (tpl.fields || []).filter(f => !(skip || []).includes(f.k) && ['choice', 'text', 'number'].includes(f.t) && xv(en, f.k)).slice(0, 4)
+    .map(f => `<span class="tp-chip ${f.t === 'choice' ? 'ch' : ''}" dir="auto">${f.t === 'choice' ? '' : `<small>${esc(f.l)}</small> `}${esc(xv(en, f.k))}</span>`).join('');
+}
+/* the full details, for an opened row */
+function tplDetail(en, tpl) {
+  if (!tpl) return '';
+  return (tpl.fields || []).filter(f => xv(en, f.k)).map(f => {
+    const v = xv(en, f.k);
+    if (f.t === 'mono') return `<div class="tp-block"><h5>${esc(f.l)}</h5><pre class="tp-mono" dir="ltr">${esc(v)}</pre></div>`;
+    if (f.t === 'long') return `<div class="tp-block"><h5>${esc(f.l)}</h5><div class="tp-long" dir="auto">${esc(v)}</div></div>`;
+    if (f.t === 'url') return /^https?:\/\//i.test(v) ? `<button class="btn ghost" data-clink="${esc(v)}">🔗 ${esc(f.l)}</button>` : '';
+    return '';
+  }).join('');
+}
+function tplFind(en, tpl) {
+  return tpl && tpl.find ? tpl.find.filter(x => /^https:\/\//i.test(x.u)).map(x => `<button class="btn ghost" data-clink="${esc(x.u.replace('{q}', tplQuery(en, tpl)))}">${esc(x.l)}</button>`).join('') : '';
+}
+
+/* ---- the collection: a shelf of categories › inside one category, one tool row + a "Filter" sheet ---- */
+function cfOf(id) {
+  ui.cf = ui.cf || {};
+  const o = ui.cf[id] || { st: 'all', kind: ((ui.collKind || {})[id] || []).slice(), f: {} };
+  o.f = o.f || {}; o.kind = o.kind || []; return o;
+}
+function cfSet(id, o) { ui.cf = Object.assign({}, ui.cf, { [id]: o }); store.set('ai.ui', ui); }
+function cfCount(id) { const o = cfOf(id); return (o.st !== 'all' ? 1 : 0) + (o.kind.length ? 1 : 0) + Object.keys(o.f).filter(k => (o.f[k] || []).length).length; }
+const kindKey = (en, st) => st === 'food' ? (foodType(en) || '_') : st === 'drink' ? (en.base || 'other') : '';
+/* the entries of one category after search + filters (status filter last, so its counts stay right) */
+function collFiltered(cat, noStatus) {
+  const o = cfOf(cat.id), st = catStyleC(cat), tpl = catTpl(cat);
+  let list = coll.filter(x => x.cat === cat.id && collMatches(x));
+  if (o.kind.length && (st === 'food' || st === 'drink')) list = list.filter(x => o.kind.includes(kindKey(x, st)));
+  Object.keys(o.f).forEach(k => { const v = o.f[k] || []; if (v.length && tplField(tpl, k)) list = list.filter(x => v.includes(xv(x, k) || '_')); });
+  if (!noStatus && cat.kind !== 'note' && o.st !== 'all') list = list.filter(x => o.st === 'tried' ? x.status === 'tried' : x.status !== 'tried');
+  return list;
+}
+function statusWordsC(c) {
+  const w = statusWords(c.kind), tpl = catTpl(c);
+  if (tpl && tpl.want) { w.want = tpl.want; w.fWant = tpl.want.replace(/^\W+\s*/u, '') || tpl.want; }
+  if (tpl && tpl.done) { w.tried = tpl.done; w.fTried = tpl.done.replace(/^\W+\s*/u, '') || tpl.done; }
+  return w;
+}
+function collShelf() {
+  const ro = collRO();
+  const tiles = collCats.map((c, i) => {
+    const mine = coll.filter(x => x.cat === c.id), done = mine.filter(x => x.status === 'tried').length;
+    const peek = mine.slice().sort((a, b) => String(b.updated || b.added).localeCompare(String(a.updated || a.added))).slice(0, 2).map(x => esc(x.title)).join(' · ');
+    const tpl = catTpl(c);
+    return `<button class="cs-tile" data-ccat="${esc(c.id)}" style="--c-bg:${C_PAL[i % C_PAL.length]};--c-ink:${C_INK[i % C_INK.length]}">
+      <span class="cs-em">${catEmoji(c)}</span><b dir="auto">${esc(catLabel(c))}</b>
+      <span class="cs-n">${mine.length ? `${mine.length}${c.kind !== 'note' && done ? ` · ${done} ✓` : ''}` : L('empty', 'ריק')}</span>
+      ${peek ? `<span class="cs-peek" dir="auto">${peek}</span>` : ''}</button>`;
+  }).join('');
+  const add = ro ? '' : `<button class="cs-tile cs-add" data-ccats="new"><span class="cs-em">＋</span><b>${L('New category', 'קטגוריה חדשה')}</b><span class="cs-n">${L('e.g. 🎸 Guitar, 📚 Books', 'למשל 🎸 גיטרה, 📚 ספרים')}</span></button>`;
+  const anyMap = collCats.some(c => c.map);
+  const tools = `<div class="cs-tools">${anyMap ? `<button class="chip" data-cview="map">🗺 ${L('Everything on the map', 'הכל במפה')}</button>` : ''}${ro ? '' : `<button class="chip" data-ccats>✏️ ${L('Edit categories', 'עריכת קטגוריות')}</button>`}</div>`;
+  let found = '';
+  if (search.trim()) {
+    const hits = coll.filter(x => collCats.some(c => c.id === x.cat) && collMatches(x));
+    found = `<h3 class="cs-h">🔎 ${L('Found', 'נמצאו')} <i>${hits.length}</i></h3>` + (hits.length ? `<div class="c-board">${hits.map(collCard).join('')}</div>` : `<p class="hint">${L('Nothing matches.', 'אין התאמות.')}</p>`);
   }
-  let html = `<div class="c-top"><div class="c-chips">${chips}</div><div class="c-tools">${toggle}<!--LT--></div></div>${kindBar}`;
-  if (view === 'map') {
-    const mapCats = visCats.filter(c => c.map).map(c => c.id);
-    const pins = list.filter(x => mapCats.includes(x.cat) && x.lat !== null && x.lat !== undefined && x.lat !== '');
-    const nopin = list.filter(x => mapCats.includes(x.cat) && !pins.includes(x));
+  return `<div class="c-wrap">${found}<div class="cs-grid">${tiles}${add}</div>${tools}</div>`;
+}
+function collAllMap() {
+  const mapCats = collCats.filter(c => c.map).map(c => c.id);
+  const list = coll.filter(x => mapCats.includes(x.cat) && collMatches(x));
+  collPins = list.filter(x => x.lat !== null && x.lat !== undefined && x.lat !== '');
+  setTimeout(initCollMap, 0);
+  return `<div class="c-wrap"><div class="c-head"><button class="c-back" data-cview="board">‹ ${L('Collection', 'האוסף')}</button><h3>🗺 ${L('Everything on the map', 'הכל במפה')} <i>${collPins.length}</i></h3></div>
+    <div class="c-map" id="collMap"><p class="hint" style="padding:16px">${L('Loading the map…', 'טוען מפה…')}</p></div></div>`;
+}
+function collViews(cat) {
+  const tpl = catTpl(cat), st = catStyleC(cat), v = [['board', '▦', L('Cards', 'כרטיסים')], ['table', '☰', L('Table', 'טבלה')]];
+  if (tpl && st !== 'drink') v.push(['list', '≣', L('List', 'רשימה')]);
+  if (cat.map) v.push(['map', '🗺', L('Map', 'מפה')]);
+  return v;
+}
+function collLayoutOf(cat) {
+  const saved = (ui.collLayout || {})[cat.id], tpl = catTpl(cat), views = collViews(cat).map(x => x[0]);
+  if (saved && views.includes(saved)) return saved;
+  if (catStyleC(cat) === 'drink') return 'table';
+  return tpl && tpl.view === 'table' ? 'table' : tpl && tpl.view === 'list' ? 'list' : 'board';
+}
+function renderCollection() {
+  if (ui.collCat !== '*' && !collCats.find(c => c.id === ui.collCat)) ui.collCat = '*';
+  if (!collCats.length) return `<div class="c-wrap"><div class="empty"><b>✨</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div></div>`;
+  if (ui.collCat === '*') return ui.collView === 'map' && collCats.some(c => c.map) ? collAllMap() : collShelf();
+  const cat = catOf(ui.collCat), kind = cat.kind, tpl = catTpl(cat), ro = collRO();
+  const layout = collLayoutOf(cat), n = coll.filter(x => x.cat === cat.id).length;
+  const fc = cfCount(cat.id);
+  const views = collViews(cat).map(([k, ic, l]) => `<button class="${layout === k ? 'on' : ''}" data-clayout="${k}" aria-label="${esc(l)}" title="${esc(l)}">${ic}<span class="c-vl">${esc(l)}</span></button>`).join('');
+  const hasFilters = kind !== 'note' || ['food', 'drink'].includes(catStyleC(cat)) || (tpl && tpl.fields.some(f => f.t === 'choice'));
+  let html = `<div class="c-head" style="--c-ink:${C_INK[catIdx(cat.id) % C_INK.length]}"><button class="c-back" data-ccat="*" aria-label="${esc(L('All categories', 'כל הקטגוריות'))}">‹</button>
+    <h3 dir="auto"><span>${catEmoji(cat)}</span> <span class="c-ht">${esc(catLabel(cat))}</span> <i>${n}</i></h3>
+    ${ro ? '' : `<button class="c-fbtn" data-ctpl="${esc(cat.id)}" title="${esc(L('What is saved and how it looks', 'מה נשמר ואיך זה נראה'))}">🧩 ${L('Template', 'תבנית')}</button>`}</div>
+    <div class="c-tools2"><div class="c-view c-layout">${views}</div><span class="grow"></span>
+    ${hasFilters ? `<button class="c-fbtn ${fc ? 'on' : ''}" data-cfsheet>⚲ ${L('Filter', 'סינון')}${fc ? ` <i>${fc}</i>` : ''}</button>` : ''}</div>`;
+  html += collActiveFilters(cat);
+  const list = collFiltered(cat);
+  if (layout === 'map') {
+    const pins = list.filter(x => x.lat !== null && x.lat !== undefined && x.lat !== '');
+    const nopin = list.filter(x => !pins.includes(x));
     collPins = pins;
     html += `<div class="c-map" id="collMap"><p class="hint" style="padding:16px">${L('Loading the map…', 'טוען מפה…')}</p></div>
       ${nopin.length ? `<div class="c-nopin"><span>📍 ${L(`${nopin.length} without a location — tap to add a place:`, `${nopin.length} בלי מיקום — לחץ כדי להוסיף מקום:`)}</span>${nopin.map(x => `<button class="c-chip" data-cid="${esc(x.id)}">${esc(x.title)}</button>`).join('')}</div>` : ''}`;
     setTimeout(initCollMap, 0);
     return `<div class="c-wrap">${html}</div>`;
   }
-  const layout = !allMode ? collLayout(cat) : 'board';
-  if (!allMode) html = html.replace('<!--LT-->', `<div class="c-view c-layout"><button class="${layout === 'board' ? 'on' : ''}" data-clayout="board">▦ ${L('Cards', 'כרטיסים')}</button><button class="${layout === 'table' ? 'on' : ''}" data-clayout="table">☰ ${L('Table', 'טבלה')}</button></div>`);
   if (layout === 'table') return `<div class="c-wrap">${html}${collTable(cat, list)}</div>`;
-  const f = !allMode && kind !== 'note' ? (ui.collFilter || 'all') : 'all';
-  const nTried = list.filter(x => x.status === 'tried').length, nWant = list.length - nTried;
-  if (f === 'want') list = list.filter(x => x.status !== 'tried'); if (f === 'tried') list = list.filter(x => x.status === 'tried');
+  if (layout === 'list') return `<div class="c-wrap">${html}${tplList(cat, list)}</div>`;
   list.sort((a, b) => (a.status === 'tried') - (b.status === 'tried') || (b.rating - a.rating) || String(b.updated || b.added).localeCompare(String(a.updated || a.added)));
-  if (!allMode && kind !== 'note') {
-    const w = statusWords(kind);
-    html += `<div class="c-filter">${[['all', L('All', 'הכל'), nWant + nTried], ['want', w.fWant, nWant], ['tried', w.fTried, nTried]].map(([k, l, n]) => `<button class="${f === k ? 'on' : ''}" data-cfilter="${k}">${l} <i>${n}</i></button>`).join('')}</div>`;
-  }
-  const addCard = collRO() || allMode ? '' : `<div class="c-card c-new" style="--c-bg:${C_PAL[catIdx(cat.id) % C_PAL.length]};--c-ink:${C_INK[catIdx(cat.id) % C_INK.length]}">
+  const addCard = ro ? '' : `<div class="c-card c-new" style="--c-bg:${C_PAL[catIdx(cat.id) % C_PAL.length]};--c-ink:${C_INK[catIdx(cat.id) % C_INK.length]}">
       <div class="c-band"><span class="c-emoji">${catEmoji(cat)}</span><span>${L('New', 'חדש')}</span></div>
-      <input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(cat.kind === 'wish' ? L('I wish…', 'הייתי רוצה…') : cat.kind === 'note' ? L('Write it down…', 'כתוב כאן…') : L('Name, or paste a link…', 'שם, או הדבק קישור…'))}">
+      <input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(kind === 'wish' ? L('I wish…', 'הייתי רוצה…') : kind === 'note' ? L('Write it down…', 'כתוב כאן…') : L('Name, or paste a link…', 'שם, או הדבק קישור…'))}">
       <button class="c-more" data-cnew>${L('＋ with details', '＋ עם פרטים')}</button></div>`;
-  const cards = list.map(collCard).join('');
-  html += `<div class="c-board">${addCard}${cards}</div>`;
-  if (!list.length && (collRO() || allMode)) html += `<div class="empty"><b>${allMode ? '✨' : catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`;
+  html += `<div class="c-board">${addCard}${list.map(collCard).join('')}</div>`;
+  if (!list.length && ro) html += `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`;
   return `<div class="c-wrap">${html}</div>`;
+}
+/* the filters that are on, as small chips you can remove with ✕ */
+function collActiveFilters(cat) {
+  const o = cfOf(cat.id), w = statusWordsC(cat), st = catStyleC(cat), tpl = catTpl(cat), out = [];
+  if (o.st !== 'all') out.push(['st', o.st, o.st === 'tried' ? w.fTried : w.fWant]);
+  o.kind.forEach(k => { const b = st === 'food' ? (k === '_' ? [0, '❔', 'No kind', 'בלי סוג'] : foodOf(k)) : baseOf(k); out.push(['kind', k, b[1] + ' ' + L(b[2], b[3])]); });
+  Object.keys(o.f).forEach(k => (o.f[k] || []).forEach(v => { const f = tplField(tpl, k); if (f) out.push(['f:' + k, v, v === '_' ? f.l + ': —' : v]); }));
+  if (!out.length) return '';
+  return `<div class="c-active">${out.map(([g, v, l]) => `<button class="c-af" data-cfx="${esc(g)}" data-cfv="${esc(v)}">${esc(l)} <b>✕</b></button>`).join('')}${out.length > 1 ? `<button class="linkish" data-cfx="*">${L('Clear all', 'נקה הכל')}</button>` : ''}</div>`;
+}
+function openCollFilter() {
+  const cat = catOf(ui.collCat); if (!cat || ui.collCat === '*') return;
+  $('#cfHead').textContent = catEmoji(cat) + ' ' + L('Filter', 'סינון') + ' · ' + catLabel(cat);
+  cfRender(); $('#dlgCFilt').showModal();
+}
+function cfRender() {
+  const cat = catOf(ui.collCat), o = cfOf(cat.id), st = catStyleC(cat), tpl = catTpl(cat), w = statusWordsC(cat);
+  const base = coll.filter(x => x.cat === cat.id && collMatches(x));
+  const chip = (g, v, label, n, on) => `<button type="button" class="c-kind ${on ? 'on' : ''}" data-cfg="${esc(g)}" data-cfv="${esc(v)}" aria-pressed="${on}">${label}${n !== null ? ` <i>${n}</i>` : ''}</button>`;
+  let h = '';
+  if (cat.kind !== 'note') {
+    const pre = collFiltered(cat, true), nT = pre.filter(x => x.status === 'tried').length;
+    h += `<section class="cf-sec"><h4>${L('Status', 'מצב')}</h4><div class="c-kinds">${[['all', L('All', 'הכל'), pre.length], ['want', w.fWant, pre.length - nT], ['tried', w.fTried, nT]].map(([k, l, n]) => chip('st', k, esc(l), n, o.st === k)).join('')}</div></section>`;
+  }
+  if (st === 'food' || st === 'drink') {
+    const cnt = {}; base.forEach(x => { const k = kindKey(x, st); cnt[k] = (cnt[k] || 0) + 1; });
+    const LIST = st === 'food' ? C_FOOD : C_BASES;
+    const keys = LIST.map(b => b[0]).filter(k => cnt[k]).concat(Object.keys(cnt).filter(k => k !== '_' && !LIST.some(b => b[0] === k))).concat(cnt._ ? ['_'] : []);
+    if (keys.length) h += `<section class="cf-sec"><h4>${st === 'food' ? L('Kind of place', 'סוג המקום') : L('Base', 'בסיס')}</h4><div class="c-kinds">${keys.map(k => { const b = k === '_' ? ['_', '❔', 'No kind', 'בלי סוג'] : st === 'food' ? foodOf(k) : baseOf(k); return chip('kind', k, b[1] + ' ' + esc(L(b[2], b[3])), cnt[k], o.kind.includes(k)); }).join('')}</div></section>`;
+  }
+  (tpl ? tpl.fields : []).filter(f => f.t === 'choice').forEach(f => {
+    const cnt = {}; base.forEach(x => { const v = xv(x, f.k) || '_'; cnt[v] = (cnt[v] || 0) + 1; });
+    const vals = (f.o || []).filter(v => cnt[v]).concat(Object.keys(cnt).filter(v => v !== '_' && !(f.o || []).includes(v))).concat(cnt._ ? ['_'] : []);
+    if (vals.length) h += `<section class="cf-sec"><h4 dir="auto">${esc(f.l)}</h4><div class="c-kinds">${vals.map(v => chip('f:' + f.k, v, v === '_' ? '—' : esc(v), cnt[v], (o.f[f.k] || []).includes(v))).join('')}</div></section>`;
+  });
+  $('#cfBody').innerHTML = h || `<p class="hint">${L('Nothing to filter yet.', 'עוד אין לפי מה לסנן.')}</p>`;
+  $('#cfShow').textContent = L(`Show ${collFiltered(cat).length}`, `הצג ${collFiltered(cat).length}`);
+}
+function cfToggle(g, v) {
+  const id = ui.collCat, o = cfOf(id);
+  if (g === '*') { cfSet(id, { st: 'all', kind: [], f: {} }); ui.collKind = Object.assign({}, ui.collKind, { [id]: [] }); return; }
+  if (g === 'st') o.st = o.st === v ? 'all' : v;
+  else if (g === 'kind') o.kind = o.kind.includes(v) ? o.kind.filter(x => x !== v) : o.kind.concat(v);
+  else if (g.startsWith('f:')) { const k = g.slice(2), cur = o.f[k] || []; o.f[k] = cur.includes(v) ? cur.filter(x => x !== v) : cur.concat(v); }
+  ui.collKind = Object.assign({}, ui.collKind, { [id]: o.kind });
+  cfSet(id, o);
+}
+/* ≣ list view — grouped by the template's main choice (e.g. Song / Chords / Tabs), tap a row to open chords, tabs, notes */
+function tplList(cat, list) {
+  const tpl = catTpl(cat) || { fields: [] }, gf = tplField(tpl, tpl.group);
+  const lang = isHe() ? 'he' : 'en', cmp = (a, b) => String(a).localeCompare(String(b), lang, { sensitivity: 'base', numeric: true });
+  const groups = {};
+  list.forEach(en => { const k = gf ? (xv(en, gf.k) || '_') : '*'; (groups[k] = groups[k] || []).push(en); });
+  const order = gf ? (gf.o || []).filter(k => groups[k]).concat(Object.keys(groups).filter(k => k !== '_' && !(gf.o || []).includes(k)).sort(cmp)).concat(groups._ ? ['_'] : []) : ['*'];
+  const sub = (tpl.fields || []).find(f => f.t === 'text' && f.k !== tpl.group);
+  const w = statusWordsC(cat);
+  const row = (en) => {
+    const open = !!ctOpen[en.id], done = en.status === 'tried';
+    return `<div class="ct-item tp-item ${open ? 'open' : ''} ${done ? 'done' : ''}">
+      <button class="ct-row" data-ctr="${esc(en.id)}" aria-expanded="${open}">
+        <span class="ct-name" dir="auto"><b>${esc(en.title)}</b>${sub && xv(en, sub.k) ? `<small> · ${esc(xv(en, sub.k))}</small>` : ''}</span>
+        <span class="ct-meta">${tplChips(en, tpl, [tpl.group, sub && sub.k])}${done && cat.kind !== 'note' ? '<span class="ct-ok">✓</span>' : ''}${(tpl.fields || []).some(f => f.t === 'mono' && xv(en, f.k)) ? '<span title="chords">🎼</span>' : ''}${en.link ? (ctIsVideo(en.link) ? '<span>▶</span>' : '<span>🔗</span>') : ''}</span>
+        <span class="ct-chev">⌄</span></button>
+      ${open ? `<div class="ct-detail">
+        ${en.img ? `<img class="ct-img" src="${esc(en.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+        ${tplDetail(en, tpl)}
+        ${en.notes ? `<div class="ct-notes" dir="auto">${esc(en.notes)}</div>` : ''}
+        ${en.by ? `<p class="ct-by">👤 ${esc(en.by)}</p>` : ''}
+        <div class="ct-actions">${en.link ? `<button class="btn ${ctIsVideo(en.link) ? 'primary' : 'ghost'}" data-clink="${esc(en.link)}">${ctIsVideo(en.link) ? L('▶ Watch', '▶ לסרטון') : L('🔗 Open link', '🔗 לקישור')}</button>` : ''}${tplFind(en, tpl)}
+          ${collRO() ? '' : `${cat.kind !== 'note' ? `<button class="btn ghost" data-cdone="${esc(en.id)}">${done ? esc(w.want) : esc(w.tried)}</button>` : ''}<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
+      </div>` : ''}</div>`;
+  };
+  const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
+  const body = order.map(k => `<section class="ct-group">${gf ? `<h4 dir="auto">${k === '_' ? esc(L('Other', 'אחר')) : esc(k)} <i>${groups[k].length}</i></h4>` : ''}${groups[k].sort((a, b) => (a.status === 'tried') - (b.status === 'tried') || cmp(a.title, b.title)).map(row).join('')}</section>`).join('');
+  return `<div class="c-table">${add}${list.length ? body : `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`}</div>`;
 }
 /* ---- 🍸 table view (e.g. drinks): grouped by base, tap a row to open recipe / description / video ---- */
 function collTable(cat, list) {
   if (catStyleC(cat) === 'drink') return drinkTable(cat, list);
+  if (catTpl(cat)) return tplTable(cat, list);
   const drink = false;
   const groups = {};
   list.forEach(en => { const k = drink ? (en.base || 'other') : (en.status === 'tried' ? 'tried' : 'want'); (groups[k] = groups[k] || []).push(en); });
@@ -610,6 +813,28 @@ function collTable(cat, list) {
   const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(drink ? L('Add a cocktail — name or paste a link…', 'הוסף קוקטייל — שם או הדבק קישור…') : L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
   const body = order.filter(k => groups[k]).map(k => `<section class="ct-group"><h4>${head(k)} <i>${groups[k].length}</i></h4>${groups[k].sort((a, b) => (b.rating - a.rating) || a.title.localeCompare(b.title)).map(row).join('')}</section>`).join('');
   return `<div class="c-table">${add}${body || `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`}</div>`;
+}
+/* ☰ table for a category with a template: Name + its short details as columns, tap a row to open it */
+function tplTable(cat, list) {
+  const tpl = catTpl(cat), cols = tpl.fields.filter(f => ['choice', 'text', 'number'].includes(f.t)).slice(0, 3), w = statusWordsC(cat);
+  const lang = isHe() ? 'he' : 'en', cmp = (a, b) => String(a).localeCompare(String(b), lang, { sensitivity: 'base', numeric: true });
+  const rows = list.slice().sort((a, b) => (a.status === 'tried') - (b.status === 'tried') || cmp(a.title, b.title));
+  const body = rows.map(en => {
+    const open = !!ctOpen[en.id], done = en.status === 'tried';
+    const r = `<tr class="dt-row ${open ? 'open' : ''} ${done ? 'done' : ''}" data-ctr="${esc(en.id)}" tabindex="0" aria-expanded="${open}">
+      <td class="dt-name" dir="auto"><b>${esc(en.title)}</b>${done && cat.kind !== 'note' ? ' <span class="ct-ok">✓</span>' : ''}${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}</td>
+      ${cols.map(f => `<td class="dt-ing" dir="auto">${xv(en, f.k) ? esc(xv(en, f.k)) : '<span class="dt-none">—</span>'}</td>`).join('')}
+      <td class="dt-end">${en.link ? '<span class="dt-ic">🔗</span>' : ''}<span class="ct-chev">⌄</span></td></tr>`;
+    if (!open) return r;
+    return r + `<tr class="dt-detail"><td colspan="${cols.length + 2}"><div class="ct-detail">
+      ${en.img ? `<img class="ct-img" src="${esc(en.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+      ${tplDetail(en, tpl)}${en.notes ? `<div class="ct-notes" dir="auto">${esc(en.notes)}</div>` : ''}${en.by ? `<p class="ct-by">👤 ${esc(en.by)}</p>` : ''}
+      <div class="ct-actions">${en.link ? `<button class="btn ghost" data-clink="${esc(en.link)}">${ctIsVideo(en.link) ? L('▶ Watch', '▶ לסרטון') : L('🔗 Open link', '🔗 לקישור')}</button>` : ''}${tplFind(en, tpl)}
+        ${collRO() ? '' : `${cat.kind !== 'note' ? `<button class="btn ghost" data-cdone="${esc(en.id)}">${done ? esc(w.want) : esc(w.tried)}</button>` : ''}<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div></div></td></tr>`;
+  }).join('');
+  const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
+  if (!rows.length) return `<div class="c-table">${add}<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div></div>`;
+  return `<div class="c-table">${add}<table class="dt tp-table no-i18n"><thead><tr><th>${L('Name', 'שם')}</th>${cols.map(f => `<th dir="auto">${esc(f.l)}</th>`).join('')}<th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 /* 🍸 drinks: a real table — Base | Name | Other ingredients — sorted by base, then name (A→Z / א→ת); tap a row to open it */
 const ctIsVideo = (u) => /youtu|tiktok|instagram\.com\/(reel|tv)|facebook\.com\/.*video|fb\.watch/i.test(u || '');
@@ -647,7 +872,8 @@ function drinkTable(cat, list) {
   return `<div class="c-table">${add}<table class="dt no-i18n"><thead><tr><th>${L('Base', 'בסיס')}</th><th>${L('Name', 'שם')}</th><th>${L('Other ingredients', 'מצרכים נוספים')}</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 function collCard(en) {
-  const c = catOf(en.cat), i = catIdx(en.cat), w = statusWords(c.kind), done = en.status === 'tried';
+  const c = catOf(en.cat), i = catIdx(en.cat), w = statusWordsC(c), done = en.status === 'tried', tpl = catTpl(c);
+  const mono = tpl && tpl.fields.find(f => f.t === 'mono' && xv(en, f.k)), chips = tplChips(en, tpl);
   const fk = catStyleC(c) === 'food' ? foodOf(foodType(en)) : null;
   const meta = [fk ? fk[1] + ' ' + esc(L(fk[2], fk[3])) : '', c.map && en.place ? '📍 ' + esc(en.place) : '', c.kind === 'wish' && en.for ? '🎁 ' + L('for ', 'בשביל ') + esc(en.for) : '', en.by ? '👤 ' + esc(en.by) : ''].filter(Boolean).join(' · ');
   const stamp = c.kind !== 'note' && done ? `<span class="c-stamp">${w.tried}</span>` : '';
@@ -657,6 +883,8 @@ function collCard(en) {
     <h4 dir="auto">${esc(en.title)}</h4>
     ${en.rating ? `<div class="c-stars">${stars(en.rating)}</div>` : ''}
     ${meta ? `<div class="c-meta" dir="auto">${meta}</div>` : ''}
+    ${chips ? `<div class="tp-chips">${chips}</div>` : ''}
+    ${mono ? `<pre class="tp-mono tp-peek" dir="ltr">${esc(xv(en, mono.k).split('\n').slice(0, 5).join('\n'))}</pre>` : ''}
     ${en.notes ? `<p class="c-notes" dir="auto">${esc(en.notes)}</p>` : ''}
     ${en.link || (en.lat !== null && en.lat !== undefined && en.lat !== '') ? `<div class="c-actions">${en.link ? `<button data-clink="${esc(en.link)}">🔗 ${L('Link', 'קישור')}</button>` : ''}${en.lat !== null && en.lat !== undefined && en.lat !== '' ? `<button data-cpin="${esc(en.id)}">🗺 ${L('On the map', 'במפה')}</button>` : ''}</div>` : ''}
   </article>`;
@@ -734,11 +962,12 @@ async function collQuickAdd(text) {
   const inp = $('#collNew'); if (inp) inp.focus();
 }
 async function linkInfo(url, cat, text) {
-  try { return await api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '' }); } catch (e) { return null; }
+  const tpl = cat && catTpl(cat);
+  try { return await api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '', fields: tpl ? tpl.fields : null }); } catch (e) { return null; }
 }
 function collFromInfo(info, base) {
   info = info || {};
-  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '', base: info.base || '', ing: info.ing || '', _auto: info.title || '' };
+  const o = { title: base.title || info.title || '', link: info.url || base.link, place: info.place || '', notes: info.notes || '', by: info.by || '', img: info.img || '', base: info.base || '', ing: info.ing || '', x: info.x && typeof info.x === 'object' ? info.x : {}, _auto: info.title || '' };
   if (info.summary && o.notes.indexOf(info.summary.slice(0, 20)) < 0) o.notes = info.summary + (o.notes ? '\n\n' + o.notes : '');
   if (!o.title) { try { o.title = new URL(base.link).hostname.replace(/^www\./, ''); } catch (e) { o.title = base.link; } }
   if (info.lat !== null && info.lat !== undefined && info.lat !== '') { o.lat = info.lat; o.lng = info.lng; o._pin = 'link'; o._geo = info.geoName || ''; }
@@ -776,6 +1005,7 @@ async function collFillFromLink() {
   { const st1 = catStyleC(catOf($('#collCat').value)), gb = info.base || (st1 === 'food' ? guessFood([info.title, info.notes, info.summary].join(' ')) : '');
     if (gb && (!$('#collBase').value || $('#collBase').value === NEW_BASE)) fillBaseSelect(gb, st1); }
   if (info.ing && !$('#collIng').value.trim()) $('#collIng').value = info.ing;
+  if (info.x && typeof info.x === 'object') { const cur = tplFormRead(); f._x = Object.assign({}, f._x || {}, info.x, Object.fromEntries(Object.entries(cur).filter(([, v]) => v))); $('#collTplRow').dataset.cat = ''; }
   const add = info.summary || info.notes;
   if (add && !f.elements.notes.value.includes(add.slice(0, 30))) f.elements.notes.value = blockedBefore ? (info.summary ? info.summary + '\n\n' : '') + f.elements.notes.value : (f.elements.notes.value.trim() ? f.elements.notes.value.trim() + '\n\n' : '') + add;
   if (info.img && !f.dataset.img) f.dataset.img = info.img;
@@ -836,6 +1066,27 @@ $('#aiRemove').addEventListener('click', async () => { try { await api('POST', {
 $('#btnAi').addEventListener('click', openAi);
 /* ---- entry dialog ---- */
 let collEditing = null;
+/* 🧩 the category's own fields inside the entry window */
+function tplFormRender(c, vals, ro) {
+  const box = $('#collTplRow'), tpl = catTpl(c); box.dataset.cat = c.id;
+  if (!tpl || !tpl.fields.length) { box.innerHTML = ''; box.hidden = true; return; }
+  box.hidden = false; vals = vals || {};
+  box.innerHTML = tpl.fields.map(fd => {
+    const v = vals[fd.k] === undefined || vals[fd.k] === null ? '' : String(vals[fd.k]), dis = ro ? 'disabled' : '';
+    if (fd.t === 'choice') {
+      const opts = (fd.o || []).concat(v && !(fd.o || []).includes(v) ? [v] : []);
+      return `<div class="full tp-f"><span class="tp-l" dir="auto">${esc(fd.l)}</span><input type="hidden" data-xk="${esc(fd.k)}" value="${esc(v)}"><div class="chips tp-opts">${opts.map(o => `<button type="button" class="chip ${o === v ? 'on' : ''}" data-xopt="${esc(fd.k)}" data-v="${esc(o)}" ${dis}>${esc(o)}</button>`).join('')}</div></div>`;
+    }
+    if (fd.t === 'mono') return `<label class="full tp-f"><span class="tp-l" dir="auto">${esc(fd.l)}</span><textarea data-xk="${esc(fd.k)}" class="tp-mono-in" rows="8" dir="ltr" spellcheck="false" autocapitalize="off" placeholder="Am        F        C        G&#10;e|-----0-----1-----0----|" ${dis}>${esc(v)}</textarea></label>`;
+    if (fd.t === 'long') return `<label class="full tp-f"><span class="tp-l" dir="auto">${esc(fd.l)}</span><textarea data-xk="${esc(fd.k)}" rows="3" dir="auto" ${dis}>${esc(v)}</textarea></label>`;
+    const type = fd.t === 'number' ? 'text" inputmode="decimal' : fd.t === 'url' ? 'url" dir="ltr' : 'text" dir="auto';
+    return `<label class="full tp-f"><span class="tp-l" dir="auto">${esc(fd.l)}</span><input type="${type}" data-xk="${esc(fd.k)}" value="${esc(v)}" placeholder="${esc(fd.ph || '')}" autocomplete="off" ${dis}></label>`;
+  }).join('');
+}
+function tplFormRead() {
+  const o = {}; document.querySelectorAll('#collTplRow [data-xk]').forEach(el => { const v = String(el.value || '').trim(); o[el.dataset.xk] = el.dataset.xk && el.tagName === 'TEXTAREA' ? String(el.value || '').replace(/\s+$/, '') : v; });
+  return o;
+}
 function openColl(en) {
   collEditing = en.id ? en : null; const f = $('#frmColl'), ro = collRO();
   $('#collFill').textContent = L('✨ Fill from link', '✨ מלא מהקישור');
@@ -844,7 +1095,7 @@ function openColl(en) {
   f.elements.title.value = en.title || ''; $('#collCat').value = en.cat && en.cat !== '*' ? en.cat : (collCats[0] || {}).id; f.elements.place.value = en.place || ''; f.elements.by.value = en.by || '';
   f.elements.link.value = en.link || ''; f.elements.notes.value = en.notes || ''; f.elements.for.value = en.for || '';
   { const st0 = catStyleC(catOf($('#collCat').value)); fillBaseSelect(en.base || (st0 === 'food' && (en.title || en.notes) ? guessFood([en.title, en.notes].join(' ')) : ''), st0); $('#collBase').dataset.style = st0; } $('#collIng').value = en.ing || '';
-  f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0;
+  f.dataset.status = en.status === 'tried' ? 'tried' : 'want'; f.dataset.rating = en.rating || 0; f._x = Object.assign({}, en.x || {}); $('#collTplRow').dataset.cat = '';
   f.dataset.lat = en.lat ?? ''; f.dataset.lng = en.lng ?? ''; f.dataset.manual = en._pin || ''; f.dataset.img = en.img || ''; f.dataset.autoTitle = en._auto || ''; f.dataset.geo = en._geo || '';
   $('#collNote').hidden = true; $('#placeAc').hidden = true; $('#collGeo').classList.remove('warn');
   [...f.elements].forEach(el => { if (el.name || el.id === 'collCat') el.disabled = ro; });
@@ -852,7 +1103,8 @@ function openColl(en) {
   collFormUi(); $('#dlgColl').showModal();
 }
 function collFormUi() {
-  const f = $('#frmColl'), c = catOf($('#collCat').value), w = statusWords(c.kind), ro = collRO();
+  const f = $('#frmColl'), c = catOf($('#collCat').value), w = statusWordsC(c), ro = collRO();
+  if ($('#collTplRow').dataset.cat !== c.id) { f._x = Object.assign(f._x || {}, tplFormRead()); tplFormRender(c, f._x, ro); }
   $('#collTry').hidden = c.kind === 'note';
   $('#collPlaceRow').hidden = !c.map;
   $('#collForRow').hidden = c.kind !== 'wish';
@@ -879,6 +1131,7 @@ $('#frmColl').addEventListener('click', (e) => {
   const f = $('#frmColl'); if (collRO()) return;
   const st = e.target.closest('[data-st]'); if (st) { f.dataset.status = st.dataset.st; if (st.dataset.st === 'want') f.dataset.rating = 0; collFormUi(); return; }
   const sr = e.target.closest('[data-star]'); if (sr) { f.dataset.rating = Number(sr.dataset.star) === Number(f.dataset.rating) ? 0 : sr.dataset.star; collFormUi(); return; }
+  const xo = e.target.closest('[data-xopt]'); if (xo) { const inp = $('#collTplRow').querySelector(`[data-xk="${CSS.escape(xo.dataset.xopt)}"]`); inp.value = inp.value === xo.dataset.v ? '' : xo.dataset.v; xo.parentNode.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b.dataset.v === inp.value)); return; }
   const fo = e.target.closest('[data-for]'); if (fo) { f.elements.for.value = fo.dataset.for; collFormUi(); return; }
   if (e.target.id === 'collOpen') window.open(f.elements.link.value.trim(), '_blank', 'noopener');
   if (e.target.id === 'collFill') { collFillFromLink(); return; }
@@ -908,6 +1161,9 @@ $('#frmColl').addEventListener('submit', async (e) => {
   const en = Object.assign({}, collEditing || {}, { title, cat: c.id, place: c.map ? f.elements.place.value.trim() : '', by: c.kind === 'wish' ? '' : f.elements.by.value.trim(), link, notes: f.elements.notes.value,
     base: ['drink', 'food'].includes(catStyleC(c)) ? ($('#collBase').value === NEW_BASE ? $('#collBaseNew').value.trim() : $('#collBase').value) || (catStyleC(c) === 'food' ? guessFood([title, f.elements.notes.value].join(' ')) : '') : '', ing: catStyleC(c) === 'drink' ? $('#collIng').value.trim() : '', img: f.dataset.img || '', for: c.kind === 'wish' ? f.elements.for.value.trim() : '', status: c.kind === 'note' ? 'want' : f.dataset.status, rating: c.kind === 'try' && f.dataset.status === 'tried' ? Number(f.dataset.rating) || 0 : 0,
     lat: f.dataset.manual ? Number(f.dataset.lat) : (collEditing && f.dataset.lat !== '' ? collEditing.lat : null), lng: f.dataset.manual ? Number(f.dataset.lng) : (collEditing && f.dataset.lat !== '' ? collEditing.lng : null) });
+  { const tpl = catTpl(c), x = Object.assign({}, (collEditing && collEditing.x) || {}), got = tplFormRead();
+    if (tpl) tpl.fields.forEach(fd => { if (got[fd.k]) x[fd.k] = got[fd.k]; else delete x[fd.k]; });
+    en.x = x; }
   if (!f.dataset.manual) { delete en.lat; delete en.lng; }
   $('#dlgColl').close(); if (ui.collCat !== '*') ui.collCat = en.cat; await collStore(en);
 });
@@ -920,7 +1176,8 @@ $('#collDelete').addEventListener('click', async () => {
 /* ---- categories (add / rename / reorder, with inspiration ideas) ---- */
 const C_IDEAS = [['🎬', L('Movies & series', 'סרטים וסדרות'), 'try', false], ['📚', L('Books', 'ספרים'), 'try', false], ['🎵', L('Shows & concerts', 'הופעות'), 'try', true], ['☕', L('Cafés', 'בתי קפה'), 'try', true],
   ['🏨', L('Hotels & B&Bs', 'מלונות וצימרים'), 'try', true], ['🏖', L('Vacations', 'חופשות'), 'try', true], ['🍰', L('Desserts', 'קינוחים'), 'try', false], ['🎁', L('Gift ideas', 'רעיונות למתנות'), 'wish', false],
-  ['🧒', L('Kids activities', 'פעילויות לילדים'), 'try', true], ['🍷', L('Wineries', 'יקבים'), 'try', true], ['🛠', L('DIY projects', 'פרויקטים לבית'), 'note', false], ['💡', L('Ideas', 'רעיונות'), 'note', false]];
+  ['🧒', L('Kids activities', 'פעילויות לילדים'), 'try', true], ['🍷', L('Wineries', 'יקבים'), 'try', true], ['🛠', L('DIY projects', 'פרויקטים לבית'), 'note', false], ['💡', L('Ideas', 'רעיונות'), 'note', false],
+  ['🎸', L('Guitar', 'גיטרה'), 'try', false], ['🎓', L('Learning', 'לימוד'), 'try', false], ['🏋️', L('Workouts', 'אימונים'), 'try', false]];
 function ccRow(c) {
   return `<li class="ord-row cc-row" data-id="${esc(c.id)}"><input class="cc-name" value="${esc(c.name)}" dir="auto" maxlength="40" placeholder="${esc(L('🍕 Name', '🍕 שם'))}">
     <select class="cc-kind"><option value="try" ${c.kind === 'try' || !c.kind ? 'selected' : ''}>${L('Recommendations', 'המלצות')}</option><option value="wish" ${c.kind === 'wish' ? 'selected' : ''}>${L('Wishes', 'משאלות')}</option><option value="note" ${c.kind === 'note' ? 'selected' : ''}>${L('Notes', 'רשימות')}</option></select>
@@ -951,11 +1208,82 @@ $('#ccList').addEventListener('click', (e) => {
   }
 });
 $('#ccSave').addEventListener('click', async () => {
-  const cats = [...$('#ccList').children].map(r => ({ id: r.dataset.id, name: r.querySelector('.cc-name').value.trim(), kind: r.querySelector('.cc-kind').value, map: r.querySelector('.cc-mapcb').checked })).filter(c => c.name);
+  const prev = Object.fromEntries(collCats.map(c => [c.id, c]));
+  const cats = [...$('#ccList').children].map(r => { const c = { id: r.dataset.id, name: r.querySelector('.cc-name').value.trim(), kind: r.querySelector('.cc-kind').value, map: r.querySelector('.cc-mapcb').checked }; if (prev[c.id] && prev[c.id].tpl) c.tpl = prev[c.id].tpl; return c; }).filter(c => c.name);
   if (!cats.length) return;
   try { const j = await collApi({ action: 'collCats', cats }); collCats = j.collCats; $('#dlgCollCats').close(); render(); toast(L('Saved', 'נשמר')); }
-  catch (err) { $('#ccStatus').textContent = err.message; }
+  catch (err) { $('#ccStatus').textContent = err.message; return; }
+  // ✨ a new category the app has no ready template for → let the AI design what it saves and how it looks
+  const fresh = collCats.filter(c => !prev[c.id] && !catTpl(c) && catStyleC(c) === 'other' && c.kind !== 'note');
+  if (settings.demo || !fresh.length) return;
+  let changed = false;
+  for (const c of fresh) { const d = await collDesign(c); if (d && d.tpl) { c.tpl = d.tpl; changed = true; toast(L(`✨ The AI set up “${catLabel(c)}” — tap 🧩 inside to adjust`, `✨ ה-AI התאים את "${catLabel(c)}" — אפשר לשנות ב-🧩 בתוך הקטגוריה`)); } }
+  if (changed) { try { const j = await collApi({ action: 'collCats', cats: collCats }); collCats = j.collCats; render(); } catch (err) { /* keep the local copy */ } }
 });
+/* ---- 🧩 template editor: which details a category saves, and how it looks ---- */
+let tpEd = null;
+async function collDesign(c) { try { const j = await api('POST', { action: 'collDesign', name: c.name, kind: c.kind }); return j && j.ok ? j : null; } catch (e) { return null; } }
+function openTplEditor(id) {
+  const c = catOf(id); if (!c || collRO()) return;
+  const t = catTpl(c);
+  tpEd = { id: c.id, tpl: JSON.parse(JSON.stringify(t || { view: 'cards', fields: [] })), auto: !c.tpl && !!t };
+  $('#tpHead').textContent = '🧩 ' + catEmoji(c) + ' ' + catLabel(c);
+  $('#tpStatus').textContent = tpEd.auto ? L('This is the automatic template for this kind of category — change anything and Save.', 'זו התבנית האוטומטית לסוג הזה של קטגוריה — שנה מה שתרצה ולחץ שמירה.') : '';
+  tpRender(); $('#dlgTpl').showModal();
+}
+function tpRender() {
+  const c = catOf(tpEd.id), t = tpEd.tpl, st = catStyleC(c);
+  const views = [['cards', '▦ ' + L('Cards', 'כרטיסים')], ['table', '☰ ' + L('Table', 'טבלה')], ['list', '≣ ' + L('List', 'רשימה')]];
+  const choices = t.fields.filter(f => f.t === 'choice');
+  $('#tpBody').innerHTML = `
+    <section class="tp-sec"><h4>${L('Start from', 'להתחיל מ…')}</h4><div class="chips">${TPL_PRESETS.map(p => `<button type="button" class="chip" data-tppre="${p.id}">${p.em} ${esc(L(p.n[0], p.n[1]))}</button>`).join('')}
+      ${settings.demo ? '' : `<button type="button" class="chip tp-ai" data-tpai>✨ ${L('Design with AI', 'תכנון עם AI')}</button>`}</div>
+      ${st !== 'other' ? `<p class="hint">${st === 'drink' ? L('Drinks keep their table (base, ingredients) — the fields here are added to it.', 'משקאות שומרים על הטבלה שלהם (בסיס, מצרכים) — השדות כאן נוספים עליה.') : L('Places keep their map and kinds — the fields here are added to them.', 'מקומות שומרים על המפה והסוגים — השדות כאן נוספים עליהם.')}</p>` : ''}</section>
+    <section class="tp-sec"><h4>${L('How it looks', 'איך זה נראה')}</h4><div class="seg">${views.map(([k, l]) => `<button type="button" class="${(t.view || 'cards') === k ? 'on' : ''}" data-tpview="${k}">${l}</button>`).join('')}</div>
+      ${choices.length ? `<label class="full">${L('Group the list by', 'לקבץ את הרשימה לפי')}<select id="tpGroup"><option value="">—</option>${choices.map(f => `<option value="${esc(f.k)}" ${t.group === f.k ? 'selected' : ''}>${esc(f.l)}</option>`).join('')}</select></label>` : ''}
+      ${c.kind !== 'note' ? `<div class="tp-two"><label>${L('“Not yet” is called', 'שם ל״עוד לא״')}<input id="tpWant" dir="auto" maxlength="24" value="${esc(t.want || '')}" placeholder="${esc(statusWords(c.kind).want)}"></label><label>${L('“Done” is called', 'שם ל״בוצע״')}<input id="tpDone" dir="auto" maxlength="24" value="${esc(t.done || '')}" placeholder="${esc(statusWords(c.kind).tried)}"></label></div>` : ''}</section>
+    <section class="tp-sec"><h4>${L('What each entry saves', 'מה נשמר בכל רשומה')}</h4>
+      <p class="hint">${L('Name, link, notes and picture are always there. Add your own details:', 'שם, קישור, הערות ותמונה תמיד קיימים. הוסף פרטים משלך:')}</p>
+      <ul class="tp-fields">${t.fields.map((f, i) => `<li class="tp-frow" data-i="${i}">
+        <input class="tp-fl" dir="auto" maxlength="30" value="${esc(f.l)}" placeholder="${esc(L('Field name', 'שם השדה'))}">
+        <select class="tp-ft">${TPL_T.map(([k, a, b]) => `<option value="${k}" ${f.t === k ? 'selected' : ''}>${esc(L(a, b))}</option>`).join('')}</select>
+        <span class="cc-btns"><button type="button" class="icon-btn dark" data-tpup>↑</button><button type="button" class="icon-btn dark" data-tpdel>✕</button></span>
+        ${f.t === 'choice' ? `<input class="tp-fo full" dir="auto" value="${esc((f.o || []).join(', '))}" placeholder="${esc(L('Options, separated by commas', 'אפשרויות, מופרדות בפסיק'))}">` : ''}</li>`).join('')}</ul>
+      <button type="button" class="btn ghost" data-tpadd>＋ ${L('Add a field', 'הוספת שדה')}</button></section>`;
+}
+function tpSync() {
+  const t = tpEd.tpl;
+  document.querySelectorAll('#tpBody .tp-frow').forEach(r => { const f = t.fields[Number(r.dataset.i)]; if (!f) return; f.l = r.querySelector('.tp-fl').value.trim(); f.t = r.querySelector('.tp-ft').value; const o = r.querySelector('.tp-fo'); if (o) f.o = o.value.split(/[,،]/).map(x => x.trim()).filter(Boolean).slice(0, 20); if (f.t !== 'choice') delete f.o; });
+  if ($('#tpGroup')) t.group = $('#tpGroup').value; if ($('#tpWant')) t.want = $('#tpWant').value.trim(); if ($('#tpDone')) t.done = $('#tpDone').value.trim();
+}
+$('#tpBody').addEventListener('change', (e) => { if (e.target.classList.contains('tp-ft')) { tpSync(); tpRender(); } });
+$('#tpBody').addEventListener('click', async (e) => {
+  const t = e.target;
+  const pre = t.closest('[data-tppre]'); if (pre) { const p = TPL_PRESETS.find(x => x.id === pre.dataset.tppre); tpEd.tpl = p.tpl(); $('#tpStatus').textContent = L('Loaded — adjust and Save.', 'נטען — שנה מה שצריך ולחץ שמירה.'); tpRender(); return; }
+  if (t.closest('[data-tpai]')) {
+    tpSync(); $('#tpStatus').textContent = L('✨ Designing…', '✨ מתכנן…'); t.closest('[data-tpai]').disabled = true;
+    const d = await collDesign(catOf(tpEd.id));
+    if (d && d.tpl) { tpEd.tpl = d.tpl; $('#tpStatus').textContent = L('✨ Here is a suggestion — adjust and Save.', '✨ הנה הצעה — שנה מה שצריך ולחץ שמירה.'); tpRender(); }
+    else { $('#tpStatus').textContent = (d && d.message) || L('The AI is not set up (☰ › AI) — pick a ready template or add fields yourself.', 'ה-AI לא מוגדר (☰ › AI) — בחר תבנית מוכנה או הוסף שדות בעצמך.'); t.closest('[data-tpai]').disabled = false; }
+    return;
+  }
+  const v = t.closest('[data-tpview]'); if (v) { tpSync(); tpEd.tpl.view = v.dataset.tpview; tpRender(); return; }
+  if (t.closest('[data-tpadd]')) { tpSync(); tpEd.tpl.fields.push({ k: 'f' + Math.random().toString(36).slice(2, 7), l: '', t: 'text' }); tpRender(); const ins = document.querySelectorAll('#tpBody .tp-fl'); ins[ins.length - 1].focus(); return; }
+  const row = t.closest('.tp-frow'); if (!row) return; const i = Number(row.dataset.i);
+  if (t.closest('[data-tpdel]')) { tpSync(); tpEd.tpl.fields.splice(i, 1); tpRender(); return; }
+  if (t.closest('[data-tpup]') && i > 0) { tpSync(); const f = tpEd.tpl.fields; [f[i - 1], f[i]] = [f[i], f[i - 1]]; tpRender(); }
+});
+async function tpStore(tpl) {
+  const cats = collCats.map(c => { const o = Object.assign({}, c); delete o._auto; if (o.id === tpEd.id) { if (tpl) o.tpl = tpl; else delete o.tpl; } return o; });
+  try { const j = await collApi({ action: 'collCats', cats }); collCats = j.collCats; $('#dlgTpl').close(); render(); toast(L('Saved', 'נשמר')); }
+  catch (err) { $('#tpStatus').textContent = err.message; }
+}
+$('#tpSave').addEventListener('click', () => { tpSync(); const t = tpEd.tpl; t.fields = t.fields.filter(f => f.l); if (t.group && !t.fields.some(f => f.k === t.group && f.t === 'choice')) t.group = ''; tpStore(t); });
+$('#tpReset').addEventListener('click', () => tpStore(null));
+/* 🔎 filter sheet */
+$('#cfBody').addEventListener('click', (e) => { const b = e.target.closest('[data-cfg]'); if (!b) return; cfToggle(b.dataset.cfg, b.dataset.cfv); cfRender(); render(); });
+$('#cfClear').addEventListener('click', () => { cfToggle('*'); cfRender(); render(); });
+$('#cfShow').addEventListener('click', () => $('#dlgCFilt').close());
 async function nbToggle(it) {
   const copy = Object.assign({}, it);
   const finishing = !isClosed(it);
@@ -1801,7 +2129,11 @@ document.addEventListener('click', (e) => {
   const bk = t.closest('[data-book]');
   if (bk) { ui.nbBook = bk.dataset.book; store.set('ai.ui', ui); render(); return; }
   const cc = t.closest('[data-ccat]');
-  if (cc) { ui.collCat = cc.dataset.ccat; store.set('ai.ui', ui); render(); return; }
+  if (cc) { ui.collCat = cc.dataset.ccat; ui.collView = 'board'; store.set('ai.ui', ui); render(); window.scrollTo({ top: 0 }); return; }
+  if (t.closest('[data-cfsheet]')) { openCollFilter(); return; }
+  const cfx = t.closest('[data-cfx]'); if (cfx) { cfToggle(cfx.dataset.cfx, cfx.dataset.cfv || ''); render(); return; }
+  const ctp = t.closest('[data-ctpl]'); if (ctp) { openTplEditor(ctp.dataset.ctpl); return; }
+  const cdn = t.closest('[data-cdone]'); if (cdn) { const en = coll.find(x => x.id === cdn.dataset.cdone); if (en && !collRO()) { const nx = Object.assign({}, en, { status: en.status === 'tried' ? 'want' : 'tried' }); if (nx.status === 'tried') celebrate(); collStore(nx); } return; }
   const ck = t.closest('[data-ckind]');
   if (ck) { const k = ck.dataset.ckind, cur = ((ui.collKind || {})[ui.collCat] || []).slice(); const next = k === '*' ? [] : cur.includes(k) ? cur.filter(x => x !== k) : cur.concat(k);
     ui.collKind = Object.assign({}, ui.collKind, { [ui.collCat]: next }); store.set('ai.ui', ui); render(); return; }
@@ -1815,7 +2147,7 @@ document.addEventListener('click', (e) => {
   const lk = t.closest('[data-clink]');
   if (lk) { e.stopPropagation(); window.open(lk.dataset.clink, '_blank', 'noopener'); return; }
   const cp = t.closest('[data-cpin]');
-  if (cp) { e.stopPropagation(); const en = coll.find(x => x.id === cp.dataset.cpin); collFocus = cp.dataset.cpin; if (en && ui.collCat !== '*' && !catOf(ui.collCat).map) ui.collCat = en.cat; ui.collView = 'map'; render(); return; }
+  if (cp) { e.stopPropagation(); const en = coll.find(x => x.id === cp.dataset.cpin); collFocus = cp.dataset.cpin; if (en && catOf(en.cat).map) { ui.collCat = en.cat; ui.collLayout = Object.assign({}, ui.collLayout, { [en.cat]: 'map' }); } else ui.collView = 'map'; render(); return; }
   const co = t.closest('[data-copen]'); if (co) { const en = coll.find(x => x.id === co.dataset.copen); if (en) openColl(en); return; }
   if (t.closest('#collNew') || t.closest('.c-new')) return;
   const cl = t.closest('[data-cid]');
@@ -3821,7 +4153,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 67;
+const APP_VERSION = 68;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
