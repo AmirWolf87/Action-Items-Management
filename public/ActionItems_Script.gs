@@ -1370,8 +1370,11 @@ function aiJson_(text) {
 }
 function aiCall_(parts, tools) {
   const key = aiKey_(); if (!key) return null;
-  const models = [PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-  for (const model of models.filter((m, i, a) => a.indexOf(m) === i)) {
+  // free-tier models first; a model that is out of quota (429) or not open to this key (403/404) → try the next one
+  const P = PropertiesService.getScriptProperties();
+  const models = [P.getProperty('GEMINI_MODEL') || P.getProperty('GEMINI_OK_MODEL') || 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+  let lastErr = null;
+  for (const model of models.filter((m, i, a) => m && a.indexOf(m) === i)) {
     const body = { contents: [{ role: 'user', parts: parts }], generationConfig: { temperature: 0.2 } };
     if (tools) body.tools = tools; else body.generationConfig.responseMimeType = 'application/json';
     try {
@@ -1383,13 +1386,21 @@ function aiCall_(parts, tools) {
         if (r2.getResponseCode() < 300) r = r2;
       }
       const code = r.getResponseCode(), txt = r.getContentText();
-      if (code === 404) continue;                                   // model name not available → try the next
+      if (code === 404 || code === 403 || code === 429) { lastErr = { code: code, txt: String(txt), model: model }; continue; }
       if (code >= 300) return { error: 'AI ' + code + ': ' + String(txt).slice(0, 160) };
+      if (P.getProperty('GEMINI_OK_MODEL') !== model) P.setProperty('GEMINI_OK_MODEL', model);   // remember the model that works
       const j = JSON.parse(txt), out = (((j.candidates || [])[0] || {}).content || {}).parts || [];
       const text = out.map(p => p.text || '').join('');
       return aiJson_(text);
     } catch (e) { return { error: 'AI: ' + e.message }; }
   }
+  if (lastErr && lastErr.code === 429) {
+    const zero = /limit:\s*0\b/.test(lastErr.txt), daily = /PerDay|per_day|RPD/i.test(lastErr.txt);
+    return { error: zero ? 'ה-AI: המפתח הזה לא מקבל מכסה חינמית (limit: 0). צור מפתח בפרויקט חדש ב-AI Studio, או הפעל חיוב (Billing) בפרויקט.'
+      : daily ? 'ה-AI: נגמרה המכסה היומית החינמית — היא מתאפסת בכל יום בערך ב-10 בבוקר (שעון ישראל). נסה שוב אחר כך.'
+      : 'ה-AI: יותר מדי בקשות בדקה — חכה דקה ונסה שוב.' };
+  }
+  if (lastErr) return { error: 'AI ' + lastErr.code + ' (' + lastErr.model + '): ' + lastErr.txt.slice(0, 160) };
   return { error: 'AI: no model available' };
 }
 function aiExtract_(style, catName, raw, url, blocked, fields) {
