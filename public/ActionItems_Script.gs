@@ -310,6 +310,7 @@ function doPost(e) {
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
       case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text, fields: req.fields })));
       case 'collDesign': return json_(collDesign_(req.name, req.kind));
+      case 'placeCheck': return json_(placeCheck_(req));
       case 'getAi': { const k = aiKey_(); return json_({ ok: true, hasKey: !!k, hint: k ? k.slice(0, 4) + '…' + k.slice(-4) : '' }); }
       case 'saveAi': { const k = String(req.key || '').trim(); if (k) PropertiesService.getScriptProperties().setProperty('GEMINI_KEY', k); else PropertiesService.getScriptProperties().deleteProperty('GEMINI_KEY'); return json_(Object.assign({ ok: true, hasKey: !!k }, k ? aiTest_() : {})); }
       case 'testAi': return json_(Object.assign({ ok: true }, aiTest_()));
@@ -1005,6 +1006,39 @@ function collDesign_(name, kind) {
   if (r.error) return { ok: false, message: r.error };
   const tpl = tplClean_(r);
   return tpl && tpl.fields.length ? { ok: true, tpl: tpl } : { ok: false, message: 'AI: no template' };
+}
+/* 🔎 look the place up on the web (Google Search through the AI): exact name, address, kind, kosher / Shabbat, hours…
+   and say where it differs from what was written. Nothing is changed here — the app shows the findings to approve. */
+function placeCheck_(req) {
+  if (!aiKey_()) return { ok: false, message: 'ה-AI לא מוגדר (☰ › AI)' };
+  const title = String(req.title || '').trim().slice(0, 120); if (!title) return { ok: false, message: 'חסר שם' };
+  const style = catStyle_(req.cat, req.catName);
+  const fields = (tplClean_({ fields: req.fields || [] }) || { fields: [] }).fields;
+  const cur = { title: title, place: String(req.place || '').slice(0, 160), base: String(req.base || '').slice(0, 30), link: String(req.link || '').slice(0, 300), x: extraClean_(req.x) };
+  const prompt = 'Find this specific place on the web (use Google Search' + (/^https?:\/\//i.test(cur.link) ? ', and read the link' : '') + ') and check the details someone saved about it in their "' + String(req.catName || style).slice(0, 40) + '" list.\n' +
+    'SAVED: ' + JSON.stringify(cur) + (req.notes ? '\nTHEIR NOTES: ' + String(req.notes).slice(0, 800) : '') + '\n' +
+    'Rules: answer in Hebrew when the saved name is Hebrew. Only report what you actually found for THIS place (same name and city); if you are not sure it is the same place, set found=false. Never guess.\n' +
+    'title = the official name + ", " + city. place = full street address with city (precise for a map pin). city. hours = opening hours, short (e.g. "א-ה 12:00-23:00, ו 12:00-15:00, שבת סגור"). phone. site = official website or Instagram (https). ' +
+    (style === 'food' ? 'base = ONE of: cafe, cart, bakery, italian, pizza, burger, diner, meat, asian, mexican, middle, fish, veg, street, bar, chef, other. ' : '') +
+    (fields.length ? 'x = ' + fields.map(f => f.k + ' = ' + f.l + (f.t === 'choice' ? ' (ONE of: ' + f.o.join(' / ') + ', or "" if not found)' : '')).join('; ') + '. For kosher use only a kashrut certificate / clear statement; for Shabbat use the opening hours. ' : '') +
+    'closed = true if the place closed permanently. issues = short Hebrew sentences for each SAVED value that is wrong or out of date (empty list if all fine). sources = up to 3 https URLs you used.\n' +
+    'Return ONLY JSON: {"found":true,"sure":"high|medium|low","title":"","place":"","city":"","hours":"","phone":"","site":""' + (style === 'food' ? ',"base":""' : '') + (fields.length ? ',"x":{' + fields.map(f => '"' + f.k + '":""').join(',') + '}' : '') + ',"closed":false,"issues":[],"sources":[]}';
+  const tools = [{ google_search: {} }]; if (/^https?:\/\//i.test(cur.link)) tools.push({ url_context: {} });
+  const r = aiCall_([{ text: prompt }], tools);
+  if (!r) return { ok: false, message: 'No key' };
+  if (r.error) return { ok: false, message: r.error };
+  const S = (v, n) => String(v === undefined || v === null ? '' : v).trim().slice(0, n);
+  const out = { ok: true, found: !!r.found, sure: ['high', 'medium', 'low'].indexOf(r.sure) >= 0 ? r.sure : 'medium', title: S(r.title, 120), place: S(r.place, 160), city: S(r.city, 60),
+    hours: S(r.hours, 200), phone: S(r.phone, 30), site: /^https:\/\//i.test(S(r.site, 300)) ? S(r.site, 300) : '', closed: !!r.closed,
+    issues: (Array.isArray(r.issues) ? r.issues : []).map(x => S(x, 200)).filter(String).slice(0, 6),
+    sources: (Array.isArray(r.sources) ? r.sources : []).map(x => S(x, 300)).filter(u => /^https:\/\//i.test(u)).slice(0, 3), x: {} };
+  if (style === 'food') out.base = S(r.base, 30).toLowerCase();
+  if (r.x && typeof r.x === 'object') fields.forEach(f => { let v = S(r.x[f.k], 300); if (!v) return; if (f.t === 'choice') { const m = f.o.find(o => o === v) || f.o.find(o => o.toLowerCase() === v.toLowerCase()); if (!m) return; v = m; } out.x[f.k] = v; });
+  if (out.found && (out.place || out.title)) {
+    try { const res = Maps.newGeocoder().setLanguage('he').setRegion('il').geocode(out.place || out.title);
+      if (res && res.status === 'OK' && res.results.length) { const l = res.results[0].geometry.location; out.lat = l.lat; out.lng = l.lng; out.geoName = res.results[0].formatted_address || ''; } } catch (e) { /* no pin */ }
+  }
+  return out;
 }
 /* the template's values of one entry (JSON in the "Extra" column) */
 function extraClean_(x) {

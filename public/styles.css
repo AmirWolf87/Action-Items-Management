@@ -1277,3 +1277,22 @@ body.tour-open{overflow:hidden}
 .tp-form label.full,.tp-form .tp-f{margin:0}
 .tp-frow .cc-btns{display:flex;gap:2px;margin-inline-start:auto}
 .tp-ft{flex:1 1 120px}
+/* 🔎 web check of a place */
+.c-fill{flex-wrap:wrap}
+.ck-box{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:color-mix(in srgb,var(--primary,var(--accent)) 6%,var(--card));display:flex;flex-direction:column;gap:8px}
+.ck-box.warn{background:color-mix(in srgb,#F59E0B 12%,var(--card));border-color:color-mix(in srgb,#F59E0B 40%,transparent)}
+.ck-box.ok{background:color-mix(in srgb,#16A34A 10%,var(--card))}
+.ck-box h4{margin:0;font-size:14.5px}.ck-box h4 small{color:var(--muted);font-weight:500}
+.ck-box p{margin:0}
+.ck-closed{color:#DC2626;font-weight:700}
+.ck-issues{margin:0;padding-inline-start:18px;font-size:13px;color:#B45309}
+.ck-ok{font-size:13px;color:#15803D}
+.ck-rows{display:flex;flex-direction:column;gap:6px}
+.ck-row{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.4;padding:6px 8px;border-radius:10px;background:var(--card);cursor:pointer}
+.ck-row input{margin-top:3px;flex:0 0 auto;width:auto}
+.ck-row.diff{outline:1.5px solid color-mix(in srgb,#F59E0B 50%,transparent)}
+.ck-row s{color:var(--muted)}
+.ck-act{display:flex;gap:8px;flex-wrap:wrap}
+.ck-src{font-size:12px;color:var(--muted)}.ck-src a{color:inherit}
+#collCheckBox .ck-row{flex-direction:row;margin:0}
+#collCheckBox .ck-row input{width:18px;height:18px;min-height:0;padding:0}
