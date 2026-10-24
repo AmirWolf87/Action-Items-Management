@@ -2045,21 +2045,31 @@ function openWelcome(daily) {
       <span class="wc-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg></span>
       <span class="wc-dur">${L(`${storySecs(a)} sec`, `${storySecs(a)} שנ׳`)}</span></button>`;
   };
+  const showSync = !settings.demo && !isGuest();
   w.innerHTML = `<div class="wc-in">
     <p class="wc-date">${esc(today().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
     <p class="wc-hello">${hello} ☀</p>
     <h1 id="wcTitle">${L('What do we focus on today?', 'במה מתמקדים היום?')}</h1>
     <div class="wc-cards">${card('work')}${card('home')}</div>
+    ${showSync ? `<button class="wc-sync" data-wc="sync"><span class="wc-sync-ic" aria-hidden="true">🔄</span><span class="wc-txt"><b>${L('Sync calendars', 'סנכרון מהיומן')}</b><small id="wcSyncAgo">${L('Last sync…', 'סנכרון אחרון…')}</small></span></button>` : ''}
     <button class="wc-skip" data-wc="skip">${L('Straight to my tasks ›', 'ישר למשימות ‹')}</button>
     <p class="wc-note">${L('Turn this screen off in ☰ › Daily start screen', 'אפשר לכבות את המסך הזה ב-☰ › מסך פתיחה יומי')}</p></div>`;
   w.hidden = false; document.body.classList.add('welcome-open');
+  if (showSync) api('POST', { action: 'calInbox' }).then(j => { const el = $('#wcSyncAgo'); if (el) el.textContent = syncAgo(j.lastImport); }).catch(() => { const el = $('#wcSyncAgo'); if (el) el.textContent = ''; });
   setTimeout(() => { const b = w.querySelector('.wc-card'); if (b) b.focus({ preventScroll: true }); }, 50);
+}
+function syncAgo(last) {
+  if (!last) return L('Not synced yet', 'עוד לא סונכרן');
+  const m = Math.max(0, Math.round((Date.now() - new Date(last)) / 60000)), h = Math.floor(m / 60), d = Math.floor(h / 24);
+  const t = m < 60 ? L(`${m} min`, `${m} דק׳`) : h < 48 ? L(`${h} hour${h === 1 ? '' : 's'}`, h === 1 ? 'שעה' : h === 2 ? 'שעתיים' : `${h} שעות`) : L(`${d} days`, `${d} ימים`);
+  return m < 1 ? L('Last sync: just now', 'סנכרון אחרון: עכשיו') : L(`Last sync ${t} ago`, `סנכרון אחרון לפני ${t}`);
 }
 function closeWelcome() { const w = $('#welcome'); if (w) w.hidden = true; document.body.classList.remove('welcome-open'); }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-wc]'); if (!b) return;
   const k = b.dataset.wc; closeWelcome();
   if (k === 'skip') { render(); return; }
+  if (k === 'sync') { render(); runCalSync(); return; }
   playCtx(k);
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#welcome') && !$('#welcome').hidden) { closeWelcome(); render(); } });
@@ -4086,29 +4096,6 @@ function runCalSync() {
   try { sessionStorage.setItem('ai.ciBack', String(Date.now())); } catch (err) { /* ignore */ }
   location.href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(ciName());
 }
-/* once a day: "You last synced with the calendar X hours ago. Sync now?" — waits until the welcome screen / video / dialogs are closed */
-let syncNudgeTimer = 0;
-function syncNudge() {
-  if (settings.demo || isGuest() || !store.get('ai.ciReady', false) || !store.get('ai.syncNudgeOn', true)) return;
-  if (store.get('ai.syncNudgeDay', '') === todayIso()) return;
-  clearTimeout(syncNudgeTimer);
-  const busy = () => document.hidden || story || (fs && !fs.endAt) || document.querySelector('dialog[open]') || ($('#welcome') && !$('#welcome').hidden) || ($('#playMenu') && !$('#playMenu').hidden);
-  if (busy()) { syncNudgeTimer = setTimeout(syncNudge, 3000); return; }
-  syncNudgeTimer = setTimeout(async () => {
-    if (busy() || store.get('ai.syncNudgeDay', '') === todayIso()) { syncNudge(); return; }
-    let last = '';
-    try { last = (await api('POST', { action: 'calInbox' })).lastImport || ''; } catch (e) { return; }   // offline — try again on the next open
-    const hrs = last ? (Date.now() - new Date(last)) / 3600000 : Infinity;
-    if (hrs < 1) return;                                                       // just synced — ask later today
-    if (busy()) { syncNudge(); return; }
-    store.set('ai.syncNudgeDay', todayIso());
-    const h = Math.floor(hrs), d = Math.floor(hrs / 24);
-    const when = !last ? null : h < 48 ? L(`${h} hour${h === 1 ? '' : 's'}`, h === 1 ? 'שעה' : h === 2 ? 'שעתיים' : `${h} שעות`) : L(`${d} days`, `${d} ימים`);
-    const msg = when ? L(`You last synced with the calendar ${when} ago. Sync now?`, `סנכרנת עם היומן בפעם האחרונה לפני ${when}. לסנכרן עכשיו?`) : L('You haven’t synced with the calendar yet. Sync now?', 'עוד לא סנכרנת עם היומן. לסנכרן עכשיו?');
-    if (await confirmBox('🔄 ' + L('Calendar sync', 'סנכרון מהיומן'), msg, L('Sync now', 'לסנכרן עכשיו'), L('Not now', 'לא עכשיו'))) runCalSync();
-  }, 1200);
-}
-document.addEventListener('visibilitychange', () => { if (!document.hidden) syncNudge(); });   // the PWA left open overnight → asks on the next day too
 // back from the calendar shortcut → show the new suggestions
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return; let t = 0; try { t = Number(sessionStorage.getItem('ai.ciBack') || 0); } catch (e) { t = 0; }
@@ -4238,7 +4225,7 @@ function applyList(j) {
   ui.areas = (ui.areas || []).filter(a => data.areas.includes(a));
   if (isGuest() && (ui.tab === 'waiting')) ui.tab = 'focus';
   if (!settings.demo && remembered()) store.set('ai.cache', data);
-  setTimeout(() => { if (typeof fsRestore === 'function') fsRestore(); if (typeof startOfDay === 'function') startOfDay(); syncNudge(); }, 0);
+  setTimeout(() => { if (typeof fsRestore === 'function') fsRestore(); if (typeof startOfDay === 'function') startOfDay(); }, 0);
 }
 function suggHtml() {
   const col = { Pending: '#B45309', Approved: '#15803D', Rejected: '#B91C1C' };
