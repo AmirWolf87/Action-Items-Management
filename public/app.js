@@ -395,13 +395,13 @@ function filtered() {
     (!q || [it.item, it.topic, it.com, it.focal].join(' ').toLowerCase().includes(q)));
 }
 
-/* ORBIT launch screen: plays once per app start (~2.4s), tap to skip */
+/* ORBIT launch screen: plays once per app start (~2.9s), tap to skip */
 (function orbitSplash() {
   const sp = document.getElementById('splash'); if (!sp) return;
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const done = () => { if (sp.classList.contains('out')) return; sp.classList.add('out'); setTimeout(() => sp.classList.add('gone'), 600); };
   sp.addEventListener('click', done);
-  setTimeout(done, reduce ? 900 : 2400);
+  setTimeout(done, reduce ? 1400 : 2900);
 })();
 /* render + 💬 a motivation quote in any empty space left above the bottom bar */
 function render() { renderView(); qFillSoon(); }
@@ -4619,7 +4619,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 83;
+const APP_VERSION = 84;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
