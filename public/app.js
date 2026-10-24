@@ -21,6 +21,51 @@ const HORIZONS = ['Overdue', 'Today', 'This week', 'Next week', 'This month', 'L
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/* ---------- line icons for controls (emoji stay for content: areas, categories, characters) ---------- */
+const IC = {
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  plan: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
+  calendar: '<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  calcheck: '<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M9 15.5l2 2 4-4"/>',
+  palette: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.5-.8 1.2-1.6-.4-1-.1-2.4 1.4-2.4H17a4 4 0 0 0 4-4 9 9 0 0 0-9-10z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="15" cy="7.5" r="1"/>',
+  sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/>',
+  wheel: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 3v7M12 14v7M3 12h7M14 12h7M5.6 5.6l5 5M13.4 13.4l5 5M18.4 5.6l-5 5M10.6 13.4l-5 5"/>',
+  quote: '<path d="M4 18h4l2-4V7H4v7h3zM13 18h4l2-4V7h-6v7h3z"/>',
+  video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/>',
+  chart: '<path d="M4 20V11M10 20V5M16 20v-8M21 20H3"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  order: '<path d="M8 4v16M8 4 4 8M8 4l4 4M16 20V4M16 20l-4-4M16 20l4-4"/>',
+  inbox: '<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+  sync: '<path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  sparkle: '<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  archive: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  play: '<path d="M8 5.5v13l10-6.5z" fill="currentColor"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  check: '<path d="m5 12 5 5 9-10"/>',
+  skip: '<path d="M5 6l8 6-8 6zM17 6v12"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  table: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9 9.5v10"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
+  filter: '<path d="M4 5h16l-6 8v5l-4 2v-7z"/>',
+  back: '<path d="m15 6-6 6 6 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>'
+};
+const ico = (n, cls) => IC[n] ? `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : '';
+function fillIcons(root) { (root || document).querySelectorAll('[data-ic]:empty').forEach(el => { el.innerHTML = ico(el.dataset.ic, el.dataset.icCls || ''); }); }
+fillIcons();
 /* which build is running: 'personal' (the original) or 'public' (the copy anyone can set up for themselves) */
 const EDITION = (typeof window !== 'undefined' && window.AI_EDITION) || 'personal';
 const TEMPLATE_URL = (typeof window !== 'undefined' && window.AI_TEMPLATE) || '';   // a Google Sheet to copy ("…/copy"), when one exists
@@ -349,7 +394,43 @@ function filtered() {
     (!q || [it.item, it.topic, it.com, it.focal].join(' ').toLowerCase().includes(q)));
 }
 
-function render() {
+/* render + 💬 a motivation quote in any empty space left above the bottom bar */
+function render() { renderView(); qFillSoon(); }
+let qFillQ = null, qFillAt = 0, qFillTm = 0;
+function qFillSoon() { clearTimeout(qFillTm); qFillTm = setTimeout(() => { qFillTries = 0; qFill(); }, 60); }
+function qFill() {
+  const list = $('#list'); if (!list) return;
+  list.querySelectorAll('.q-fill').forEach(e => e.remove());
+  if (!data || !data.items || document.getElementById('collMap') || document.body.classList.contains('story-open') || typeof QUOTES === 'undefined') return;
+  const bar = $('#bottomBar'), barH = bar && !bar.hidden ? bar.offsetHeight : 0;
+  const kids = [...list.children].filter(k => k.offsetParent !== null);
+  const end = kids.length ? Math.max(...kids.map(k => k.getBoundingClientRect().bottom)) : list.getBoundingClientRect().top;
+  const free = innerHeight - barH - (end + scrollY) - 16;
+  if (free < 150) return;
+  if (!qFillQ || Date.now() - qFillAt > 15 * 60e3) {           // the same quote for a while, so it doesn't change on every tap elsewhere
+    const keep = qState.mood, urgent = data.items.some(it => !isClosed(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today'));
+    qState.mood = ui.tab === 'focus' ? (urgent ? 'start' : 'any') : ui.tab === 'week' ? 'sit' : 'any';
+    qFillQ = qPick(); qState.mood = keep; qFillAt = Date.now();
+  }
+  const q = qFillQ, main = isHe() ? (q.he || q.en) : (q.en || q.he);
+  const el = document.createElement('aside');
+  el.className = 'q-fill'; el.style.minHeight = Math.min(free - 40, 420) + 'px';
+  el.setAttribute('role', 'button'); el.tabIndex = 0; el.setAttribute('aria-label', L('Motivation — tap for another', 'משפט מוטיבציה — הקש לעוד אחד'));
+  el.innerHTML = `<div class="qf-in"><p class="qf-text" dir="${/[\u0590-\u05FF]/.test(main) ? 'rtl' : 'ltr'}">${esc(main)}</p><p class="qf-who">— ${esc(isHe() ? q.w[0] : q.w[1])}${q.s ? ` <span>· ${esc(q.s)}</span>` : ''}</p></div>`;
+  list.appendChild(el);
+  // too tall for the space (a long quote) → try a shorter one, otherwise leave the space empty
+  if (el.querySelector('.qf-in').getBoundingClientRect().bottom > innerHeight - barH - 4) {
+    el.remove(); qFillTries = (qFillTries || 0) + 1;
+    if (qFillTries < 4) { qFillQ = null; qFill(); } 
+  } else qFillTries = 0;
+}
+let qFillTries = 0;
+addEventListener('resize', qFillSoon);
+document.addEventListener('click', (e) => {
+  const f = e.target.closest('.q-fill'); if (!f) return;
+  qFillQ = null; f.classList.add('qf-out'); setTimeout(qFill, 180);
+});
+function renderView() {
   document.body.classList.toggle('guest', isGuest());
   $('#guestBar').hidden = !isGuest();
   if (isGuest()) $('#guestBar').textContent = L(`👀 ${me.name} · view only`, `👀 ${me.name} · צפייה בלבד`);
@@ -650,7 +731,7 @@ function collShelf() {
   }).join('');
   const add = ro ? '' : `<button class="cs-tile cs-add" data-ccats="new"><span class="cs-em">＋</span><b>${L('New category', 'קטגוריה חדשה')}</b><span class="cs-n">${L('e.g. 🎸 Guitar, 📚 Books', 'למשל 🎸 גיטרה, 📚 ספרים')}</span></button>`;
   const anyMap = collCats.some(c => c.map);
-  const tools = `<div class="cs-tools">${anyMap ? `<button class="chip" data-cview="map">🗺 ${L('Everything on the map', 'הכל במפה')}</button>` : ''}${ro ? '' : `<button class="chip" data-ccats>✏️ ${L('Edit categories', 'עריכת קטגוריות')}</button>`}</div>`;
+  const tools = `<div class="cs-tools">${anyMap ? `<button class="chip" data-cview="map">${ico('map')} ${L('Everything on the map', 'הכל במפה')}</button>` : ''}${ro ? '' : `<button class="chip" data-ccats>${ico('edit')} ${L('Edit categories', 'עריכת קטגוריות')}</button>`}</div>`;
   let found = '';
   if (search.trim()) {
     const hits = coll.filter(x => collCats.some(c => c.id === x.cat) && collMatches(x));
@@ -663,7 +744,7 @@ function collAllMap() {
   const list = coll.filter(x => mapCats.includes(x.cat) && collMatches(x));
   collPins = list.filter(x => x.lat !== null && x.lat !== undefined && x.lat !== '');
   setTimeout(initCollMap, 0);
-  return `<div class="c-wrap"><div class="c-head"><button class="c-back" data-cview="board">‹ ${L('Collection', 'האוסף')}</button><h3>🗺 ${L('Everything on the map', 'הכל במפה')} <i>${collPins.length}</i></h3></div>
+  return `<div class="c-wrap"><div class="c-head"><button class="c-back" data-cview="board" aria-label="${esc(L('Collection', 'האוסף'))}">${ico('back', 'flip')}</button><h3>🗺 ${L('Everything on the map', 'הכל במפה')} <i>${collPins.length}</i></h3></div>
     <div class="c-map" id="collMap"><p class="hint" style="padding:16px">${L('Loading the map…', 'טוען מפה…')}</p></div></div>`;
 }
 function collViews(cat) {
@@ -685,13 +766,13 @@ function renderCollection() {
   const cat = catOf(ui.collCat), kind = cat.kind, tpl = catTpl(cat), ro = collRO();
   const layout = collLayoutOf(cat), n = coll.filter(x => x.cat === cat.id).length;
   const fc = cfCount(cat.id);
-  const views = collViews(cat).map(([k, ic, l]) => `<button class="${layout === k ? 'on' : ''}" data-clayout="${k}" aria-label="${esc(l)}" title="${esc(l)}">${ic}<span class="c-vl">${esc(l)}</span></button>`).join('');
+  const views = collViews(cat).map(([k, ic, l]) => `<button class="${layout === k ? 'on' : ''}" data-clayout="${k}" aria-label="${esc(l)}" aria-pressed="${layout === k}" title="${esc(l)}">${ico({ board: 'grid', table: 'table', list: 'list', map: 'map' }[k]) || ic}<span class="c-vl">${esc(l)}</span></button>`).join('');
   const hasFilters = kind !== 'note' || ['food', 'drink'].includes(catStyleC(cat)) || (tpl && tpl.fields.some(f => f.t === 'choice'));
-  let html = `<div class="c-head" style="--c-ink:${C_INK[catIdx(cat.id) % C_INK.length]}"><button class="c-back" data-ccat="*" aria-label="${esc(L('All categories', 'כל הקטגוריות'))}">‹</button>
+  let html = `<div class="c-head" style="--c-ink:${C_INK[catIdx(cat.id) % C_INK.length]}"><button class="c-back" data-ccat="*" aria-label="${esc(L('All categories', 'כל הקטגוריות'))}">${ico('back', 'flip')}</button>
     <h3 dir="auto"><span>${catEmoji(cat)}</span> <span class="c-ht">${esc(catLabel(cat))}</span> <i>${n}</i></h3>
-    ${ro ? '' : `<button class="c-fbtn" data-ctpl="${esc(cat.id)}" title="${esc(L('What is saved and how it looks', 'מה נשמר ואיך זה נראה'))}">🧩 ${L('Template', 'תבנית')}</button>`}</div>
+    ${ro ? '' : `<button class="c-fbtn" data-ctpl="${esc(cat.id)}" title="${esc(L('What is saved and how it looks', 'מה נשמר ואיך זה נראה'))}">${ico('sliders')} ${L('Template', 'תבנית')}</button>`}</div>
     <div class="c-tools2"><div class="c-view c-layout">${views}</div><span class="grow"></span>
-    ${hasFilters ? `<button class="c-fbtn ${fc ? 'on' : ''}" data-cfsheet>⚲ ${L('Filter', 'סינון')}${fc ? ` <i>${fc}</i>` : ''}</button>` : ''}</div>`;
+    ${hasFilters ? `<button class="c-fbtn ${fc ? 'on' : ''}" data-cfsheet>${ico('filter')} ${L('Filter', 'סינון')}${fc ? ` <i>${fc}</i>` : ''}</button>` : ''}</div>`;
   html += collActiveFilters(cat);
   const list = collFiltered(cat);
   if (layout === 'map') {
@@ -1101,7 +1182,7 @@ function ckRender() {
     ${r.closed ? `<p class="ck-closed">⛔ ${L('Looks permanently closed', 'נראה שהמקום נסגר')}</p>` : ''}
     ${r.issues.length ? `<ul class="ck-issues">${r.issues.map(x => `<li>⚠ ${esc(x)}</li>`).join('')}</ul>` : ''}
     ${ok.length ? `<p class="ck-ok">✓ ${L('Matches what you wrote: ', 'תואם למה שרשמת: ')}${esc(ok.join(', '))}</p>` : ''}
-    ${rows.length ? `<div class="ck-rows">${rows.map((x, i) => `<label class="ck-row ${x.cur ? 'diff' : ''}"><input type="checkbox" data-ck="${i}" ${x.on ? 'checked' : ''}><span><b>${esc(x.label)}</b>${x.cur ? ` <s dir="auto">${esc(x.cur)}</s> →` : ''} <span dir="auto">${esc(x.show)}</span></span></label>`).join('')}</div>
+    ${rows.length ? `<div class="ck-rows">${rows.map((x, i) => `<label class="ck-row ${x.cur ? 'diff' : ''}"><input type="checkbox" data-ck="${i}" ${x.on ? 'checked' : ''}><span class="ck-txt"><b>${esc(x.label)}</b>${x.cur ? `<span class="ck-cur"><small>${L('Now', 'עכשיו')}</small> <s dir="auto">${esc(x.cur)}</s></span>` : ''}<span class="ck-new"><small>${x.cur ? L('Suggested', 'מוצע') : L('Add', 'להוסיף')}</small> <bdi dir="auto">${esc(x.show)}</bdi></span></span></label>`).join('')}</div>
       <div class="ck-act"><button type="button" class="btn primary" id="ckApply">${L('Apply the checked', 'החל את המסומנים')}</button><button type="button" class="btn ghost" id="ckClose">${L('Close', 'סגור')}</button></div>`
       : `<p class="hint">${L('Nothing to add — everything is filled.', 'אין מה להוסיף — הכל מלא.')}</p><button type="button" class="linkish" id="ckClose">${L('Close', 'סגור')}</button>`}
     ${r.sources.length ? `<p class="ck-src">${L('Sources: ', 'מקורות: ')}${r.sources.map(u => { let h = u; try { h = new URL(u).hostname.replace(/^www\./, ''); } catch (e) { /* keep */ } return `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(h)}</a>`; }).join(' · ')}</p>` : ''}`;
@@ -1464,7 +1545,7 @@ function openEdit(it) {
 }
 function updateHint() {
   const nd = nextDue({ due: F('due').value, rec: F('rec').value });
-  $('#nextHint').textContent = nd ? `↻ Recurring — ticking it done moves the due date to ${fmt(iso(nd), true)}.` : '';
+  $('#nextHint').textContent = nd ? L(`↻ Recurring — ticking it done moves the due date to ${fmt(iso(nd), true)}.`, `↻ חוזרת — סימון כבוצע יעביר את התאריך ל־${fmt(iso(nd), true)}.`) : '';
 }
 function updateCalBox() {
   const on = F('calOn').checked; $('#calPick').hidden = !on;
@@ -1851,7 +1932,7 @@ function openCardMenu(btn) {
   if (!m.hidden && m.dataset.row === row) { closeCardMenu(); return; }
   m.dataset.row = row;
   m.innerHTML = [['focus', '▶', L('Start focus', 'מתחילים פוקוס')], ['day', '☀', inDay(row) ? L('Remove from My day', 'הסר משלי להיום') : L('Add to My day', 'הוסף לשלי להיום')], ['done', '✓', L('Mark done', 'סמן כבוצע')], ['defer', '⏭', L('Defer to tomorrow', 'דחייה למחר')], ['edit', '✎', L('Edit', 'עריכה')]]
-    .map(([k, ic, l]) => `<button role="menuitem" data-cact="${k}" data-row="${row}"><span aria-hidden="true">${ic}</span>${l}</button>`).join('');
+    .map(([k, ic, l]) => `<button role="menuitem" data-cact="${k}" data-row="${row}"><span aria-hidden="true">${ico({ focus: 'play', day: 'sun', done: 'check', defer: 'skip', edit: 'edit' }[k]) || ic}</span>${l}</button>`).join('');
   m.hidden = false; btn.setAttribute('aria-expanded', 'true');
   const w = m.offsetWidth, h = m.offsetHeight;
   let top = r.bottom + 4; if (top + h > innerHeight - 90) top = r.top - h - 4;
@@ -3946,7 +4027,8 @@ function renderPlayMenu() {
     items.push(['review', '🗓', L('Weekly review', 'סקירה שבועית'), L('Overdue · waiting · next week', 'באיחור · ממתין · השבוע הבא')]);
     items.push(['report', '✉️', L('Weekly report', 'דוח שבועי'), L('Ready to send', 'מוכן לשליחה')]);
   }
-  $('#playMenu').innerHTML = items.map(([k, ic, t, sub]) => `<button data-play="${esc(k)}" class="${k === 'new' || k === 'newcoll' ? 'pm-main' : ''}"><span class="pm-ic">${ic}</span><span><b>${esc(t)}</b><small>${esc(sub)}</small></span></button>`).join('');
+  const PMI = { wheel: 'wheel', quote: 'quote', sync: 'sync', welcome: 'sun', review: 'calcheck', report: 'mail', clip: 'link', new: 'plus', newcoll: 'plus' };
+  $('#playMenu').innerHTML = items.map(([k, ic, t, sub]) => `<button data-play="${esc(k)}" class="${k === 'new' || k === 'newcoll' ? 'pm-main' : ''}"><span class="pm-ic">${ico(PMI[k] || (k.startsWith('story:') ? 'video' : '')) || ic}</span><span><b>${esc(t)}</b><small>${esc(sub)}</small></span></button>`).join('');
 }
 function togglePlay(open) {
   const m = $('#playMenu'), b = $('#fabPlay');
@@ -4579,7 +4661,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 77;
+const APP_VERSION = 78;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

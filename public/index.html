@@ -15,7 +15,7 @@
 <script>try{var t=JSON.parse(localStorage.getItem('aip.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('aip.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
-<link rel="stylesheet" href="styles.css?v=77">
+<link rel="stylesheet" href="styles.css?v=78">
 </head>
 <body>
 <header class="top">
@@ -121,7 +121,7 @@
   <div class="fm-top">
     <span class="fm-badge no-i18n" id="fmBadge"></span>
     <span class="grow"></span>
-    <button type="button" class="fm-ic" id="fmQuote" aria-label="Motivation" title="Motivation">💬</button>
+    <button type="button" class="fm-ic" id="fmQuote" aria-label="Motivation" title="Motivation"><i data-ic="quote"></i></button>
     <button type="button" class="fm-ic" id="fmClockBtn" aria-label="Show / hide the clock"></button>
     <button type="button" class="fm-ic" id="fmMin" aria-label="Minimize"></button>
   </div>
@@ -148,32 +148,45 @@
       <h2 id="editTitle">New action item</h2>
       <button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button>
     </div>
-    <label class="full">Action item<textarea name="item" rows="2" required dir="auto"></textarea></label>
-    <div class="grid">
-      <label>Status<select name="status"></select></label>
-      <label>Area<select name="area"></select></label>
-      <label>Priority<select name="prio"></select></label>
-      <label>Due date<input type="date" name="due"><span class="date-chips"><button type="button" data-qd="0">Today</button><button type="button" data-qd="1">Tomorrow</button><button type="button" data-qd="sun">Next week</button><button type="button" data-qd="7">+7</button></span></label>
-      <label>Start time (24h)<input type="text" name="time" class="time24" inputmode="numeric" placeholder="HH:MM" maxlength="5" autocomplete="off"></label>
-      <label>Topic<input name="topic" dir="auto"></label>
-      <label>Focal / who<input name="focal" list="peopleList" dir="auto"></label>
-      <label>Recurring<select name="rec"></select></label>
-      <label>Est. hours (duration)<input type="number" name="hrs" step="0.25" min="0" inputmode="decimal"></label>
-      <label>Done on<input type="date" name="done"></label>
-      <label>Actual hours<input type="number" name="acthrs" step="0.25" min="0" inputmode="decimal"></label>
-    </div>
-    <label class="full">Comments / next step<textarea name="com" rows="2" dir="auto"></textarea></label>
-    <div class="cl-box">
-      <div class="cl-head">Checklist <span id="clCount"></span></div>
-      <div id="clList"></div>
-      <div class="cl-add owner-only"><input id="clNew" placeholder="Add a step…" dir="auto"><button type="button" class="btn ghost" id="clAddBtn">＋</button></div>
-    </div>
-    <div class="wait-box owner-only" id="waitBox" hidden><span id="waitInfo"></span><button type="button" class="btn ghost" id="btnNudge">✉ Send a reminder</button></div>
-    <label class="remember owner-only"><input type="checkbox" name="private"> 🔒 Private — never shown to guests</label>
-    <div class="cal-box owner-only">
-      <label class="remember"><input type="checkbox" name="calOn"> 📅 Add to iPhone calendar</label>
-      <div id="calPick" hidden><select name="cal" aria-label="Calendar"></select><p class="hint" id="calNeedDate" hidden>Give it a due date — only dated items go to the calendar.</p></div>
-    </div>
+    <section class="f-sec" aria-labelledby="fsTask">
+      <h3 class="f-h" id="fsTask">What</h3>
+      <label class="full">Action item<textarea name="item" rows="2" required dir="auto"></textarea></label>
+      <div class="grid">
+        <label>Area<select name="area"></select></label>
+        <label>Status<select name="status"></select></label>
+        <label>Priority<select name="prio"></select></label>
+        <label>Focal / who<input name="focal" list="peopleList" dir="auto"></label>
+        <label>Topic<input name="topic" dir="auto"></label>
+      </div>
+    </section>
+    <section class="f-sec" aria-labelledby="fsWhen">
+      <h3 class="f-h" id="fsWhen">When</h3>
+      <div class="grid">
+        <label class="span2">Due date<input type="date" name="due"><span class="date-chips"><button type="button" data-qd="0">Today</button><button type="button" data-qd="1">Tomorrow</button><button type="button" data-qd="sun">Next week</button><button type="button" data-qd="7">+7</button></span></label>
+        <label>Start time (24h)<input type="text" name="time" class="time24" inputmode="numeric" placeholder="HH:MM" maxlength="5" autocomplete="off"></label>
+        <label>Recurring<select name="rec"></select></label>
+        <label>Est. hours (duration)<input type="number" name="hrs" step="0.25" min="0" inputmode="decimal"></label>
+      </div>
+      <div class="cal-box owner-only">
+        <label class="remember"><input type="checkbox" name="calOn"> 📅 Add to iPhone calendar</label>
+        <div id="calPick" hidden><select name="cal" aria-label="Calendar"></select><p class="hint" id="calNeedDate" hidden>Give it a due date — only dated items go to the calendar.</p></div>
+      </div>
+    </section>
+    <section class="f-sec" aria-labelledby="fsMore">
+      <h3 class="f-h" id="fsMore">More details</h3>
+      <label class="full">Comments / next step<textarea name="com" rows="2" dir="auto"></textarea></label>
+      <div class="cl-box">
+        <div class="cl-head">Checklist <span id="clCount"></span></div>
+        <div id="clList"></div>
+        <div class="cl-add owner-only"><input id="clNew" placeholder="Add a step…" dir="auto"><button type="button" class="btn ghost" id="clAddBtn">＋</button></div>
+      </div>
+      <div class="wait-box owner-only" id="waitBox" hidden><span id="waitInfo"></span><button type="button" class="btn ghost" id="btnNudge">✉ Send a reminder</button></div>
+      <div class="grid">
+        <label>Done on<input type="date" name="done"></label>
+        <label>Actual hours<input type="number" name="acthrs" step="0.25" min="0" inputmode="decimal"></label>
+      </div>
+      <label class="remember owner-only"><input type="checkbox" name="private"> 🔒 Private — never shown to guests</label>
+    </section>
     <p class="hint" id="nextHint"></p>
     <div class="sheet-actions">
       <button type="button" class="btn danger" id="btnDelete">Delete</button>
@@ -336,40 +349,40 @@
   <div class="sheet-head"><h2>Menu</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
   <div class="menu-kpis no-i18n" id="menuKpis"></div>
   <div class="menu-top">
-    <button class="menu-item" id="btnRefresh">⟳ <span>Refresh</span></button>
-    <button class="menu-item" data-lang-toggle id="btnLangMenu">🌐 <span class="no-i18n" id="langMenuLbl">עברית</span></button>
+    <button class="menu-item" id="btnRefresh"><i class="mi" data-ic="refresh"></i> <span>Refresh</span></button>
+    <button class="menu-item" data-lang-toggle id="btnLangMenu"><i class="mi" data-ic="globe"></i> <span class="no-i18n" id="langMenuLbl">עברית</span></button>
   </div>
   <details class="menu-grp" name="menugrp" data-grp="plan">
-    <summary>📋 <span>Planning &amp; reports</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <summary><i class="mi" data-ic="plan"></i> <span>Planning &amp; reports</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
-      <button class="menu-item owner-only" id="btnWheel">🎡 <span>Wheel of fortune</span></button>
-      <button class="menu-item" id="btnQuote">💬 <span>Motivation</span></button>
-      <button class="menu-item owner-only" id="btnReview">🗓 <span>Weekly review</span></button>
-      <button class="menu-item" id="btnStory">🎬 <span>Summary video</span></button>
-      <button class="menu-item owner-only" id="btnStats">📊 <span>Statistics</span></button>
-      <button class="menu-item owner-only" id="btnReport">✉ <span>Weekly report</span></button>
+      <button class="menu-item owner-only" id="btnWheel"><i class="mi" data-ic="wheel"></i> <span>Wheel of fortune</span></button>
+      <button class="menu-item" id="btnQuote"><i class="mi" data-ic="quote"></i> <span>Motivation</span></button>
+      <button class="menu-item owner-only" id="btnReview"><i class="mi" data-ic="calcheck"></i> <span>Weekly review</span></button>
+      <button class="menu-item" id="btnStory"><i class="mi" data-ic="video"></i> <span>Summary video</span></button>
+      <button class="menu-item owner-only" id="btnStats"><i class="mi" data-ic="chart"></i> <span>Statistics</span></button>
+      <button class="menu-item owner-only" id="btnReport"><i class="mi" data-ic="mail"></i> <span>Weekly report</span></button>
     </div>
   </details>
   <details class="menu-grp owner-only" name="menugrp" data-grp="areas">
-    <summary>🏷 <span>Areas &amp; sharing</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <summary><i class="mi" data-ic="tag"></i> <span>Areas &amp; sharing</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
-      <button class="menu-item owner-only" id="btnAreas">🏷 <span>Manage areas</span></button>
-      <button class="menu-item owner-only" id="btnOrder">⇅ <span>Order of areas</span></button>
-      <button class="menu-item owner-only" id="btnShare">👥 <span>Sharing &amp; guests</span></button>
-      <button class="menu-item owner-only" id="btnPending2">📥 <span>Suggestions to approve</span></button>
+      <button class="menu-item owner-only" id="btnAreas"><i class="mi" data-ic="tag"></i> <span>Manage areas</span></button>
+      <button class="menu-item owner-only" id="btnOrder"><i class="mi" data-ic="order"></i> <span>Order of areas</span></button>
+      <button class="menu-item owner-only" id="btnShare"><i class="mi" data-ic="users"></i> <span>Sharing &amp; guests</span></button>
+      <button class="menu-item owner-only" id="btnPending2"><i class="mi" data-ic="inbox"></i> <span>Suggestions to approve</span></button>
     </div>
   </details>
   <details class="menu-grp owner-only" name="menugrp" data-grp="cal">
-    <summary>📅 <span>Calendars &amp; Siri</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <summary><i class="mi" data-ic="calendar"></i> <span>Calendars &amp; Siri</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
-      <button class="menu-item owner-only" id="btnImport">📆 <span>Import from calendar</span></button>
-      <button class="menu-item owner-only" id="btnCal">📅 <span>iPhone calendar</span></button>
-      <button class="menu-item owner-only" id="btnFeed">📅 <span>Outlook calendar sync</span></button>
-      <button class="menu-item owner-only" id="btnSiri">🎙 <span>Siri (add by voice)</span></button>
+      <button class="menu-item owner-only" id="btnImport"><i class="mi" data-ic="download"></i> <span>Import from calendar</span></button>
+      <button class="menu-item owner-only" id="btnCal"><i class="mi" data-ic="phone"></i> <span>iPhone calendar</span></button>
+      <button class="menu-item owner-only" id="btnFeed"><i class="mi" data-ic="sync"></i> <span>Outlook calendar sync</span></button>
+      <button class="menu-item owner-only" id="btnSiri"><i class="mi" data-ic="mic"></i> <span>Siri (add by voice)</span></button>
     </div>
   </details>
   <details class="menu-grp" name="menugrp" data-grp="look">
-    <summary>🎨 <span>Display</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <summary><i class="mi" data-ic="palette"></i> <span>Display</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
       <div class="theme-row"><span>🌓 <span>Appearance</span></span><div class="seg" id="themeSeg"><button type="button" data-theme-set="auto">Auto</button><button type="button" data-theme-set="light">Light</button><button type="button" data-theme-set="dark">Dark</button></div></div>
       <div class="theme-row"><span>🔠 <span>Font size</span></span><div class="seg no-i18n" id="fontSeg"><button type="button" data-font-set="s" class="fs-s">Small</button><button type="button" data-font-set="m">Medium</button><button type="button" data-font-set="l" class="fs-l">Large</button></div></div>
@@ -377,20 +390,20 @@
     </div>
   </details>
   <details class="menu-grp" name="menugrp" data-grp="set">
-    <summary>⚙ <span>Settings &amp; connections</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <summary><i class="mi" data-ic="sliders"></i> <span>Settings &amp; connections</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
-      <button class="menu-item owner-only" id="btnNotify">🔔 <span>Phone notifications</span></button>
-      <button class="menu-item owner-only" id="btnAi">✨ <span>Smart reading (AI)</span></button>
-      <button class="menu-item" id="btnSettings">⚙ <span>Sheet connection</span></button>
-      <button class="menu-item owner-only" id="btnMaint">🗄 <span>Archive &amp; backup</span></button>
+      <button class="menu-item owner-only" id="btnNotify"><i class="mi" data-ic="bell"></i> <span>Phone notifications</span></button>
+      <button class="menu-item owner-only" id="btnAi"><i class="mi" data-ic="sparkle"></i> <span>Smart reading (AI)</span></button>
+      <button class="menu-item" id="btnSettings"><i class="mi" data-ic="link"></i> <span>Sheet connection</span></button>
+      <button class="menu-item owner-only" id="btnMaint"><i class="mi" data-ic="archive"></i> <span>Archive &amp; backup</span></button>
     </div>
   </details>
   <details class="menu-grp" name="menugrp" data-grp="me">
-    <summary>👤 <span>Account &amp; help</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <summary><i class="mi" data-ic="user"></i> <span>Account &amp; help</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
-      <button class="menu-item" id="btnTour">🧭 <span>Guided tour</span></button>
-      <button class="menu-item" id="btnAccount">👤 <span>My account</span></button>
-      <button class="menu-item" id="btnLock">🔒 <span>Lock the app</span></button>
+      <button class="menu-item" id="btnTour"><i class="mi" data-ic="compass"></i> <span>Guided tour</span></button>
+      <button class="menu-item" id="btnAccount"><i class="mi" data-ic="user"></i> <span>My account</span></button>
+      <button class="menu-item" id="btnLock"><i class="mi" data-ic="lock"></i> <span>Lock the app</span></button>
     </div>
   </details>
   <p class="app-ver" id="appVer"></p>
@@ -621,7 +634,7 @@
 </dialog>
 
 <script>window.AI_EDITION = 'public'; window.AI_TEMPLATE = "";</script>
-<script src="i18n.js?v=77"></script>
-<script src="app.js?v=77"></script>
+<script src="i18n.js?v=78"></script>
+<script src="app.js?v=78"></script>
 </body>
 </html>
