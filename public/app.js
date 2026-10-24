@@ -2209,6 +2209,7 @@ function fsRender() {
   const next = it && Array.isArray(it.checklist) ? it.checklist.find(x => !x.d) : null;
   $('#fmStep').hidden = !next; if (next) $('#fmStep').innerHTML = `<span>${L('Next step', 'הצעד הבא')}</span><bdi>${esc(next.t)}</bdi>`;
   $('#focusMode').classList.toggle('paused', paused);
+  fsQuote();
   const acts = paused
     ? `<button class="fm-btn main" data-fm="resume">▶ ${L('Back to focus', 'חזרה לפוקוס')}</button><button class="fm-btn" data-fm="end">${L('End session', 'סיום מקטע')}</button>`
     : fs.free && !fs.row ? `<button class="fm-btn" data-fm="pause">⏸ ${L('Break', 'הפסקה')}</button><button class="fm-btn main" data-fm="end">■ ${L('End session', 'סיום מקטע')}</button>`
@@ -2221,6 +2222,18 @@ function fsRender() {
     try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch (e) { /* none */ }
   }
   fsBanner();
+}
+/* 💬 a quote about finishing & keeping at it — changes after a random 1–10 minutes */
+let fsQ = null;
+function fsQuote() {
+  const el = $('#fmQuoteLine'); if (!el || typeof QUOTES === 'undefined') return;
+  if (!fsQ || Date.now() >= fsQ.until) {
+    const keep = qState.mood; qState.mood = 'finish'; const q = qPick(); qState.mood = keep;
+    fsQ = { q, until: Date.now() + (60 + Math.floor(Math.random() * 541)) * 1000 };
+    const he = isHe(), main = he ? (q.he || q.en) : (q.en || q.he);
+    el.innerHTML = `<p dir="${/[֐-׿]/.test(main) ? 'rtl' : 'ltr'}">${esc(main)}</p><small>— ${esc(he ? q.w[0] : q.w[1])}</small>`;
+    el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+  }
 }
 function fsLayer(html) { const l = $('#fmLayer'); l.innerHTML = html; l.hidden = !html; }
 function fsBanner() {

@@ -1067,6 +1067,13 @@ body.focus-open .bottom-bar,body.focus-open .fs-banner{visibility:hidden}
 .fm-step{margin-top:10px;background:rgba(255,255,255,.06);border-radius:12px;padding:10px 14px;font-size:15px;max-width:520px}
 .fm-step span{display:block;font-size:12px;color:#94A3B8;margin-bottom:2px}
 .fm-buddy{position:absolute;inset-inline-start:14px;bottom:calc(92px + env(safe-area-inset-bottom));width:64px;height:auto;opacity:.9;pointer-events:none}
+.fm-quote{margin-top:22px;max-width:460px;padding:0 8px;text-align:center}
+.fm-quote p{margin:0;font-size:17px;line-height:1.45;font-style:italic;color:#CBD5E1}
+.fm-quote small{display:block;margin-top:6px;font-size:12.5px;color:#94A3B8}
+.fm-quote.in{animation:fmQIn .9s ease both}
+@keyframes fmQIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.fm-quote.in{animation:none}}
+@media (max-height:640px){.fm-quote{margin-top:12px}.fm-quote p{font-size:15px}}
 .fm-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .fm-btn{min-height:52px;padding:0 18px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#E5E7EB;font-size:15.5px;font-weight:650;cursor:pointer;flex:1 1 0;max-width:220px}
 .fm-btn.main{background:#355FCC;border-color:#355FCC;color:#fff}
