@@ -405,7 +405,8 @@ function filtered() {
   setTimeout(done, reduce ? 1400 : 2900);
 })();
 /* render + 💬 a motivation quote in any empty space left above the bottom bar */
-function render() { renderView(); qFillSoon(); }
+function render() { renderView(); qFillSoon(); fabFocusState(); }
+function fabFocusState() { const b = $('#fabFocus'); if (!b) return; const on = !!(fs && !fs.endAt); b.classList.toggle('on', on); $('#fabFocusLbl').textContent = on ? L('In focus', 'בפוקוס') : L('Focus', 'פוקוס'); }
 let qFillQ = null, qFillAt = 0, qFillTm = 0;
 function qFillSoon() { clearTimeout(qFillTm); qFillTm = setTimeout(() => { qFillTries = 0; qFill(); }, 60); }
 function qFill() {
@@ -518,7 +519,6 @@ function renderView() {
     if (ui.tab === 'all' && nd) html += `<button class="nb-link" data-goto="notebook">📒 ${L(`${nd} items without a date are in the Notebook`, `${nd} משימות ללא תאריך נמצאות בפנקס`)} <span>›</span></button>`;
   }
   if (isGuest() && ui.tab === 'focus' && mySugg.length) html = suggHtml() + html;
-  if (ui.tab === 'focus' && !isGuest()) html = `<button class="story-row ff-row" data-freefocus>${fs && !fs.endAt ? `<span class="sr-ic ff-ic on">${ico('play')}</span><span class="sr-t">${L('Focus in progress', 'פוקוס פעיל')} <small>· ${esc(fs.item)}</small></span>` : `<span class="sr-ic ff-ic">${ico('timer')}</span><span class="sr-t">${L('Focus mode', 'מצב פוקוס')} <small>· ${L('no task needed', 'בלי לבחור משימה')}</small></span>`}</button>` + html;
   if (ui.tab === 'focus') html = `<button class="story-row" data-story><span class="sr-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z" fill="currentColor" stroke="none"/></svg></span><span class="sr-t">${L('Today’s recap', 'תקציר היום')} <small>· ${L('30 seconds', '30 שניות')}</small></span><span class="sr-scope">${esc(areaSelLabel())}</span></button>` + html;
   if (!html) html = ui.tab === 'focus'
     ? `<div class="empty"><b>🎉</b>Nothing overdue, due today or this week.<br>Check "All open" for later items.</div>`
@@ -1848,6 +1848,7 @@ document.addEventListener('click', async (e) => {
 $('#btnReview').addEventListener('click', openReview);
 $('#btnWheel').addEventListener('click', openWheel);
 $('#btnFreeFocus').addEventListener('click', openFreeFocus);
+$('#fabFocus').addEventListener('click', () => { togglePlay(false); openFreeFocus(); });
 $('#fabWheel').addEventListener('click', () => { togglePlay(false); openWheel(); });
 $('#btnQuote').addEventListener('click', () => openQuote());
 $('#fmQuote').addEventListener('click', () => openQuote(fs && fs.plan && (Date.now() - fs.start) > fs.plan * 30e3 ? 'finish' : 'start'));
@@ -2213,6 +2214,7 @@ function fsRender() {
 }
 function fsLayer(html) { const l = $('#fmLayer'); l.innerHTML = html; l.hidden = !html; }
 function fsBanner() {
+  fabFocusState();
   let b = $('#fsBanner');
   const show = fs && !fs.endAt && fs.min;
   if (!show) { if (b) b.remove(); return; }
@@ -4037,8 +4039,6 @@ function renderPlayMenu() {
   const items = [];
   const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll' && !isGuest();
   void inColl;   // new task / new Collection entry: the ＋ button next to ▶
-  if (!isGuest()) { const n = whCandidates().length; items.push(['wheel', '🎡', L('Spin & Do', 'סובב ועשה'), n ? L(`I have free time — pick an urgent task (${n})`, `יש לי זמן פנוי — שיבחר משימה דחופה (${n})`) : L('I have free time — pick a task', 'יש לי זמן פנוי — שיבחר משימה')]); }
-  if (!isGuest()) items.push(['freefocus', '⏱', L('Focus mode', 'מצב פוקוס'), L('Start focusing — link it to a task later', 'מתחילים להתרכז — מקשרים למשימה אחר כך')]);
   items.push(['quote', '💬', L('Motivation', 'משפט מוטיבציה'), L('A real quote to start, sit down or finish', 'משפט חכמה אמיתי — להתחיל, לשבת או לסיים')]);
   if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
   if (!isGuest()) items.push(['welcome', '🌅', L('What do we focus on today?', 'במה מתמקדים היום?'), L('Work & home daily videos', 'הסרטונים היומיים — עבודה ובית')]);
@@ -4684,7 +4684,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 85;
+const APP_VERSION = 86;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

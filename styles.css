@@ -1601,3 +1601,26 @@ body .bottom-bar .fab-wheel{padding:6px;overflow:visible}
 select.fm-in option{color:#111}
 .fm-seg{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18)}
 .fm-seg button{color:rgba(255,255,255,.75)}
+/* bottom bar: three shortcuts (Spin & Do · Focus · Quick actions) above a full-width Add */
+body .bottom-bar{flex-direction:column;align-items:stretch;gap:8px;padding-top:12px}
+.bb-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;pointer-events:auto;max-width:520px;width:100%;margin:0 auto}
+body .bottom-bar .add-btn{max-width:520px;width:100%;margin:0 auto;flex:none;min-height:52px}
+body .bottom-bar .bb-row .fab{position:static;width:auto;height:52px;border-radius:14px;padding:6px 8px;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);box-shadow:0 2px 10px rgba(16,24,40,.08);font-size:14px;font-weight:700}
+body .bottom-bar .bb-row .fab-wheel .wheel-ic{width:30px;height:30px;flex:0 0 auto}
+body .bottom-bar .bb-row .fab-play span{color:var(--primary);font-size:17px;transform:none}
+.bb-ic{display:inline-grid;color:var(--primary)}.bb-ic .ic{width:24px;height:24px;stroke-width:2}
+.bb-l{font-size:13.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fab-focus.on{background:var(--green-bg)!important;border-color:color-mix(in srgb,var(--green) 45%,var(--line))!important}
+.fab-focus.on .bb-ic,.fab-focus.on .bb-l{color:var(--green)}
+body.guest .bb-row{grid-template-columns:1fr}
+.list{padding-bottom:180px}
+body .play-menu,[dir=ltr] body .play-menu{bottom:calc(140px + env(safe-area-inset-bottom))}
+body .toast{bottom:calc(144px + env(safe-area-inset-bottom))}
+.fs-banner{bottom:calc(140px + env(safe-area-inset-bottom))}
+.bb-row{grid-template-columns:repeat(3,minmax(0,1fr))}body.guest .bb-row{grid-template-columns:minmax(0,1fr)}
+body .bottom-bar .bb-row .fab{flex-direction:column;gap:3px;height:60px;padding:6px 4px}
+body .bottom-bar .bb-row .fab-wheel .wheel-ic{width:28px;height:28px}
+.bb-l{font-size:12.5px;max-width:100%}
+.list{padding-bottom:190px}
+body .play-menu,[dir=ltr] body .play-menu{bottom:calc(150px + env(safe-area-inset-bottom))}
+body .toast,.fs-banner{bottom:calc(152px + env(safe-area-inset-bottom))}
