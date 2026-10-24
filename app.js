@@ -1741,6 +1741,9 @@ document.addEventListener('click', async (e) => {
   if (k === 'tue') { let d = addDays(weekStart(today()), 2); if (d <= today()) d = addDays(d, 7); if (await save(Object.assign({}, it, { due: iso(d) }))) { wrLog(L(`📅 follow up “${esc(it.item)}” on ${fmt(iso(d), true)}`, `📅 מעקב על "${esc(it.item)}" ב-${fmt(iso(d), true)}`)); b.closest('.wr-row').classList.add('did'); } return; }
 });
 $('#btnReview').addEventListener('click', openReview);
+$('#btnWheel').addEventListener('click', openWheel);
+$('#btnQuote').addEventListener('click', () => openQuote());
+$('#fmQuote').addEventListener('click', () => openQuote(fs && fs.endAt ? 'finish' : 'sit'));
 
 /* ---------- ☀ My day: up to 3 tasks chosen for today (intentions — due dates are not touched) ---------- */
 const todayIso = () => iso(today());
@@ -3645,12 +3648,283 @@ function qaAreas() {
   return pref.length ? pref : data.areas.slice(0, 2);
 }
 const AREA_EMOJI = { Work: '💼', Home: '🏠', Personal: '🙂', 'M.Sc': '🎓', 'Reserve Duty': '🪖', Family: '👨‍👩‍👧', Finance: '💰', Health: '🩺' };
+/* ---------- 💬 motivation: real quotes with their source (curated) + a stream of more from ZenQuotes ----------
+   c: s = starting · f = sitting down to it / focus · d = finishing · t = time & putting off · p = keep going · h = with a smile
+   o: the language of the original (he = Hebrew source; otherwise the Hebrew is a translation) */
+const QUOTES = [
+  ['d', 'he', 'לא עליך המלאכה לגמור, ולא אתה בן חורין להיבטל ממנה.', 'It is not your duty to finish the work, but neither are you free to desist from it.', 'רבי טרפון', 'Rabbi Tarfon', 'פרקי אבות ב, טז'],
+  ['t', 'he', 'היום קצר והמלאכה מרובה, והפועלים עצלים, והשכר הרבה, ובעל הבית דוחק.', 'The day is short, the work is great, the workers are lazy, the reward is much, and the Master is pressing.', 'רבי טרפון', 'Rabbi Tarfon', 'פרקי אבות ב, טו'],
+  ['s', 'he', 'אם אין אני לי — מי לי? וכשאני לעצמי — מה אני? ואם לא עכשיו — אימתי?', 'If I am not for myself, who will be for me? And being for myself, what am I? And if not now, when?', 'הלל הזקן', 'Hillel the Elder', 'פרקי אבות א, יד'],
+  ['f', 'he', 'אמור מעט ועשה הרבה.', 'Say little and do much.', 'שמאי', 'Shammai', 'פרקי אבות א, טו'],
+  ['p', 'he', 'לפום צערא אגרא.', 'According to the effort is the reward.', 'בן הא הא', 'Ben Hei Hei', 'פרקי אבות ה, כג'],
+  ['t', 'he', 'אל תאמר לכשאפנה אשנה — שמא לא תפנה.', 'Do not say “when I have time I will study” — perhaps you will never have time.', 'הלל הזקן', 'Hillel the Elder', 'פרקי אבות ב, ד'],
+  ['f', 'he', 'תפסת מרובה — לא תפסת; תפסת מועט — תפסת.', 'Grasp too much and you hold nothing; grasp a little and you hold it.', 'התלמוד הבבלי', 'Babylonian Talmud', 'ראש השנה ד ע״ב'],
+  ['s', 'he', 'כל ההתחלות קשות.', 'All beginnings are hard.', 'מכילתא דרבי ישמעאל', 'Mekhilta of Rabbi Ishmael', 'יתרו, פרשה ב'],
+  ['s', 'he', 'אם תרצו — אין זו אגדה.', 'If you will it, it is no legend.', 'בנימין זאב הרצל', 'Theodor Herzl', 'אלטנוילנד, 1902'],
+  ['p', 'he', 'יגעת ומצאת — תאמין.', 'If someone says “I toiled and found” — believe them.', 'התלמוד הבבלי', 'Babylonian Talmud', 'מגילה ו ע״ב'],
+  ['s', 'he', 'זריזין מקדימין.', 'The diligent hurry to do what is right — early.', 'התלמוד הבבלי', 'Babylonian Talmud', 'פסחים ד ע״א'],
+  ['d', 'he', 'המתחיל במצווה — אומרים לו: גמור.', 'Whoever starts a good deed is told: finish it.', 'התלמוד הבבלי', 'Babylonian Talmud', 'סוטה יג ע״ב'],
+  ['d', 'he', 'טוב אחרית דבר מראשיתו.', 'The end of a thing is better than its beginning.', 'קהלת', 'Ecclesiastes', 'קהלת ז, ח'],
+  ['f', 'he', 'כל אשר תמצא ידך לעשות בכוחך — עשה.', 'Whatever your hand finds to do, do it with all your might.', 'קהלת', 'Ecclesiastes', 'קהלת ט, י'],
+  ['p', 'he', 'הזורעים בדמעה — ברינה יקצורו.', 'Those who sow in tears shall reap in joy.', 'תהלים', 'Psalms', 'תהלים קכו, ה'],
+  ['t', 'he', 'לך אל נמלה עצל, ראה דרכיה וחכם.', 'Go to the ant, you sluggard; consider her ways and be wise.', 'משלי', 'Proverbs', 'משלי ו, ו'],
+  ['t', 'he', 'עד מתי עצל תשכב? מתי תקום משנתך?', 'How long will you lie there, sluggard? When will you get up from your sleep?', 'משלי', 'Proverbs', 'משלי ו, ט'],
+  ['s', 'he', 'בדרך שאדם רוצה לילך — בה מוליכין אותו.', 'In the way a person wishes to go, there he is led.', 'התלמוד הבבלי', 'Babylonian Talmud', 'מכות י ע״ב'],
+  ['p', 'he', 'אם אתה מאמין שיכולים לקלקל — תאמין שיכולים לתקן.', 'If you believe that you can damage, believe that you can fix.', 'רבי נחמן מברסלב', 'Rabbi Nachman of Breslov', 'ליקוטי מוהר״ן תנינא, קיב'],
+  ['s', 'he', 'כל העולם כולו גשר צר מאוד, והעיקר לא לפחד כלל.', 'The whole world is a very narrow bridge, and the main thing is not to be afraid at all.', 'רבי נחמן מברסלב', 'Rabbi Nachman of Breslov', 'ליקוטי מוהר״ן תנינא, מח'],
+  ['p', 'he', 'אין שום ייאוש בעולם כלל.', 'There is no despair in the world at all.', 'רבי נחמן מברסלב', 'Rabbi Nachman of Breslov', 'ליקוטי מוהר״ן תנינא, עח'],
+  ['s', 'en', 'מסע של אלף מילין מתחיל בצעד אחד.', 'A journey of a thousand miles begins with a single step.', 'לאו דזה', 'Lao Tzu', 'טאו טה צ׳ינג, 64'],
+  ['f', 'en', 'את הקשה עשה כשהוא עוד קל; את הגדול — כשהוא עוד קטן.', 'Deal with the difficult while it is still easy; deal with the great while it is still small.', 'לאו דזה', 'Lao Tzu', 'טאו טה צ׳ינג, 63'],
+  ['s', 'en', 'מי שהתחיל — עשה חצי. העז להיות חכם: התחל!', 'He who has begun is half done. Dare to be wise; begin!', 'הורטיוס', 'Horace', 'איגרות א, 2'],
+  ['s', 'en', 'ההתחלה היא החלק החשוב ביותר של העבודה.', 'The beginning is the most important part of the work.', 'אפלטון', 'Plato', 'המדינה, 377a'],
+  ['s', 'en', 'התחלה טובה היא חצי מהעבודה.', 'Well begun is half done.', 'אריסטו (מצטט פתגם)', 'Aristotle (quoting a proverb)', 'פוליטיקה'],
+  ['t', 'en', 'לא שיש לנו מעט זמן לחיות — אלא שאנחנו מבזבזים ממנו הרבה.', 'It is not that we have a short time to live, but that we waste a lot of it.', 'סנקה', 'Seneca', 'על קוצר החיים'],
+  ['t', 'en', 'בזמן שאנחנו דוחים — החיים חולפים.', 'While we are postponing, life speeds by.', 'סנקה', 'Seneca', 'איגרות אל לוקיליוס, 1'],
+  ['s', 'en', 'התחל מיד לחיות, וספור כל יום כחיים שלמים.', 'Begin at once to live, and count each separate day as a separate life.', 'סנקה', 'Seneca', 'איגרות אל לוקיליוס, 101'],
+  ['f', 'en', 'די לבזבז זמן בוויכוח מהו אדם טוב. היה אחד.', 'Waste no more time arguing what a good man should be. Be one.', 'מרקוס אורליוס', 'Marcus Aurelius', 'הגיגים י, 16'],
+  ['p', 'en', 'מה שעומד בדרך — הופך לדרך.', 'What stands in the way becomes the way.', 'מרקוס אורליוס', 'Marcus Aurelius', 'הגיגים ה, 20'],
+  ['f', 'en', 'עשה כל דבר כאילו היה האחרון בחייך.', 'Do every act of your life as though it were the very last act of your life.', 'מרקוס אורליוס', 'Marcus Aurelius', 'הגיגים ב, 5'],
+  ['s', 'en', 'אמור לעצמך קודם מה אתה רוצה להיות — ואז עשה את מה שצריך לעשות.', 'First say to yourself what you would be; and then do what you have to do.', 'אפיקטטוס', 'Epictetus', 'שיחות ג, 23'],
+  ['p', 'en', 'שום דבר גדול לא נוצר בבת אחת.', 'No great thing is created suddenly.', 'אפיקטטוס', 'Epictetus', 'שיחות א, 15'],
+  ['p', 'en', 'טיפה חוצבת אבן.', 'Dripping water hollows out stone.', 'אובידיוס', 'Ovid', 'מכתבים מן הפונטוס'],
+  ['s', 'en', 'המזל עוזר לאמיצים.', 'Fortune favors the bold.', 'ורגיליוס', 'Virgil', 'האנאידה י, 284'],
+  ['t', 'en', 'נצל את היום.', 'Seize the day.', 'הורטיוס', 'Horace', 'שירים א, 11 (Carpe diem)'],
+  ['f', 'en', 'מהר — לאט.', 'Make haste slowly.', 'אוגוסטוס', 'Augustus', 'לפי סווטוניוס (Festina lente)'],
+  ['p', 'en', 'מי שיש לו "למה" לחיות — יכול לשאת כמעט כל "איך".', 'He who has a why to live can bear almost any how.', 'פרידריך ניטשה', 'Friedrich Nietzsche', 'דמדומי האלילים'],
+  ['p', 'en', 'שני הלוחמים החזקים ביותר הם סבלנות וזמן.', 'The two most powerful warriors are patience and time.', 'לב טולסטוי', 'Leo Tolstoy', 'מלחמה ושלום'],
+  ['f', 'en', 'לדעת — לא מספיק; צריך ליישם. לרצות — לא מספיק; צריך לעשות.', 'Knowing is not enough; we must apply. Willing is not enough; we must do.', 'יוהאן וולפגנג פון גתה', 'Johann Wolfgang von Goethe', 'שנות הנדודים של וילהלם מייסטר'],
+  ['d', 'en', 'המושלם הוא האויב של הטוב.', 'The best is the enemy of the good.', 'וולטר', 'Voltaire', 'המילון הפילוסופי'],
+  ['f', 'en', 'אנחנו מה שאנחנו עושים שוב ושוב. מצוינות, אם כן, אינה מעשה — אלא הרגל.', 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', 'וויל דוראנט (בעקבות אריסטו)', 'Will Durant (after Aristotle)', 'סיפור הפילוסופיה, 1926'],
+  ['p', 'en', 'הדרך הטובה ביותר החוצה היא תמיד דרך.', 'The best way out is always through.', 'רוברט פרוסט', 'Robert Frost', 'A Servant to Servants, 1914'],
+  ['p', 'en', 'ניסית. נכשלת. לא משנה. נסה שוב. היכשל שוב. היכשל טוב יותר.', 'Ever tried. Ever failed. No matter. Try again. Fail again. Fail better.', 'סמואל בקט', 'Samuel Beckett', 'Worstward Ho, 1983'],
+  ['p', 'en', 'גאונות היא אחוז אחד השראה ותשעים ותשעה אחוזים זיעה.', 'Genius is one percent inspiration, ninety-nine percent perspiration.', 'תומאס אדיסון', 'Thomas Edison', '1932'],
+  ['p', 'en', 'לעולם אל תיכנע — לעולם, לעולם, לעולם.', 'Never give in, never give in, never, never, never.', 'וינסטון צ׳רצ׳יל', 'Winston Churchill', 'נאום בבית הספר הארו, 1941'],
+  ['s', 'en', 'אתה מפספס מאה אחוז מהזריקות שאתה לא זורק.', 'You miss 100% of the shots you don’t take.', 'ויין גרצקי', 'Wayne Gretzky', '1983'],
+  ['s', 'en', 'בין אם אתה חושב שאתה יכול ובין אם אתה חושב שאינך יכול — אתה צודק.', 'Whether you think you can, or you think you can’t — you’re right.', 'הנרי פורד', 'Henry Ford', 'מצוטט ב-Reader’s Digest, 1947'],
+  ['f', 'en', 'שום דבר אינו קשה במיוחד אם מחלקים אותו למשימות קטנות.', 'Nothing is particularly hard if you divide it into small jobs.', 'הנרי פורד', 'Henry Ford', 'My Life and Work, 1922'],
+  ['s', 'en', 'עשה מה שאתה יכול, עם מה שיש לך, איפה שאתה נמצא.', 'Do what you can, with what you have, where you are.', 'תאודור רוזוולט', 'Theodore Roosevelt', 'האוטוביוגרפיה, 1913'],
+  ['f', 'en', 'תוכניות הן חסרות ערך — אבל התכנון הוא הכול.', 'Plans are worthless, but planning is everything.', 'דווייט אייזנהאואר', 'Dwight D. Eisenhower', 'נאום, 1957'],
+  ['f', 'en', 'מה שחשוב — לעיתים רחוקות דחוף; ומה שדחוף — לעיתים רחוקות חשוב.', 'What is important is seldom urgent and what is urgent is seldom important.', 'דווייט אייזנהאואר', 'Dwight D. Eisenhower', 'נאום, 1954'],
+  ['f', 'en', 'השראה היא לחובבים. כל השאר פשוט מגיעים ומתחילים לעבוד.', 'Inspiration is for amateurs — the rest of us just show up and get to work.', 'צ׳אק קלוס', 'Chuck Close', 'ראיון'],
+  ['f', 'en', 'הדרך היחידה לעשות עבודה נהדרת היא לאהוב את מה שאתה עושה.', 'The only way to do great work is to love what you do.', 'סטיב ג׳ובס', 'Steve Jobs', 'נאום בסטנפורד, 2005'],
+  ['d', 'en', 'אמנים אמיתיים משחררים (את העבודה).', 'Real artists ship.', 'סטיב ג׳ובס', 'Steve Jobs', '1983'],
+  ['f', 'en', 'מיקוד פירושו לומר לא.', 'Focusing is about saying no.', 'סטיב ג׳ובס', 'Steve Jobs', 'WWDC, 1997'],
+  ['p', 'en', 'החיים הם כמו רכיבה על אופניים: כדי לשמור על איזון צריך להמשיך לנוע.', 'Life is like riding a bicycle. To keep your balance you must keep moving.', 'אלברט איינשטיין', 'Albert Einstein', 'מכתב לבנו אדוארד, 1930'],
+  ['t', 'en', 'זמן שאבד — לא יימצא לעולם.', 'Lost time is never found again.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן'],
+  ['t', 'en', 'יש לך משהו לעשות מחר? עשה אותו היום.', 'Have you somewhat to do to-morrow, do it to-day.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן, 1742'],
+  ['d', 'en', 'עשוי היטב — עדיף על אמור היטב.', 'Well done is better than well said.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן, 1737'],
+  ['t', 'en', 'אתה יכול להתמהמה — הזמן לא יתמהמה.', 'You may delay, but time will not.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן'],
+  ['f', 'en', 'כתוב משהו שראוי לקרוא — או עשה משהו שראוי לכתוב עליו.', 'Either write something worth reading or do something worth writing.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן, 1738'],
+  ['t', 'en', 'דחיינות היא גנבת הזמן.', 'Procrastination is the thief of time.', 'אדוארד יאנג', 'Edward Young', 'Night Thoughts, 1742'],
+  ['t', 'en', 'החלט לעולם לא להתבטל. מי שאינו מאבד זמן — לעולם לא יתלונן על מחסור בו.', 'Determine never to be idle. No person will have occasion to complain of the want of time who never loses any.', 'תומאס ג׳פרסון', 'Thomas Jefferson', 'מכתב לבתו מרתה, 1787'],
+  ['t', 'en', 'איך שאנחנו מבלים את הימים שלנו — כך אנחנו מבלים את חיינו.', 'How we spend our days is, of course, how we spend our lives.', 'אנני דילארד', 'Annie Dillard', 'The Writing Life, 1989'],
+  ['t', 'en', 'הזמן הוא מה שאנחנו רוצים יותר מכול — ומשתמשים בו הכי גרוע.', 'Time is what we want most, but what we use worst.', 'ויליאם פן', 'William Penn', 'Some Fruits of Solitude, 1682'],
+  ['f', 'en', 'כל עוד לא ננהל את הזמן — לא ננהל שום דבר אחר.', 'Until we can manage time, we can manage nothing else.', 'פיטר דרוקר', 'Peter Drucker', 'The Effective Executive'],
+  ['f', 'en', 'אין דבר חסר תועלת יותר מלעשות ביעילות את מה שלא היה צריך להיעשות בכלל.', 'There is nothing so useless as doing efficiently that which should not be done at all.', 'פיטר דרוקר', 'Peter Drucker', ''],
+  ['f', 'en', 'העיקר אינו לתעדף את מה שבלוח הזמנים — אלא לשבץ בלוח את סדרי העדיפויות.', 'The key is not to prioritize what’s on your schedule, but to schedule your priorities.', 'סטיבן קובי', 'Stephen Covey', ''],
+  ['f', 'en', 'דברים ראשונים — קודם.', 'Put first things first.', 'סטיבן קובי', 'Stephen Covey', '7 ההרגלים של אנשים אפקטיביים במיוחד'],
+  ['s', 'en', 'התחל כשהסוף בראש.', 'Begin with the end in mind.', 'סטיבן קובי', 'Stephen Covey', '7 ההרגלים של אנשים אפקטיביים במיוחד'],
+  ['f', 'en', 'אתה יכול לעשות כל דבר — אבל לא כל דבר.', 'You can do anything, but not everything.', 'דייוויד אלן', 'David Allen', 'Getting Things Done'],
+  ['f', 'en', 'הראש נועד ליצור רעיונות, לא להחזיק אותם.', 'Your mind is for having ideas, not holding them.', 'דייוויד אלן', 'David Allen', 'Getting Things Done'],
+  ['s', 'en', 'אם זה לוקח פחות משתי דקות — עשה את זה עכשיו.', 'If it takes less than two minutes, do it now.', 'דייוויד אלן', 'David Allen', 'Getting Things Done'],
+  ['s', 'en', 'אם צריך לאכול צפרדע — עדיף לעשות את זה ראשון בבוקר.', 'If you have to eat a frog, it’s best to do it first thing in the morning.', 'בריאן טרייסי', 'Brian Tracy', 'Eat That Frog!'],
+  ['p', 'en', 'משמעת שווה חופש.', 'Discipline equals freedom.', 'ג׳וקו ווילינק', 'Jocko Willink', ''],
+  ['p', 'en', 'משמעת היא הגשר בין מטרות להישגים.', 'Discipline is the bridge between goals and accomplishment.', 'ג׳ים רון', 'Jim Rohn', ''],
+  ['f', 'en', 'או שאתה מנהל את היום — או שהיום מנהל אותך.', 'Either you run the day, or the day runs you.', 'ג׳ים רון', 'Jim Rohn', ''],
+  ['p', 'en', 'כולנו נסבול אחד משניים: כאב המשמעת או כאב החרטה.', 'We must all suffer one of two things: the pain of discipline or the pain of regret.', 'ג׳ים רון', 'Jim Rohn', ''],
+  ['p', 'en', 'מוטיבציה היא מה שגורם לך להתחיל. הרגל — מה שגורם לך להמשיך.', 'Motivation is what gets you started. Habit is what keeps you going.', 'ג׳ים ריון', 'Jim Ryun', ''],
+  ['p', 'en', 'עבודה קשה מנצחת כישרון כשהכישרון לא עובד קשה.', 'Hard work beats talent when talent doesn’t work hard.', 'טים נוטקה', 'Tim Notke', ''],
+  ['p', 'en', 'רוב הדברים החשובים בעולם הושגו בידי אנשים שהמשיכו לנסות כשנראה שאין שום תקווה.', 'Most of the important things in the world have been accomplished by people who have kept on trying when there seemed to be no hope at all.', 'דייל קרנגי', 'Dale Carnegie', ''],
+  ['p', 'en', 'לא את ההר אנחנו כובשים — אלא את עצמנו.', 'It is not the mountain we conquer but ourselves.', 'אדמונד הילרי', 'Edmund Hillary', ''],
+  ['s', 'en', 'התשובה הקצרה ביותר היא לעשות.', 'The shortest answer is doing.', 'ג׳ורג׳ הרברט', 'George Herbert', 'Jacula Prudentum, 1651'],
+  ['s', 'en', 'עשייה לא תמיד מביאה אושר — אבל אין אושר בלי עשייה.', 'Action may not always bring happiness; but there is no happiness without action.', 'בנג׳מין דיזראלי', 'Benjamin Disraeli', 'Lothair, 1870'],
+  ['s', 'en', 'בעוד שנה אולי תצטער שלא התחלת היום.', 'A year from now you may wish you had started today.', 'קארן לאמב', 'Karen Lamb', ''],
+  ['f', 'en', 'אל תסתכל על השעון; עשה מה שהוא עושה — תמשיך.', 'Don’t watch the clock; do what it does. Keep going.', 'סם לבנסון', 'Sam Levenson', ''],
+  ['t', 'en', 'החדשות הרעות: הזמן טס. החדשות הטובות: אתה הטייס.', 'The bad news is time flies. The good news is you’re the pilot.', 'מייקל אלטשולר', 'Michael Altshuler', ''],
+  ['p', 'en', 'נפול שבע פעמים, קום שמונה.', 'Fall seven times, stand up eight.', 'פתגם יפני', 'Japanese proverb', ''],
+  ['s', 'en', 'הזמן הטוב ביותר לשתול עץ היה לפני עשרים שנה. הזמן השני הכי טוב — עכשיו.', 'The best time to plant a tree was 20 years ago. The second best time is now.', 'פתגם', 'Proverb', ''],
+  ['p', 'en', 'אל תפחד להתקדם לאט; פחד רק לעמוד במקום.', 'Be not afraid of going slowly; be afraid only of standing still.', 'פתגם סיני', 'Chinese proverb', ''],
+  ['p', 'en', 'לאט ובהתמדה — מנצחים במירוץ.', 'Slow and steady wins the race.', 'איזופוס', 'Aesop', 'הצב והארנבת'],
+  ['p', 'en', 'זה אמור להיות קשה. אם זה לא היה קשה — כולם היו עושים את זה. הקושי הוא מה שעושה את זה נהדר.', 'It’s supposed to be hard. If it wasn’t hard, everyone would do it. The hard is what makes it great.', 'ג׳ימי דוגן (טום הנקס)', 'Jimmy Dugan (Tom Hanks)', 'ליגה משלהן, 1992'],
+  ['p', 'en', 'תעסוק בלחיות — או תעסוק במוות.', 'Get busy living, or get busy dying.', 'סטיבן קינג', 'Stephen King', 'ריטה הייוורת׳ והבריחה משושנק'],
+  ['f', 'en', 'עשה, או אל תעשה. אין "לנסות".', 'Do. Or do not. There is no try.', 'יודה', 'Yoda', 'האימפריה מכה שנית, 1980'],
+  ['p', 'en', 'פשוט להמשיך לשחות.', 'Just keep swimming.', 'דורי', 'Dory', 'מוצאים את נמו, 2003'],
+  ['h', 'en', 'אני אוהב דדליינים. אני אוהב את רעש הוווש שהם עושים כשהם חולפים.', 'I love deadlines. I love the whooshing noise they make as they go by.', 'דאגלס אדמס', 'Douglas Adams', 'The Salmon of Doubt'],
+  ['h', 'en', 'חוק הופשטטר: זה תמיד לוקח יותר זמן ממה שחשבת — גם כשמביאים בחשבון את חוק הופשטטר.', 'Hofstadter’s Law: It always takes longer than you expect, even when you take into account Hofstadter’s Law.', 'דאגלס הופשטטר', 'Douglas Hofstadter', 'גדל, אשר, באך'],
+  ['h', 'en', 'עבודה מתרחבת עד שהיא ממלאת את כל הזמן שהוקצב לה.', 'Work expands so as to fill the time available for its completion.', 'סיריל נורת׳קוט פרקינסון', 'C. Northcote Parkinson', 'האקונומיסט, 1955'],
+  ['h', 'en', '90 האחוזים הראשונים של הקוד לוקחים 90 אחוז מהזמן. 10 האחוזים הנותרים לוקחים את 90 האחוזים האחרים.', 'The first 90 percent of the code accounts for the first 90 percent of the development time. The remaining 10 percent accounts for the other 90 percent.', 'טום קרגיל', 'Tom Cargill', 'בל לאבס'],
+  ['h', 'en', 'אם אתה רוצה שמשהו ייעשה — בקש מאדם עסוק.', 'If you want something done, ask a busy person.', 'פתגם', 'Proverb', ''],
+  ['s', 'en', 'חשוב על דברים רבים; עשה אחד.', 'Think of many things; do one.', 'פתגם פורטוגלי', 'Portuguese proverb', ''],
+  ['p', 'en', 'מעט מעט — מגיעים רחוק.', 'Little by little, one goes far.', 'פתגם ספרדי', 'Spanish proverb', ''],
+  ['p', 'en', 'רומא לא נבנתה ביום אחד.', 'Rome wasn’t built in a day.', 'פתגם', 'Proverb', ''],
+  ['s', 'en', 'בישראל, כדי להיות ריאליסט — צריך להאמין בניסים.', 'In Israel, in order to be a realist you must believe in miracles.', 'דוד בן־גוריון', 'David Ben-Gurion', 'ראיון ל-CBS, 1956'],
+  ['d', 'en', 'מה שאתה עושה היום יכול לשפר את כל המחרים שלך.', 'What you do today can improve all your tomorrows.', 'ראלף מרסטון', 'Ralph Marston', ''],
+  ['p', 'en', 'בחירות קשות — חיים קלים. בחירות קלות — חיים קשים.', 'Hard choices, easy life. Easy choices, hard life.', 'ג׳רזי גרגורק', 'Jerzy Gregorek', ''],
+  ['f', 'en', 'יעילות היא לעשות דברים נכון; אפקטיביות — לעשות את הדברים הנכונים.', 'Efficiency is doing things right; effectiveness is doing the right things.', 'פיטר דרוקר', 'Peter Drucker', '']
+];
+const Q_MOODS = [['start', '🚀', 'To start', 'להתחיל', 'st'], ['sit', '🪑', 'To sit down to it', 'לשבת על זה עכשיו', 'ftsh'], ['finish', '🏁', 'To finish', 'לסיים', 'dp'], ['any', '✨', 'Surprise me', 'הפתע אותי', 'sftdph']];
+let qState = { mood: 'any', cur: null, online: [], onlineP: null };
+const qKey = (q) => (q.en || q.he || '').slice(0, 40);
+function qSeen() { return store.get('ai.qSeen', []); }
+function qMark(q) { const s = qSeen().filter(x => x !== qKey(q)); s.push(qKey(q)); store.set('ai.qSeen', s.slice(-400)); }
+/* more real quotes from ZenQuotes (through the sheet's script), only ones about work / time / starting / keeping on */
+function qLoadOnline() {
+  if (qState.onlineP || settings.demo) return qState.onlineP;
+  qState.onlineP = api('POST', { action: 'quotes' }).then(j => { qState.online = (j.quotes || []).map(x => ({ c: 'o', o: 'en', he: '', en: x.q, w: [x.a, x.a], s: '', online: true })); }).catch(() => { qState.online = []; });
+  return qState.onlineP;
+}
+function qPick() {
+  const cats = (Q_MOODS.find(m => m[0] === qState.mood) || Q_MOODS[3])[4];
+  const local = QUOTES.map(r => ({ c: r[0], o: r[1], he: r[2], en: r[3], w: [r[4], r[5]], s: r[6] })).filter(q => cats.includes(q.c));
+  const seen = new Set(qSeen());
+  let pool = local.filter(q => !seen.has(qKey(q)));
+  const fresh = qState.online.filter(q => !seen.has(qKey(q)));
+  // mostly the curated ones (with Hebrew); every few — one from the online stream; when the curated ones run out — online, then start over
+  if (fresh.length && (!pool.length || Math.random() < 0.3)) pool = fresh;
+  if (!pool.length) { store.set('ai.qSeen', qSeen().filter(k => !local.some(q => qKey(q) === k))); pool = local; }
+  const q = pool[Math.floor(Math.random() * pool.length)];
+  qMark(q); return q;
+}
+function openQuote(mood) {
+  if (mood) qState.mood = mood;
+  qLoadOnline();
+  qState.cur = qPick(); qRender(); $('#dlgQuote').open || $('#dlgQuote').showModal();
+}
+function qRender() {
+  const q = qState.cur, he = isHe(), main = he ? (q.he || q.en) : (q.en || q.he), orig = he ? (q.o !== 'he' && q.he ? q.en : '') : (q.o === 'he' ? q.he : '');
+  $('#qMoods').innerHTML = Q_MOODS.map(m => `<button type="button" class="chip ${qState.mood === m[0] ? 'on' : ''}" data-qmood="${m[0]}">${m[1]} ${esc(L(m[2], m[3]))}</button>`).join('');
+  $('#qCard').innerHTML = `<blockquote class="q-text" dir="${/[֐-׿]/.test(main) ? 'rtl' : 'ltr'}">${esc(main)}</blockquote>
+    ${orig ? `<p class="q-orig" dir="${q.o === 'he' ? 'rtl' : 'ltr'}">${esc(orig)}</p>` : ''}
+    <p class="q-who">— ${esc(he ? q.w[0] : q.w[1])}${q.s ? `<span>, ${esc(q.s)}</span>` : ''}</p>
+    ${q.online ? `<p class="q-credit">${L('From', 'מתוך')} <a href="https://zenquotes.io/" target="_blank" rel="noopener">ZenQuotes</a></p>` : ''}`;
+  const c = $('#qCard'); c.classList.remove('q-in'); void c.offsetWidth; c.classList.add('q-in');
+}
+$('#dlgQuote').addEventListener('click', (e) => {
+  const m = e.target.closest('[data-qmood]'); if (m) { qState.mood = m.dataset.qmood; qState.cur = qPick(); qRender(); return; }
+  if (e.target.closest('#qNext')) { qState.cur = qPick(); qRender(); return; }
+  if (e.target.closest('#qCopy')) { const q = qState.cur; const t = `“${isHe() ? (q.he || q.en) : (q.en || q.he)}” — ${isHe() ? q.w[0] : q.w[1]}`; try { navigator.clipboard.writeText(t); toast(L('Copied', 'הועתק')); } catch (err) { /* ignore */ } return; }
+  if (e.target.closest('#qWheel')) { $('#dlgQuote').close(); openWheel(); }
+});
+
+/* ---------- 🎡 wheel of fortune: "I have N minutes" → spins and picks a fitting urgent task ---------- */
+let wh = { min: store.get('ai.wheelMin', 30), goal: store.get('ai.wheelGoal', 'finish'), cands: [], pick: null, angle: 0, spinning: false };
+const WH_COLORS = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FB923C', '#2DD4BF'];
+const whEst = (it) => { const h = parseFloat(it.hrs), a = parseFloat(it.acthrs) || 0; return h > 0 ? Math.max(5, Math.round((h - a > 0 ? h - a : h) * 60)) : null; };   // minutes left, if estimated
+function whCandidates() {
+  const open = data.items.filter(it => !isClosed(it) && it.status !== 'Waiting');
+  let base = open.filter(it => areaOk(it.area)); if (!base.length) base = open;
+  const day = new Set(typeof dayRows === 'function' ? dayRows().map(String) : []);
+  const scored = base.map(it => {
+    const h = horizon(it), hi = /^1/.test(it.prio || ''), est = whEst(it);
+    let w = h === 'Overdue' ? 5 : h === 'Today' ? 4 : h === 'This week' ? 2 : 0;
+    if (day.has(String(it.row))) w += 3;
+    if (hi) w += 2;
+    if (!w) return null;                                       // only what is urgent: late, today, this week, my day or high priority
+    const fits = est !== null && est <= wh.min;
+    if (wh.goal === 'finish') { if (est !== null && !fits) return null; w += fits ? 3 : 0; }
+    else if (fits) w += 1;
+    return { it, w, est, fits, h, hi };
+  }).filter(Boolean).sort((a, b) => b.w - a.w || (parse(a.it.due) || 9e15) - (parse(b.it.due) || 9e15));
+  return scored.slice(0, 8);
+}
+function openWheel() {
+  if (isGuest()) return;
+  wh.pick = null; wh.spinning = false; whSetup(); $('#dlgWheel').showModal();
+}
+function whSetup() {
+  const mins = [10, 15, 30, 45, 60, 90, 120];
+  const custom = !mins.includes(wh.min);
+  $('#whBody').innerHTML = `
+    <div class="wh-q">${L('How much time do you have?', 'כמה זמן יש לך?')}</div>
+    <div class="wh-opts">${mins.map(m => `<button type="button" class="chip ${wh.min === m ? 'on' : ''}" data-whmin="${m}">${m < 60 ? m + L(' min', ' דק׳') : (m / 60) + L(' h', ' שע׳')}</button>`).join('')}<button type="button" class="chip ${custom ? 'on' : ''}" data-whmin="-1">${L('Other', 'אחר')}</button></div>
+    ${custom ? `<label class="wh-custom">${L('Minutes', 'דקות')}<input type="number" id="whMinIn" min="5" max="480" step="5" inputmode="numeric" value="${wh.min}"></label>` : ''}
+    <div class="wh-q">${L('What do you want?', 'מה המטרה?')}</div>
+    <div class="seg wh-goal"><button type="button" class="${wh.goal === 'finish' ? 'on' : ''}" data-whgoal="finish">🏁 ${L('Finish a task now', 'לסיים משימה עכשיו')}</button><button type="button" class="${wh.goal === 'progress' ? 'on' : ''}" data-whgoal="progress">📈 ${L('Make progress', 'להתקדם במשהו')}</button></div>
+    <p class="hint wh-count">${whCountText()}</p>
+    <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary wh-go" id="whGo" ${whCandidates().length ? '' : 'disabled'}>🎡 ${L('Spin!', 'סובב!')}</button></div>`;
+}
+function whCountText() {
+  const c = whCandidates();
+  if (!c.length) return wh.goal === 'finish' ? L('No urgent task fits this time (by its estimate) — try “Make progress” or more time.', 'אין משימה דחופה שנכנסת בזמן הזה (לפי הערכת הזמן) — נסה "להתקדם במשהו" או יותר זמן.') : L('Nothing urgent right now 🎉', 'אין כרגע משהו דחוף 🎉');
+  return L(`${c.length} urgent tasks on the wheel`, `${c.length} משימות דחופות על הגלגל`) + (wh.goal === 'finish' && c.some(x => x.est === null) ? L(' (some without a time estimate)', ' (חלקן בלי הערכת זמן)') : '');
+}
+function whSvg(c) {
+  const n = c.length, R = 150, cx = 160, cy = 160, seg = 360 / n;
+  const pt = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  const slices = c.map((x, i) => {
+    const a0 = i * seg, a1 = (i + 1) * seg, [x0, y0] = pt(a0, R), [x1, y1] = pt(a1, R), mid = a0 + seg / 2, [tx, ty] = pt(mid, R * 0.58);
+    const t = x.it.item.length > 16 ? x.it.item.slice(0, 15) + '…' : x.it.item;
+    return `<path d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${R},${R} 0 ${seg > 180 ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${WH_COLORS[i % WH_COLORS.length]}" stroke="#fff" stroke-width="3"/>
+      <text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" transform="rotate(${(mid - 90 + (mid > 180 ? 180 : 0)).toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)})" text-anchor="middle" dominant-baseline="middle" class="wh-txt" direction="${/[\u0590-\u05FF]/.test(t) ? 'rtl' : 'ltr'}" unicode-bidi="plaintext">${esc(t)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 320 320" class="wh-svg" aria-hidden="true">${n === 1 ? `<circle cx="160" cy="160" r="150" fill="${WH_COLORS[0]}"/><text x="160" y="110" text-anchor="middle" class="wh-txt">${esc(c[0].it.item.slice(0, 20))}</text>` : slices}<circle cx="160" cy="160" r="22" fill="#fff" stroke="#1F2937" stroke-width="3"/><text x="160" y="161" text-anchor="middle" dominant-baseline="middle" font-size="18">🎯</text></svg>`;
+}
+let whAudio = null;
+function whTick(pitch) {
+  try { whAudio = whAudio || new (window.AudioContext || window.webkitAudioContext)(); const o = whAudio.createOscillator(), g = whAudio.createGain();
+    o.type = 'triangle'; o.frequency.value = pitch || 1200; g.gain.setValueAtTime(0.06, whAudio.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, whAudio.currentTime + 0.05);
+    o.connect(g).connect(whAudio.destination); o.start(); o.stop(whAudio.currentTime + 0.06); } catch (e) { /* no sound */ }
+}
+function whSpin() {
+  const c = whCandidates(); if (!c.length || wh.spinning) return;
+  wh.cands = c; wh.spinning = true;
+  const total = c.reduce((s, x) => s + x.w, 0); let r = Math.random() * total, idx = 0;   // weighted: the more urgent, the bigger the chance
+  for (; idx < c.length - 1; idx++) { r -= c[idx].w; if (r <= 0) break; }
+  wh.pick = c[idx];
+  const seg = 360 / c.length, target = 360 - (idx * seg + seg / 2) + (Math.random() - 0.5) * seg * 0.6;
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  wh.angle = wh.angle - (wh.angle % 360) + 360 * (reduce ? 1 : 6) + target;
+  $('#whBody').innerHTML = `<div class="wh-stage"><div class="wh-pointer">▼</div><div class="wh-wheel" id="whWheel">${whSvg(c)}</div></div><p class="wh-status" id="whStatus">${L('Spinning…', 'מסתובב…')}</p><div id="whResult"></div>`;
+  const el = $('#whWheel'), dur = reduce ? 600 : 4600;
+  el.style.transition = 'none'; el.style.transform = `rotate(${wh.angle - 360 * (reduce ? 1 : 6) - target}deg)`;
+  void el.offsetWidth;
+  el.style.transition = `transform ${dur}ms cubic-bezier(.12,.62,.15,1)`; el.style.transform = `rotate(${wh.angle}deg)`;
+  if (!reduce && !store.get('ai.wheelMute', false)) {               // ticking that slows down with the wheel
+    let t = 0; const step = () => { if (!wh.spinning) return; whTick(900 + Math.random() * 500); t += 1; const p = Math.min(1, t / 34); setTimeout(step, 45 + 420 * p * p); }; step();
+  }
+  setTimeout(whDone, dur + 80);
+}
+function whDone() {
+  wh.spinning = false; if (!wh.pick || !$('#dlgWheel').open) return;
+  const x = wh.pick, it = x.it, est = x.est;
+  const due = x.h === 'Overdue' ? L('Late', 'באיחור') : x.h === 'Today' ? L('Today', 'להיום') : x.h === 'This week' ? L('This week', 'השבוע') : '';
+  const plan = wh.goal === 'finish' && est ? Math.min(est, wh.min) : wh.min;
+  $('#whStatus').textContent = L('The wheel chose:', 'הגלגל בחר:');
+  $('#whResult').innerHTML = `<div class="wh-pick"><div class="wh-pick-t" dir="auto">${esc(it.item)}</div>
+      <div class="wh-pick-m">${esc(it.area || '')}${due ? ' · ' + due : ''}${x.hi ? ' · ' + L('High priority', 'עדיפות גבוהה') : ''}${est ? ' · ' + L(`~${est} min left`, `~${est} דק׳ לסיום`) : ' · ' + L('no time estimate', 'בלי הערכת זמן')}</div>
+      ${wh.goal === 'finish' && !est ? `<p class="hint">${L('No estimate — see how far you get in the time you have.', 'אין הערכת זמן — נראה כמה מתקדמים בזמן שיש.')}</p>` : ''}</div>
+    <div class="wh-acts"><button type="button" class="btn primary" data-wh="focus">▶ ${L(`Focus ${plan} min`, `פוקוס ${plan} דק׳`)}</button>
+      <button type="button" class="btn ghost" data-wh="again">🔄 ${L('Spin again', 'סובב שוב')}</button>
+      <button type="button" class="btn ghost" data-wh="open">✏️ ${L('Open task', 'פתח משימה')}</button>
+      <button type="button" class="btn ghost" data-wh="quote">💬 ${L('A push', 'משפט מוטיבציה')}</button></div>`;
+  celebrate(innerWidth / 2, innerHeight / 2.4);
+}
+$('#dlgWheel').addEventListener('click', (e) => {
+  const m = e.target.closest('[data-whmin]');
+  if (m) { const v = Number(m.dataset.whmin); wh.min = v === -1 ? (![10, 15, 30, 45, 60, 90, 120].includes(wh.min) ? wh.min : 20) : v; store.set('ai.wheelMin', wh.min); whSetup(); return; }
+  const g = e.target.closest('[data-whgoal]'); if (g) { wh.goal = g.dataset.whgoal; store.set('ai.wheelGoal', wh.goal); whSetup(); return; }
+  if (e.target.closest('#whGo')) { const ci = $('#whMinIn'); if (ci) { wh.min = Math.max(5, Math.min(480, Number(ci.value) || 30)); store.set('ai.wheelMin', wh.min); } whSpin(); return; }
+  const a = e.target.closest('[data-wh]'); if (!a || !wh.pick) return;
+  const it = wh.pick.it;
+  if (a.dataset.wh === 'again') { whSpin(); return; }
+  if (a.dataset.wh === 'open') { $('#dlgWheel').close(); openEdit(it); return; }
+  if (a.dataset.wh === 'quote') { openQuote(wh.goal === 'finish' ? 'finish' : 'sit'); return; }
+  if (a.dataset.wh === 'focus') {
+    const plan = wh.goal === 'finish' && wh.pick.est ? Math.min(wh.pick.est, wh.min) : wh.min;
+    $('#dlgWheel').close(); openFocusSetup(it); if (fsSetup && fsSetup.it === it) { fsSetup.plan = plan; fsSetupRender(); }
+  }
+});
+$('#dlgWheel').addEventListener('input', (e) => { if (e.target.id === 'whMinIn') { wh.min = Math.max(5, Math.min(480, Number(e.target.value) || 30)); const p = $('#whBody .wh-count'); if (p) p.textContent = whCountText(); const go = $('#whGo'); if (go) go.disabled = !whCandidates().length; } });
+$('#dlgWheel').addEventListener('close', () => { wh.spinning = false; });
+
 function renderPlayMenu() {
   const open = (it) => !isClosed(it);
   const urgent = (a) => data.items.filter(it => it.area === a && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;
   const items = [];
   const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll' && !isGuest();
   void inColl;   // new task / new Collection entry: the ＋ button next to ▶
+  if (!isGuest()) { const n = whCandidates().length; items.push(['wheel', '🎡', L('Wheel of fortune', 'גלגל המזל'), n ? L(`I have free time — pick an urgent task (${n})`, `יש לי זמן פנוי — שיבחר משימה דחופה (${n})`) : L('I have free time — pick a task', 'יש לי זמן פנוי — שיבחר משימה')]); }
+  items.push(['quote', '💬', L('Motivation', 'משפט מוטיבציה'), L('A real quote to start, sit down or finish', 'משפט חכמה אמיתי — להתחיל, לשבת או לסיים')]);
   if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
   if (!isGuest()) items.push(['welcome', '🌅', L('What do we focus on today?', 'במה מתמקדים היום?'), L('Work & home daily videos', 'הסרטונים היומיים — עבודה ובית')]);
   { const n = data.items.filter(it => areaOk(it.area) && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;   // the video follows the area(s) on screen
@@ -3674,6 +3948,8 @@ $('#playMenu').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-play]'); if (!b) return; const k = b.dataset.play; togglePlay(false);
   if (k === 'new') { isGuest() ? openSuggest() : openEdit(null); return; }
   if (k === 'review') { openReview(); return; }
+  if (k === 'wheel') { openWheel(); return; }
+  if (k === 'quote') { openQuote(); return; }
   if (k === 'welcome') { openWelcome(false); return; }
   if (k === 'newcoll') { openColl({ cat: ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat, status: 'want' }); return; }
   if (k.startsWith('story:')) { openStory(k.slice(6) || null); return; }
@@ -4291,7 +4567,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 74;
+const APP_VERSION = 75;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

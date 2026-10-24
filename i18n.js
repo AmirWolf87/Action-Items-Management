@@ -23,7 +23,7 @@ const HE = {
   'Priority': 'עדיפות', 'Due date': 'תאריך יעד', 'Start time': 'שעת התחלה', 'Start time (24h)': 'שעת התחלה (24 שעות)', 'HH:MM': 'HH:MM', 'Topic': 'נושא', 'Focal / who': 'אחראי',
   'Recurring': 'חוזרת', 'Est. hours (duration)': 'שעות מוערכות (משך)', 'Done on': 'בוצע בתאריך', 'Actual hours': 'שעות בפועל',
   'Comments / next step': 'הערות / צעד הבא', '🔒 Private — never shown to guests': '🔒 פרטי — לא יוצג לאורחים',
-  'Delete': 'מחיקה', 'Cancel': 'ביטול', 'Save': 'שמירה', 'Clear all': 'נקה הכל', 'Planning & reports': 'תכנון ודוחות', 'Areas & sharing': 'תחומים ושיתוף', 'Calendars & Siri': 'יומנים וסירי', 'Display': 'תצוגה', 'Settings & connections': 'הגדרות וחיבורים', 'Account & help': 'חשבון ועזרה', '↺ Automatic': '↺ אוטומטי',
+  'Delete': 'מחיקה', 'Cancel': 'ביטול', 'Save': 'שמירה', 'Clear all': 'נקה הכל', 'Wheel of fortune': 'גלגל המזל', '🎡 Wheel of fortune': '🎡 גלגל המזל', 'Motivation': 'משפט מוטיבציה', '💬 Motivation': '💬 משפט מוטיבציה', '📋 Copy': '📋 העתק', '🎡 Pick a task': '🎡 בחר לי משימה', 'Another one ›': 'עוד אחד ›', 'Planning & reports': 'תכנון ודוחות', 'Areas & sharing': 'תחומים ושיתוף', 'Calendars & Siri': 'יומנים וסירי', 'Display': 'תצוגה', 'Settings & connections': 'הגדרות וחיבורים', 'Account & help': 'חשבון ועזרה', '↺ Automatic': '↺ אוטומטי',
   // hours / confirm
   'Nice work! ✓': 'כל הכבוד! ✓', 'How many hours did it actually take?': 'כמה שעות זה לקח בפועל?', 'Skip': 'דלג',
   'Update the plan?': 'לעדכן את התכנון?', 'Check your estimate': 'בדוק את ההערכה',

@@ -291,6 +291,7 @@ function doPost(e) {
     if (who.role === 'guest') {
       const g = who.guest;
       if (req.action === 'list') return json_(Object.assign({ ok: true }, guestView_(g)));
+      if (req.action === 'quotes') return json_({ ok: true, quotes: quotesOnline_() });
       if (req.action === 'updateAccount') return withLock_(() => json_(Object.assign({ ok: true }, updateGuestAccount_(g.id, req))));
       if (req.action === 'suggest') {
         if (!g.canSuggest) return json_({ ok: false, error: 'Suggestions are not enabled for you' });
@@ -309,6 +310,7 @@ function doPost(e) {
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
       case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text, fields: req.fields })));
+      case 'quotes': return json_({ ok: true, quotes: quotesOnline_() });
       case 'collDesign': { const r = collDesign_(req.name, req.kind); if (!r.ok) r.error = r.message; return json_(r); }
       case 'placeCheck': { const r = placeCheck_(req); if (!r.ok) r.error = r.message; return json_(r); }
       case 'getAi': { const k = aiKey_(); return json_({ ok: true, hasKey: !!k, hint: k ? k.slice(0, 4) + '…' + k.slice(-4) : '' }); }
@@ -1038,6 +1040,22 @@ function placeCheck_(req) {
     try { const res = Maps.newGeocoder().setLanguage('he').setRegion('il').geocode(out.place || out.title);
       if (res && res.status === 'OK' && res.results.length) { const l = res.results[0].geometry.location; out.lat = l.lat; out.lng = l.lng; out.geoName = res.results[0].formatted_address || ''; } } catch (e) { /* no pin */ }
   }
+  return out;
+}
+/* 💬 more real quotes for the motivation button — ZenQuotes (free, attributed), only ones about work / time / starting / keeping on.
+   Kept for 6 hours so the free service is asked rarely. */
+function quotesOnline_() {
+  const C = CacheService.getScriptCache(), hit = C.get('ZQ');
+  if (hit) { try { return JSON.parse(hit); } catch (e) { /* refetch */ } }
+  let list = [];
+  try {
+    const r = UrlFetchApp.fetch('https://zenquotes.io/api/quotes', { muteHttpExceptions: true });
+    if (r.getResponseCode() === 200) list = JSON.parse(r.getContentText()) || [];
+  } catch (e) { list = []; }
+  const RE = /\b(work|start|begin|finish|done|action|act|do|doing|effort|time|today|tomorrow|habit|focus|persist|persever|discipline|goal|step|try|progress|practice|patience|keep going|success|achieve|start)\w*/i;
+  const out = (Array.isArray(list) ? list : []).filter(x => x && x.q && x.a && !/^too many requests/i.test(x.q) && x.q.length < 220 && RE.test(x.q))
+    .map(x => ({ q: String(x.q).trim(), a: String(x.a).trim() })).slice(0, 40);
+  if (out.length) C.put('ZQ', JSON.stringify(out), 6 * 3600);
   return out;
 }
 /* the template's values of one entry (JSON in the "Extra" column) */
