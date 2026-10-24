@@ -4071,12 +4071,7 @@ $('#playMenu').addEventListener('click', async (e) => {
   if (k === 'newcoll') { openColl({ cat: ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat, status: 'want' }); return; }
   if (k.startsWith('story:')) { openStory(k.slice(6) || null); return; }
   if (k === 'report') { openReport(); return; }
-  if (k === 'sync') {
-    if (settings.demo || !store.get('aip.ciReady', false)) { openImport(); return; }   // first time → the screen with the setup guide
-    try { sessionStorage.setItem('aip.ciBack', String(Date.now())); } catch (err) { /* ignore */ }
-    location.href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(ciName());
-    return;
-  }
+  if (k === 'sync') { runCalSync(); return; }
   if (k === 'clip') {
     let txt = '';
     try { txt = await navigator.clipboard.readText(); } catch (err) { txt = ''; }
@@ -4086,6 +4081,34 @@ $('#playMenu').addEventListener('click', async (e) => {
     collQuickAdd(m[0]);
   }
 });
+function runCalSync() {
+  if (settings.demo || !store.get('aip.ciReady', false)) { openImport(); return; }   // first time → the screen with the setup guide
+  try { sessionStorage.setItem('aip.ciBack', String(Date.now())); } catch (err) { /* ignore */ }
+  location.href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(ciName());
+}
+/* once a day: "You last synced with the calendar X hours ago. Sync now?" — waits until the welcome screen / video / dialogs are closed */
+let syncNudgeTimer = 0;
+function syncNudge() {
+  if (settings.demo || isGuest() || !store.get('aip.ciReady', false) || !store.get('aip.syncNudgeOn', true)) return;
+  if (store.get('aip.syncNudgeDay', '') === todayIso()) return;
+  clearTimeout(syncNudgeTimer);
+  const busy = () => document.hidden || story || (fs && !fs.endAt) || document.querySelector('dialog[open]') || ($('#welcome') && !$('#welcome').hidden) || ($('#playMenu') && !$('#playMenu').hidden);
+  if (busy()) { syncNudgeTimer = setTimeout(syncNudge, 3000); return; }
+  syncNudgeTimer = setTimeout(async () => {
+    if (busy() || store.get('aip.syncNudgeDay', '') === todayIso()) { syncNudge(); return; }
+    let last = '';
+    try { last = (await api('POST', { action: 'calInbox' })).lastImport || ''; } catch (e) { return; }   // offline — try again on the next open
+    const hrs = last ? (Date.now() - new Date(last)) / 3600000 : Infinity;
+    if (hrs < 1) return;                                                       // just synced — ask later today
+    if (busy()) { syncNudge(); return; }
+    store.set('aip.syncNudgeDay', todayIso());
+    const h = Math.floor(hrs), d = Math.floor(hrs / 24);
+    const when = !last ? null : h < 48 ? L(`${h} hour${h === 1 ? '' : 's'}`, h === 1 ? 'שעה' : h === 2 ? 'שעתיים' : `${h} שעות`) : L(`${d} days`, `${d} ימים`);
+    const msg = when ? L(`You last synced with the calendar ${when} ago. Sync now?`, `סנכרנת עם היומן בפעם האחרונה לפני ${when}. לסנכרן עכשיו?`) : L('You haven’t synced with the calendar yet. Sync now?', 'עוד לא סנכרנת עם היומן. לסנכרן עכשיו?');
+    if (await confirmBox('🔄 ' + L('Calendar sync', 'סנכרון מהיומן'), msg, L('Sync now', 'לסנכרן עכשיו'), L('Not now', 'לא עכשיו'))) runCalSync();
+  }, 1200);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncNudge(); });   // the PWA left open overnight → asks on the next day too
 // back from the calendar shortcut → show the new suggestions
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return; let t = 0; try { t = Number(sessionStorage.getItem('aip.ciBack') || 0); } catch (e) { t = 0; }
@@ -4215,7 +4238,7 @@ function applyList(j) {
   ui.areas = (ui.areas || []).filter(a => data.areas.includes(a));
   if (isGuest() && (ui.tab === 'waiting')) ui.tab = 'focus';
   if (!settings.demo && remembered()) store.set('aip.cache', data);
-  setTimeout(() => { if (typeof fsRestore === 'function') fsRestore(); if (typeof startOfDay === 'function') startOfDay(); }, 0);
+  setTimeout(() => { if (typeof fsRestore === 'function') fsRestore(); if (typeof startOfDay === 'function') startOfDay(); syncNudge(); }, 0);
 }
 function suggHtml() {
   const col = { Pending: '#B45309', Approved: '#15803D', Rejected: '#B91C1C' };
