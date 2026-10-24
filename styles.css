@@ -1359,3 +1359,127 @@ body .bottom-bar .fab-wheel{width:52px;height:52px;border-radius:16px;flex:0 0 a
 .fab-wheel:hover svg,.fab-wheel:active svg{transform:rotate(200deg)}
 body.story-open .fab-wheel{visibility:hidden}
 .wh-opts .chip i{font-style:normal;opacity:.65;font-size:12px;margin-inline-start:2px}
+
+/* =====================================================================
+   v77 · DESIGN SYSTEM — "a calm personal workspace with playful rituals"
+   Phase 1 of the design review: tokens, surfaces, type scale, one primary
+   action, neutral secondary controls, quieter banners, 44px targets.
+   Kept as one layer at the end so it overrides the per-feature styles.
+   ===================================================================== */
+:root{
+  --surface-raised:#FFFFFF; --banner-ink:#FFFFFF; --banner-muted:#D5DDF0; --primary-ink:#FFFFFF; --on-primary:var(--primary-ink);
+  --red:#B42318; --red-bg:#FFF1F0; --amber:#8A4B08; --amber-bg:#FFF8E7; --green:#166534; --green-bg:#EEF8F0;
+  --play-accent:#7040B5; --play-soft:#F1EBFA; --play-gradient:linear-gradient(135deg,#6358C9,#A23B97);
+  --qa-bg:#EAF0FF; --qa-line:#C9D6F5; --qa-ink:#355FCC;
+  --r-control:10px; --r-card:14px; --r-sheet:24px; --radius:14px;
+  --t-meta:14px; --t-title:17px; --t-section:18px; --t-sheet:21px;
+  --elev-pop:0 12px 32px rgba(16,24,40,.16),0 2px 6px rgba(16,24,40,.08);
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme=light]){ --surface-raised:#202A3C; --line:#334058; --primary:#355FCC;
+    --red:#FDA29B; --red-bg:#3A1D24; --amber:#F6CC75; --amber-bg:#352A18; --green:#86D5A2; --green-bg:#172E25;
+    --play-accent:#C7AEFF; --play-soft:#2C2440; --qa-bg:#243354; --qa-line:#334058; --qa-ink:#C4D4FF;
+    --elev-pop:0 16px 40px rgba(0,0,0,.45); }
+}
+:root[data-theme=dark]{ --surface-raised:#202A3C; --line:#334058; --primary:#355FCC;
+  --red:#FDA29B; --red-bg:#3A1D24; --amber:#F6CC75; --amber-bg:#352A18; --green:#86D5A2; --green-bg:#172E25;
+  --play-accent:#C7AEFF; --play-soft:#2C2440; --qa-bg:#243354; --qa-line:#334058; --qa-ink:#C4D4FF;
+  --elev-pop:0 16px 40px rgba(0,0,0,.45); }
+
+/* type */
+html,body{font-size:16px;line-height:1.45}
+input,select,textarea{font-size:16px}                          /* no iOS zoom-in on focus, even at the small setting */
+.sub{color:var(--banner-muted)}
+.fm-clock,.kpi-line,.wh-opts,.c-chip i,.tp-chip{font-variant-numeric:tabular-nums}
+
+/* app shell */
+.top{box-shadow:none}
+.tabs button{min-height:44px;font-size:15px}
+.tabs button.on{background:var(--focus-soft);color:var(--ink);box-shadow:none}
+.chip{min-height:36px;padding:6px 13px;font-size:14px;display:inline-flex;align-items:center;gap:4px;transition:background .12s var(--ease)}
+.chip.on{background:var(--focus-soft);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 55%,var(--line));font-weight:700}
+.seg button{min-height:36px;font-size:14px}
+
+/* bottom bar: one blue primary action, two matching neutral shortcuts (icons keep their identity) */
+body .bottom-bar .add-btn{background:var(--primary);color:var(--primary-ink);box-shadow:0 4px 14px rgba(53,95,204,.28);min-height:52px}
+body .bottom-bar .fab-play,body .bottom-bar .fab-wheel{background:var(--surface-raised);color:var(--primary);border:1px solid var(--line);box-shadow:0 2px 10px rgba(16,24,40,.10)}
+body .bottom-bar .fab-play span{color:var(--primary)}
+body .bottom-bar .fab-play.open{background:var(--focus-soft)}
+body .bottom-bar .fab-wheel{padding:9px}
+body .bottom-bar .fab:active{transform:scale(.96);transition:transform .12s var(--ease)}
+
+/* Focus: My day is the anchor; recap and triage are quiet */
+.story-row{border-color:transparent;background:transparent;padding:6px 4px;font-size:15px}
+.story-row:active{background:var(--focus-pressed)}
+.sr-ic{background:var(--play-soft);color:var(--play-accent)}
+.empty-day{border:0;background:transparent;padding:4px 4px 2px;margin:8px 0 0;font-size:14px}
+.od-box{background:var(--red-bg);border:0;border-inline-start:3px solid var(--red);border-radius:var(--r-card)}
+.grp-h{min-height:44px;font-size:16px}
+
+/* task card: title › urgency › supporting meta */
+.card{border:1px solid var(--line);border-inline-start-width:4px;box-shadow:none;padding:14px;border-radius:var(--r-card);transition:background .12s var(--ease)}
+.card:not(.overdue):not(.today){border-inline-start-color:var(--line)}
+.card.overdue{border-inline-start-color:var(--red)} .card.today{border-inline-start-color:#F59E0B}
+.card:active{background:var(--focus-pressed)}
+.card .title{font-size:var(--t-title);font-weight:600;line-height:1.35}
+.card .meta{font-size:var(--t-meta);gap:6px 10px}
+.c-hi{color:var(--red)} .c-hi::before{background:var(--red)}
+.card-menu,.play-menu,.more-menu{background:var(--surface-raised);border:1px solid var(--line);box-shadow:var(--elev-pop)}
+.play-menu button{min-height:52px}
+.play-menu b{font-size:15px}.play-menu small{font-size:13px}
+
+/* sheets: one structure */
+dialog.sheet{border-radius:var(--r-sheet);box-shadow:var(--elev-pop);padding-bottom:env(safe-area-inset-bottom)}
+:root[data-theme=dark] dialog.sheet{border:1px solid var(--line)}
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]) dialog.sheet{border:1px solid var(--line)}}
+.sheet-head{min-height:44px;margin-bottom:12px}
+.sheet-head h2{font-size:var(--t-sheet);font-weight:650;letter-spacing:-.1px}
+.sheet-head .icon-btn.dark{width:44px;height:44px;border-radius:12px}
+.sheet-actions{margin-top:16px;gap:10px}
+.btn{min-height:44px;font-size:15px;border-radius:var(--r-control);transition:background .12s var(--ease),transform .12s var(--ease)}
+.btn:active{transform:scale(.98)}
+.btn.primary{min-height:48px;padding:12px 18px}
+.btn.ghost{background:var(--card);border:1px solid var(--line);color:var(--ink)}
+.btn.ghost:active{background:var(--focus-pressed)}
+dialog label{font-size:14px}
+
+/* menu */
+.menu .menu-item,.menu-grp summary{min-height:48px}
+.menu-grp{background:transparent;border:1px solid var(--line)}
+.menu .mg-body .menu-item{border:1px solid transparent}
+.menu .menu-top .menu-item{background:var(--card);border:1px solid var(--line)}
+
+/* AI and web actions: neutral secondary buttons with an accent icon, not their own gradients */
+.c-fill .btn{background:var(--card);color:var(--play-accent);border:1px solid color-mix(in srgb,var(--play-accent) 35%,var(--line))}
+.tp-ai{color:var(--play-accent);border-color:color-mix(in srgb,var(--play-accent) 40%,var(--line))}
+
+/* Collection: neutral tiles with a small category accent */
+.cs-tile{background:var(--card);border:1px solid var(--line);border-radius:18px;min-height:132px;box-shadow:none}
+.cs-tile .cs-em{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:26px;margin-bottom:6px;background:color-mix(in srgb,var(--c-ink) 12%,var(--card))}
+.cs-tile b{color:var(--ink);font-size:16.5px}
+.cs-tile .cs-n{color:var(--c-ink);font-weight:700}
+.cs-add{border-style:dashed;background:transparent}
+.cs-add .cs-em{background:var(--focus-pressed)}
+:root[data-font=l] .cs-grid{grid-template-columns:1fr}
+.c-card{border:1px solid var(--line);box-shadow:none;border-radius:16px}
+.c-card:hover{transform:none}
+.c-band{background:transparent;padding:10px 12px 0;font-size:12.5px}
+.c-card h4{font-size:17px}
+@media (max-width:599px){.c-board{columns:1}}
+.c-head .c-back{min-width:44px;height:44px}
+.c-fbtn{min-height:44px}
+.tp-chip{font-size:12.5px;padding:3px 9px}
+.tp-chip.ch{color:var(--ink);background:color-mix(in srgb,var(--ink) 7%,var(--card))}
+
+/* rituals keep their colour inside, share the system outside */
+.q-card{background:var(--play-soft)}
+.q-text::before{font-size:34px;color:var(--play-accent)}
+.q-who{color:var(--play-accent)}
+.wh-pick{border-color:var(--line);background:var(--card);box-shadow:var(--elev-pop)}
+
+/* toast: above the bottom bar, wraps, real Undo target */
+body .toast{max-width:min(520px,calc(100vw - 32px));white-space:normal;line-height:1.35;border-radius:12px}
+.toast-act{min-height:44px;padding:6px 10px}
+
+@media (prefers-reduced-motion: reduce){.btn,.card,.chip,body .bottom-bar .fab{transition:none}}
