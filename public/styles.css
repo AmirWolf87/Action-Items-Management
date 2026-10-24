@@ -1543,3 +1543,45 @@ body .bottom-bar .fab-wheel{padding:6px;overflow:visible}
 .c-qx{border:0;background:var(--focus-pressed);color:var(--muted);width:28px;height:28px;border-radius:50%;cursor:pointer;flex:0 0 auto}
 .empty small{color:var(--muted);font-size:13px}
 .c-search{flex-direction:row!important;font-size:16px;font-weight:400}.c-search .ic{flex:0 0 auto;width:20px;height:20px}
+
+/* =====================================================================
+   ORBIT — brand: launch screen + sign-in (follows the app's light / dark)
+   ===================================================================== */
+:root{--o-bg:#F3F5FD;--o-ink:#0B1437;--o-tag:#45507A;--o-arc1:rgba(99,102,241,.20);--o-arc2:rgba(59,130,246,.16);--o-glow:rgba(99,102,241,.22);
+  --o-font:"Avenir Next","Avenir","Montserrat","Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]){--o-bg:#040817;--o-ink:#FFFFFF;--o-tag:#C9D3F5;--o-arc1:rgba(37,99,235,.6);--o-arc2:rgba(67,56,202,.45);--o-glow:rgba(59,130,246,.55)}}
+:root[data-theme=dark]{--o-bg:#040817;--o-ink:#FFFFFF;--o-tag:#C9D3F5;--o-arc1:rgba(37,99,235,.6);--o-arc2:rgba(67,56,202,.45);--o-glow:rgba(59,130,246,.55)}
+.splash{position:fixed;inset:0;z-index:200;background:var(--o-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;transition:opacity .55s ease,visibility .55s ease;direction:ltr;cursor:pointer}
+.splash.out{opacity:0;visibility:hidden;pointer-events:none}
+.splash.gone{display:none}
+.o-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.o-bg i{position:absolute;left:50%;top:50%;width:150vmax;height:150vmax;border-radius:50%;border:80px solid;border-color:var(--o-arc1) transparent var(--o-arc2) transparent;filter:blur(42px);transform:translate(-50%,-50%) rotate(20deg);animation:oSpin 46s linear infinite}
+.o-bg i:nth-child(2){width:105vmax;height:105vmax;border-width:56px;border-color:transparent var(--o-arc2) transparent var(--o-arc1);animation-duration:32s;animation-direction:reverse}
+.o-bg i:nth-child(3){width:64vmax;height:64vmax;border-width:30px;border-color:var(--o-arc2) transparent transparent transparent;filter:blur(30px);animation-duration:24s}
+@keyframes oSpin{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+.o-brand{position:relative;text-align:center;padding:0 24px;margin-top:-6vh}
+.o-mark{display:block;width:min(46vw,220px);height:auto;aspect-ratio:1;margin:0 auto;overflow:visible;filter:drop-shadow(0 0 28px var(--o-glow))}
+.o-moon{transform-origin:100px 100px;transform-box:view-box}
+.o-name{font-family:var(--o-font);font-weight:400;font-size:clamp(46px,14vw,68px);letter-spacing:.36em;margin-inline-start:.36em;color:var(--o-ink);margin-top:clamp(26px,5vh,44px);line-height:1}
+.o-tag{font-family:var(--o-font);font-weight:400;font-size:clamp(17px,4.9vw,22px);letter-spacing:.045em;line-height:1.45;color:var(--o-tag);margin-top:clamp(18px,3.4vh,30px)}
+.o-by{position:absolute;bottom:calc(52px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;font-family:var(--o-font);font-size:14.5px;letter-spacing:.22em;color:var(--o-tag)}
+/* launch animation: the ring settles, the moon goes once around its orbit, the name and line arrive */
+.splash .o-mark{animation:oIn 1s cubic-bezier(.2,.8,.2,1) both}
+.splash .o-moon{animation:oOrbit 1.5s cubic-bezier(.35,.05,.2,1) .15s both}
+.splash .o-name{animation:oName 1.1s cubic-bezier(.2,.8,.2,1) .35s both}
+.splash .o-tag{animation:oUp .8s ease .75s both}
+.splash .o-by{animation:oUp .8s ease 1s both}
+@keyframes oIn{from{opacity:0;transform:scale(.82) rotate(-25deg)}to{opacity:1;transform:none}}
+@keyframes oOrbit{from{transform:rotate(-360deg)}to{transform:rotate(0)}}
+@keyframes oName{from{opacity:0;letter-spacing:.7em}to{opacity:1;letter-spacing:.36em}}
+@keyframes oUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.splash *,.o-bg i{animation:none!important}}
+/* sign-in: same world, a glass card on top */
+.lock{background:var(--o-bg);overflow:hidden}
+.lock-card{position:relative;z-index:1;background:color-mix(in srgb,var(--card) 82%,transparent);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid color-mix(in srgb,var(--line) 80%,transparent);box-shadow:0 24px 60px rgba(4,8,23,.28)}
+.o-lockbrand{direction:ltr;text-align:center;margin:4px 0 6px}
+.o-mark-sm{width:92px;filter:drop-shadow(0 0 18px var(--o-glow))}
+.o-lockbrand .o-name{font-size:34px;margin-top:14px;letter-spacing:.34em;margin-inline-start:.34em}
+.o-lockbrand .o-tag{font-size:14px;margin-top:8px}
+.lock .lock-sub{margin-top:14px}
+.o-by-lock{position:static;margin:18px 0 0;font-size:12.5px}

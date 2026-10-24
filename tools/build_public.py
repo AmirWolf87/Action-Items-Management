@@ -44,6 +44,7 @@ wr('styles.css', rd('styles.css'))
 idx = own_storage(depersonalize(rd('index.html')))
 idx = idx.replace('<script src="i18n.js', '<script>window.AI_EDITION = \'public\'; window.AI_TEMPLATE = ' + json.dumps(TEMPLATE_URL) + ';</script>\n<script src="i18n.js', 1)
 idx = idx.replace('<link rel="manifest" href="manifest.webmanifest">', '<link rel="manifest" href="manifest.webmanifest">\n<meta name="robots" content="noindex">', 1)
+idx = idx.replace('<div class="o-by">By Amir Wolf</div>', '').replace('<p class="o-by o-by-lock no-i18n">By Amir Wolf</p>', '')   # the owner's signature stays in the personal copy
 wr('index.html', idx)
 
 man = json.loads(rd('manifest.webmanifest')); man['id'] = 'action-items-public'

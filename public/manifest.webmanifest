@@ -1,10 +1,10 @@
 {
-  "name": "Action Items",
-  "short_name": "Action Items",
+  "name": "Orbit",
+  "short_name": "Orbit",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#F4F6FA",
+  "background_color": "#040817",
   "theme_color": "#26355D",
   "icons": [
     {

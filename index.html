@@ -3,20 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Action Items</title>
+<title>Orbit</title>
 <meta name="theme-color" content="#26355D">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Action Items">
+<meta name="apple-mobile-web-app-title" content="Orbit">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('ai.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&display=swap">
-<link rel="stylesheet" href="styles.css?v=82">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Montserrat:wght@300;400&display=swap">
+<link rel="stylesheet" href="styles.css?v=83">
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<linearGradient id="oA" x1="0.15" y1="0.05" x2="0.6" y2="1"><stop offset="0" stop-color="#5EEAF5"/><stop offset=".35" stop-color="#2F8BFF"/><stop offset=".75" stop-color="#2450F0"/><stop offset="1" stop-color="#3B5BFF"/></linearGradient>
+<linearGradient id="oB" x1="0.9" y1="0.1" x2="0.3" y2="1"><stop offset="0" stop-color="#C4B5FD"/><stop offset=".35" stop-color="#9F7AFA"/><stop offset=".7" stop-color="#5B3BF0"/><stop offset="1" stop-color="#3730C8"/></linearGradient>
+<radialGradient id="oS" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#BFE3FF"/><stop offset="1" stop-color="#3B6BFF"/></radialGradient>
+<linearGradient id="oH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity=".15"/></linearGradient>
+<filter id="oSh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="#1E1B6B" flood-opacity=".45"/></filter>
+<symbol id="orbitRing" viewBox="0 0 200 200"><path d="M146.35 31.29A84 84 0 1 1 17.69 91.29A74 74 0 1 0 146.35 31.29Z" fill="url(#oB)"/><path d="M157.70 163.77A86 86 0 1 1 132.41 20.34A76 76 0 1 0 157.70 163.77Z" fill="url(#oA)" filter="url(#oSh)"/><path d="M141.43 167.26A79 79 0 1 1 115.93 22.62A74 74 0 1 0 141.43 167.26Z" fill="url(#oH)" opacity=".3"/></symbol>
+</defs></svg>
+<div id="splash" class="splash" aria-hidden="true">
+  <div class="o-bg"><i></i><i></i><i></i></div>
+  <div class="o-brand">
+    <svg class="o-mark" viewBox="0 0 200 200" aria-hidden="true"><use href="#orbitRing"/><g class="o-moon"><circle cx="143.63" cy="21.28" r="8.5" fill="url(#oS)"/></g></svg>
+    <div class="o-name">ORBIT</div>
+    <div class="o-tag">Where your thoughts<br>find their place.</div>
+  </div>
+  <div class="o-by">By Amir Wolf</div>
+</div>
 <header class="top">
   <div class="top-row">
     <div class="top-title">
@@ -242,10 +259,10 @@
 
 <!-- Lock screen -->
 <div id="lock" class="lock" hidden>
+  <div class="o-bg"><i></i><i></i><i></i></div>
   <form id="frmLock" class="lock-card" autocomplete="on">
     <button type="button" class="lang-btn lock-lang" data-lang-toggle>עב</button>
-    <img src="icons/icon.svg" alt="" class="lock-logo">
-    <h1>Action Items</h1>
+    <div class="o-lockbrand no-i18n"><svg class="o-mark o-mark-sm" viewBox="0 0 200 200" aria-hidden="true"><use href="#orbitRing"/><g class="o-moon"><circle cx="143.63" cy="21.28" r="8.5" fill="url(#oS)"/></g></svg><div class="o-name">ORBIT</div><div class="o-tag">Where your thoughts find their place.</div></div>
     <p class="lock-sub">Sign in to continue</p>
     <label class="full" id="lockUrlWrap" hidden>Web-app URL (first time on this device)
       <input name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" inputmode="url">
@@ -262,6 +279,7 @@
       <button type="button" class="linkish" id="lockDemo">Try demo</button>
     </div>
     <button type="button" class="btn ghost block lock-setup" id="lockSetup">🧭 First time? Set up your own copy</button>
+    <p class="o-by o-by-lock no-i18n">By Amir Wolf</p>
   </form>
 </div>
 
@@ -632,7 +650,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=82"></script>
-<script src="app.js?v=82"></script>
+<script src="i18n.js?v=83"></script>
+<script src="app.js?v=83"></script>
 </body>
 </html>
