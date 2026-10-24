@@ -14,7 +14,7 @@
 <script>try{var t=JSON.parse(localStorage.getItem('ai.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('ai.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Montserrat:wght@300;400&display=swap">
-<link rel="stylesheet" href="styles.css?v=84">
+<link rel="stylesheet" href="styles.css?v=85">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
@@ -372,6 +372,7 @@
   <details class="menu-grp" name="menugrp" data-grp="plan">
     <summary><i class="mi" data-ic="plan"></i> <span>Planning &amp; reports</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
+      <button class="menu-item owner-only" id="btnFreeFocus"><i class="mi" data-ic="timer"></i> <span>Focus mode</span></button>
       <button class="menu-item owner-only" id="btnWheel"><i class="mi" data-ic="wheel"></i> <span>Spin &amp; Do</span></button>
       <button class="menu-item" id="btnQuote"><i class="mi" data-ic="quote"></i> <span>Motivation</span></button>
       <button class="menu-item owner-only" id="btnReview"><i class="mi" data-ic="calcheck"></i> <span>Weekly review</span></button>
@@ -650,7 +651,7 @@
   <div id="maintBody"><p class="hint">Loading…</p></div>
 </dialog>
 
-<script src="i18n.js?v=84"></script>
-<script src="app.js?v=84"></script>
+<script src="i18n.js?v=85"></script>
+<script src="app.js?v=85"></script>
 </body>
 </html>

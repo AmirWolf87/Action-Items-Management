@@ -1585,3 +1585,19 @@ body .bottom-bar .fab-wheel{padding:6px;overflow:visible}
 .o-lockbrand .o-tag{font-size:14px;margin-top:8px}
 .lock .lock-sub{margin-top:14px}
 .o-by-lock{position:static;margin:18px 0 0;font-size:12.5px}
+/* ⏱ free focus */
+.ff-ic{background:var(--focus-soft);color:var(--accent)}
+.ff-ic.on{background:var(--green-bg);color:var(--green)}
+.ff-ic .ic{width:16px;height:16px}
+.fs-free input{font-size:17px}
+.fm-free .fm-q{margin:12px 0 6px;font-weight:700}
+.fm-seg{display:flex;width:100%}.fm-seg button{flex:1}
+.fm-in{display:block;width:100%;margin-top:8px}
+.fm-note{margin:8px 0 0;opacity:.75;font-size:14px}
+.fm-free .fm-chk{display:flex!important;flex-direction:row!important;align-items:center;justify-content:flex-start;gap:10px;margin:10px 0 0;font-size:15px;color:inherit;text-align:start}
+.fm-free .fm-chk input{width:20px;height:20px;margin:0;flex:0 0 auto}
+.fm-in{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:11px 12px;font-size:16px;-webkit-appearance:none;appearance:none}
+.fm-in::placeholder{color:rgba(255,255,255,.5)}
+select.fm-in option{color:#111}
+.fm-seg{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18)}
+.fm-seg button{color:rgba(255,255,255,.75)}

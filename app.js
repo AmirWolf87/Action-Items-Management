@@ -62,6 +62,7 @@ const IC = {
   filter: '<path d="M4 5h16l-6 8v5l-4 2v-7z"/>',
   back: '<path d="m15 6-6 6 6 6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5M12 2.5V5"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'
 };
 const ico = (n, cls) => IC[n] ? `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : '';
@@ -517,6 +518,7 @@ function renderView() {
     if (ui.tab === 'all' && nd) html += `<button class="nb-link" data-goto="notebook">📒 ${L(`${nd} items without a date are in the Notebook`, `${nd} משימות ללא תאריך נמצאות בפנקס`)} <span>›</span></button>`;
   }
   if (isGuest() && ui.tab === 'focus' && mySugg.length) html = suggHtml() + html;
+  if (ui.tab === 'focus' && !isGuest()) html = `<button class="story-row ff-row" data-freefocus>${fs && !fs.endAt ? `<span class="sr-ic ff-ic on">${ico('play')}</span><span class="sr-t">${L('Focus in progress', 'פוקוס פעיל')} <small>· ${esc(fs.item)}</small></span>` : `<span class="sr-ic ff-ic">${ico('timer')}</span><span class="sr-t">${L('Focus mode', 'מצב פוקוס')} <small>· ${L('no task needed', 'בלי לבחור משימה')}</small></span>`}</button>` + html;
   if (ui.tab === 'focus') html = `<button class="story-row" data-story><span class="sr-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z" fill="currentColor" stroke="none"/></svg></span><span class="sr-t">${L('Today’s recap', 'תקציר היום')} <small>· ${L('30 seconds', '30 שניות')}</small></span><span class="sr-scope">${esc(areaSelLabel())}</span></button>` + html;
   if (!html) html = ui.tab === 'focus'
     ? `<div class="empty"><b>🎉</b>Nothing overdue, due today or this week.<br>Check "All open" for later items.</div>`
@@ -1845,6 +1847,7 @@ document.addEventListener('click', async (e) => {
 });
 $('#btnReview').addEventListener('click', openReview);
 $('#btnWheel').addEventListener('click', openWheel);
+$('#btnFreeFocus').addEventListener('click', openFreeFocus);
 $('#fabWheel').addEventListener('click', () => { togglePlay(false); openWheel(); });
 $('#btnQuote').addEventListener('click', () => openQuote());
 $('#fmQuote').addEventListener('click', () => openQuote(fs && fs.plan && (Date.now() - fs.start) > fs.plan * 30e3 ? 'finish' : 'start'));
@@ -2104,6 +2107,13 @@ const fsSave = () => store.set('ai.focus', fs);
 const mmss = (ms, sec = true) => { const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s2 = t % 60;
   return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + (sec ? ':' + String(s2).padStart(2, '0') : (h ? '' : L(' min', ' דק׳'))); };
 const fmtMin = (m) => m >= 60 ? L(`${Math.floor(m / 60)} h ${m % 60} min`, `${Math.floor(m / 60)} ש׳ ${m % 60} דק׳`) : L(`${m} min`, `${m} דקות`);
+/* ⏱ focus without a task — can be linked to an existing or a new task at the end */
+const FREE_TITLE = () => L('Free focus', 'פוקוס חופשי');
+function openFreeFocus() {
+  if (isGuest()) return;
+  if (fs && !fs.endAt) { showFocus(); return; }
+  openFocusSetup({ row: 0, item: '', free: true });
+}
 function openFocusSetup(it) {
   if (isGuest() || !it) return;
   if (fs && !fs.endAt) { if (fs.row === it.row) { showFocus(); return; } toast(L('Another focus session is running — finish it first', 'יש מקטע פוקוס פעיל — סיים אותו קודם')); showFocus(); return; }
@@ -2113,7 +2123,8 @@ function openFocusSetup(it) {
 function fsSetupRender() {
   const f = fsSetup, other = focusRemote && focusRemote.device !== DEV && Date.now() - Number(focusRemote.beat || focusRemote.start || 0) < 12 * 3600e3 ? focusRemote : null;
   const opt = (v, l) => `<button type="button" class="fs-opt ${f.plan === v ? 'on' : ''}" data-fsplan="${v}" aria-pressed="${f.plan === v}">${l}</button>`;
-  $('#fsBody').innerHTML = `<div class="fs-task"><bdi>${esc(f.it.item)}</bdi></div>
+  $('#fsBody').innerHTML = (f.it.free ? `<label class="full fs-free">${L('What are you working on? (optional)', 'על מה עובדים? (לא חובה)')}<input id="fsFreeTitle" dir="auto" maxlength="120" autocomplete="off" value="${esc(f.it.item || '')}" placeholder="${esc(L('e.g. Thesis reading, emails…', 'למשל קריאה לתזה, מיילים…'))}"></label>
+      <p class="hint fs-free-hint">${L('Not tied to a task — at the end you can link the time to an existing task or a new one.', 'לא קשור למשימה — בסוף אפשר לקשר את הזמן למשימה קיימת או חדשה.')}</p>` : `<div class="fs-task"><bdi>${esc(f.it.item)}</bdi></div>`) + `
     <div class="fs-label">${L('How long?', 'לכמה זמן?')}</div>
     <div class="fs-opts">${opt(25, L('25 min', '25 דק׳'))}${opt(45, L('45 min', '45 דק׳'))}${opt(-1, L('Custom', 'אחר'))}${opt(0, L('Open-ended', 'בלי הגבלה'))}</div>
     ${f.plan === -1 || ![25, 45, 0].includes(f.plan) ? `<label class="fs-custom">${L('Minutes', 'דקות')}<input type="number" id="fsMin" min="5" max="240" step="5" inputmode="numeric" value="${f.plan > 0 ? f.plan : 60}"></label>` : ''}
@@ -2135,7 +2146,8 @@ async function fsStart() {
   const wantNote = $('#fsNote').checked; store.set('ai.focusNotify', wantNote);
   if (wantNote && 'Notification' in window && Notification.permission === 'default') { try { Notification.requestPermission().catch(() => {}); } catch (e) { /* older Safari */ } }
   store.set('ai.focusPlan', [25, 45, 0].includes(plan) ? plan : -1); store.set('ai.focusIntro', f.intro); store.set('ai.focusSound', f.sound);
-  fs = { id: DEV + '-' + Date.now(), row: f.it.row, item: f.it.item, device: DEV, start: fsNow(), plan, paused: 0, pauseAt: 0, endAt: 0, planAck: false, clock: store.get('ai.focusClock', 'full'), min: false };
+  if (f.it.free) { const t = (($('#fsFreeTitle') || {}).value || '').trim(); f.it.item = t || FREE_TITLE(); f.it.named = !!t; }
+  fs = { id: DEV + '-' + Date.now(), row: f.it.row, item: f.it.item, free: !!f.it.free, named: !!f.it.named, device: DEV, start: fsNow(), plan, paused: 0, pauseAt: 0, endAt: 0, planAck: false, clock: store.get('ai.focusClock', 'full'), min: false };
   fsSave(); $('#dlgFocusSetup').close();
   fsSync(true);
   showFocus(f.intro, f.sound);
@@ -2188,8 +2200,9 @@ function fsRender() {
   $('#focusMode').classList.toggle('paused', paused);
   const acts = paused
     ? `<button class="fm-btn main" data-fm="resume">▶ ${L('Back to focus', 'חזרה לפוקוס')}</button><button class="fm-btn" data-fm="end">${L('End session', 'סיום מקטע')}</button>`
+    : fs.free && !fs.row ? `<button class="fm-btn" data-fm="pause">⏸ ${L('Break', 'הפסקה')}</button><button class="fm-btn main" data-fm="end">■ ${L('End session', 'סיום מקטע')}</button>`
     : `<button class="fm-btn" data-fm="pause">⏸ ${L('Break', 'הפסקה')}</button><button class="fm-btn" data-fm="end">${L('End session', 'סיום מקטע')}</button><button class="fm-btn main" data-fm="done">✓ ${L('Task done', 'המשימה הושלמה')}</button>`;
-  if ($('#fmActions').dataset.k !== String(paused)) { $('#fmActions').innerHTML = acts; $('#fmActions').dataset.k = String(paused); }
+  const ak = String(paused) + (fs.free && !fs.row ? 'f' : ''); if ($('#fmActions').dataset.k !== ak) { $('#fmActions').innerHTML = acts; $('#fmActions').dataset.k = ak; }
   // planned time reached — never completes the task by itself
   if (planMs && el >= planMs && !fs.planAck && !paused && $('#fmLayer').hidden) {
     fsLayer(`<div class="fm-card"><b>⏰ ${L(`${fs.plan} minutes done`, `עברו ${fs.plan} דקות`)}</b><p>${L('Keep going, take a break, or wrap up?', 'להמשיך, לקחת הפסקה או לסיים?')}</p>
@@ -2226,6 +2239,7 @@ function fsFinish(taskDone) {
   const mins = Math.max(1, Math.round(fsElapsed(fs) / 60000));
   const it = data.items.find(x => x.row === fs.row), had = parseFloat(it && it.acthrs) || 0;
   const long = mins > 180;
+  if (fs.free && !fs.row) { fsFreeLayer(mins, long); fsRender(); return; }
   fsLayer(`<div class="fm-card"><b>${taskDone ? '🎉 ' : ''}${L(`You worked on it for ${fmtMin(mins)}`, `עבדת על המשימה ${fmtMin(mins)}`)}</b>
     ${long ? `<p class="fm-warn">${L('That’s long — forgot to stop? You can fix it:', 'זה ארוך — אולי שכחת לעצור? אפשר לתקן:')}</p>` : ''}
     <label class="fm-fix">${L('Minutes worked', 'דקות עבודה')} <input type="number" id="fmMins" min="0" max="1440" step="1" inputmode="numeric" value="${mins}"></label>
@@ -2234,6 +2248,31 @@ function fsFinish(taskDone) {
     <button class="fm-discard" data-fm="discard">🗑 ${taskDone ? L('Delete this focus time (still mark the task done)', 'מחיקת זמן הריכוז הזה (המשימה עדיין תסומן כהושלמה)') : L('Delete this focus time', 'מחיקת זמן הריכוז הזה')}</button></div>`);
   fsRender();
 }
+function fsFreeLayer(mins, long) {
+  const mode = fs.link || 'none', open = data.items.filter(x => !isClosed(x));
+  const rank = (x) => ({ Overdue: 0, Today: 1, 'This week': 2 }[horizon(x)] ?? 3);
+  const opts = open.slice().sort((a, b) => rank(a) - rank(b) || String(a.item).localeCompare(String(b.item))).slice(0, 80)
+    .map(x => `<option value="${x.row}" ${String(fs.linkRow) === String(x.row) ? 'selected' : ''}>${esc(x.item)} · ${esc(tr(x.area))}</option>`).join('');
+  const seg = (k, l) => `<button type="button" class="${mode === k ? 'on' : ''}" data-fmlink="${k}">${l}</button>`;
+  const areas = data.areas.map(a => `<option value="${esc(a)}" ${a === (fs.linkArea || (areaSel() || [])[0] || data.areas[0]) ? 'selected' : ''}>${esc(tr(a))}</option>`).join('');
+  fsLayer(`<div class="fm-card fm-free"><b>${L(`You focused for ${fmtMin(mins)}`, `היית בפוקוס ${fmtMin(mins)}`)}</b>
+    ${long ? `<p class="fm-warn">${L('That’s long — forgot to stop? You can fix it:', 'זה ארוך — אולי שכחת לעצור? אפשר לתקן:')}</p>` : ''}
+    <label class="fm-fix">${L('Minutes', 'דקות')} <input type="number" id="fmMins" min="0" max="1440" step="1" inputmode="numeric" value="${fs.linkMins ?? mins}"></label>
+    <div class="fm-q">${L('Link this time to a task?', 'לקשר את הזמן למשימה?')}</div>
+    <div class="seg fm-seg">${seg('none', L('No', 'לא'))}${seg('old', L('Existing task', 'משימה קיימת'))}${seg('new', L('New task', 'משימה חדשה'))}</div>
+    ${mode === 'old' ? (open.length ? `<select id="fmLinkSel" class="fm-in">${opts}</select>` : `<p class="fm-warn">${L('No open tasks', 'אין משימות פתוחות')}</p>`) : ''}
+    ${mode === 'new' ? `<input id="fmNewTitle" class="fm-in" dir="auto" maxlength="200" value="${esc(fs.linkTitle ?? (fs.named ? fs.item : ''))}" placeholder="${esc(L('New task name', 'שם המשימה החדשה'))}"><select id="fmNewArea" class="fm-in">${areas}</select>` : ''}
+    ${mode !== 'none' ? `<label class="fm-chk"><input type="checkbox" id="fmAdd" checked> ${L('Add the time to its actual hours', 'להוסיף את הזמן לשעות בפועל')}</label>
+      <label class="fm-chk"><input type="checkbox" id="fmLinkDone" ${fs.linkDone ? 'checked' : ''}> ${L('The task is done', 'המשימה הושלמה')}</label>` : `<p class="fm-note">${L('It will be saved in the focus log only.', 'הזמן יישמר רק ביומן הריכוז.')}</p>`}
+    <div class="fm-row"><button class="fm-btn main" data-fm="save">${L('Save', 'שמור')}</button><button class="fm-btn" data-fm="back">${L('Back to the session', 'חזרה למקטע')}</button></div>
+    <button class="fm-discard" data-fm="discard">🗑 ${L('Delete this focus time', 'מחיקת זמן הריכוז הזה')}</button></div>`);
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-fmlink]'); if (!b || !fs) return;
+  const m = $('#fmMins'), sel = $('#fmLinkSel'), t = $('#fmNewTitle'), a = $('#fmNewArea'), d = $('#fmLinkDone');
+  if (m) fs.linkMins = m.value; if (sel) fs.linkRow = sel.value; if (t) fs.linkTitle = t.value; if (a) fs.linkArea = a.value; if (d) fs.linkDone = d.checked;
+  fs.link = b.dataset.fmlink; fsSave(); fsFreeLayer(Math.max(1, Math.round(fsElapsed(fs) / 60000)), false);
+});
 /* throw the session away: no hours, no Focus Log line — as if it never happened */
 async function fsDiscard() {
   const ok = await confirmBox(L('Delete this focus time?', 'למחוק את זמן הריכוז?'), L('It won’t be counted anywhere — not in the task’s hours and not in the focus log.', 'הוא לא ייחשב בשום מקום — לא בשעות של המשימה ולא ביומן הריכוז.'), L('Delete', 'מחיקה'), L('Keep', 'השאר'));
@@ -2246,6 +2285,29 @@ async function fsDiscard() {
   toast(L('Focus time deleted', 'זמן הריכוז נמחק'));
 }
 async function fsCommit() {
+  if (fs.free && !fs.row) {                                   // ⏱ free focus: log only, or link to an existing / a new task
+    const mode = fs.link || 'none';
+    if (mode === 'old') { const r = Number(($('#fmLinkSel') || {}).value) || 0; const t = data.items.find(x => x.row === r); if (!t) { toast(L('Pick a task', 'בחר משימה')); return; } fs.row = r; fs.item = t.item; if ($('#fmLinkDone').checked) fs.finishing = 'done'; }
+    if (mode === 'new') {
+      const title = (($('#fmNewTitle') || {}).value || '').trim(); if (!title) { toast(L('Give the new task a name', 'תן שם למשימה החדשה')); $('#fmNewTitle').focus(); return; }
+      const mins0 = Math.max(0, Math.round(Number($('#fmMins').value) || 0)), add0 = $('#fmAdd').checked, done0 = $('#fmLinkDone').checked, sess0 = fs;
+      const it0 = { item: title, area: $('#fmNewArea').value, status: done0 ? 'Done' : 'In progress', prio: '2 - Medium', rec: 'None', focal: 'Me', due: iso(today()), created: iso(today()), done: done0 ? iso(today()) : '', acthrs: add0 && mins0 ? String(Math.round(mins0 / 60 * 100) / 100) : '' };
+      fs = null; store.set('ai.focus', null); clearInterval(fsTick); fsLayer(''); $('#focusMode').hidden = true; document.body.classList.remove('focus-open'); fsBanner();
+      if (done0) { lastTap = { x: innerWidth / 2, y: innerHeight / 2 }; celebrate(); }
+      const ok = await save(it0);
+      if (!settings.demo) api('POST', { action: 'focusEnd', id: sess0.id, log: { row: it0.row || 0, item: title, minutes: mins0, start: sess0.start, end: sess0.endAt, saved: add0 } }).catch(() => {});
+      focusRemote = null;
+      if (ok) toast(L(`New task “${title}” · ${fmtMin(mins0)}`, `נוצרה משימה "${title}" · ${fmtMin(mins0)}`), { label: L('↶ Undo', '↶ ביטול'), fn: undo });
+      return;
+    }
+    if (mode === 'none') {
+      const mins0 = Math.max(0, Math.round(Number($('#fmMins').value) || 0)), sess0 = fs;
+      fs = null; store.set('ai.focus', null); clearInterval(fsTick); fsLayer(''); $('#focusMode').hidden = true; document.body.classList.remove('focus-open'); fsBanner();
+      if (!settings.demo) api('POST', { action: 'focusEnd', id: sess0.id, log: { row: 0, item: sess0.item, minutes: mins0, start: sess0.start, end: sess0.endAt, saved: false } }).catch(() => {});
+      focusRemote = null; toast(L(`⏱ ${fmtMin(mins0)} of focus — saved in the focus log`, `⏱ ${fmtMin(mins0)} של פוקוס — נשמר ביומן הריכוז`));
+      return;
+    }
+  }
   const mins = Math.max(0, Math.round(Number($('#fmMins').value) || 0)), add = $('#fmAdd').checked, taskDone = fs.finishing === 'done';
   const sess = fs, it = data.items.find(x => x.row === sess.row);
   const hrs = Math.round(mins / 60 * 100) / 100, total = Math.round(((parseFloat(it && it.acthrs) || 0) + (add ? hrs : 0)) * 100) / 100;
@@ -2360,6 +2422,7 @@ document.addEventListener('click', (e) => {
   if (t.closest('[data-cqx]')) { collQ = ''; render(); const i = $('#collQ'); if (i) i.focus(); return; }
   const cfx = t.closest('[data-cfx]'); if (cfx) { cfToggle(cfx.dataset.cfx, cfx.dataset.cfv || ''); render(); return; }
   const ctp = t.closest('[data-ctpl]'); if (ctp) { openTplEditor(ctp.dataset.ctpl); return; }
+  if (t.closest('[data-freefocus]')) { openFreeFocus(); return; }
   const cal = t.closest('[data-calive]'); if (cal) { e.stopPropagation(); collAlive(cal.dataset.calive); return; }
   const cdn = t.closest('[data-cdone]'); if (cdn) { const en = coll.find(x => x.id === cdn.dataset.cdone); if (en && !collRO()) { const nx = Object.assign({}, en, { status: en.status === 'tried' ? 'want' : 'tried' }); if (nx.status === 'tried') celebrate(); collStore(nx); } return; }
   const ck = t.closest('[data-ckind]');
@@ -3975,6 +4038,7 @@ function renderPlayMenu() {
   const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll' && !isGuest();
   void inColl;   // new task / new Collection entry: the ＋ button next to ▶
   if (!isGuest()) { const n = whCandidates().length; items.push(['wheel', '🎡', L('Spin & Do', 'סובב ועשה'), n ? L(`I have free time — pick an urgent task (${n})`, `יש לי זמן פנוי — שיבחר משימה דחופה (${n})`) : L('I have free time — pick a task', 'יש לי זמן פנוי — שיבחר משימה')]); }
+  if (!isGuest()) items.push(['freefocus', '⏱', L('Focus mode', 'מצב פוקוס'), L('Start focusing — link it to a task later', 'מתחילים להתרכז — מקשרים למשימה אחר כך')]);
   items.push(['quote', '💬', L('Motivation', 'משפט מוטיבציה'), L('A real quote to start, sit down or finish', 'משפט חכמה אמיתי — להתחיל, לשבת או לסיים')]);
   if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
   if (!isGuest()) items.push(['welcome', '🌅', L('What do we focus on today?', 'במה מתמקדים היום?'), L('Work & home daily videos', 'הסרטונים היומיים — עבודה ובית')]);
@@ -3985,7 +4049,7 @@ function renderPlayMenu() {
     items.push(['review', '🗓', L('Weekly review', 'סקירה שבועית'), L('Overdue · waiting · next week', 'באיחור · ממתין · השבוע הבא')]);
     items.push(['report', '✉️', L('Weekly report', 'דוח שבועי'), L('Ready to send', 'מוכן לשליחה')]);
   }
-  const PMI = { wheel: 'wheel', quote: 'quote', sync: 'sync', welcome: 'sun', review: 'calcheck', report: 'mail', clip: 'link', new: 'plus', newcoll: 'plus' };
+  const PMI = { freefocus: 'timer', wheel: 'wheel', quote: 'quote', sync: 'sync', welcome: 'sun', review: 'calcheck', report: 'mail', clip: 'link', new: 'plus', newcoll: 'plus' };
   $('#playMenu').innerHTML = items.map(([k, ic, t, sub]) => `<button data-play="${esc(k)}" class="${k === 'new' || k === 'newcoll' ? 'pm-main' : ''}"><span class="pm-ic">${ico(PMI[k] || (k.startsWith('story:') ? 'video' : '')) || ic}</span><span><b>${esc(t)}</b><small>${esc(sub)}</small></span></button>`).join('');
 }
 function togglePlay(open) {
@@ -4001,6 +4065,7 @@ $('#playMenu').addEventListener('click', async (e) => {
   if (k === 'new') { isGuest() ? openSuggest() : openEdit(null); return; }
   if (k === 'review') { openReview(); return; }
   if (k === 'wheel') { openWheel(); return; }
+  if (k === 'freefocus') { openFreeFocus(); return; }
   if (k === 'quote') { openQuote(); return; }
   if (k === 'welcome') { openWelcome(false); return; }
   if (k === 'newcoll') { openColl({ cat: ui.collCat === '*' ? (collCats[0] || {}).id : ui.collCat, status: 'want' }); return; }
@@ -4619,7 +4684,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 84;
+const APP_VERSION = 85;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
