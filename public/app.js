@@ -409,7 +409,7 @@ function qFill() {
   if (free < 150) return;
   if (!qFillQ || Date.now() - qFillAt > 15 * 60e3) {           // the same quote for a while, so it doesn't change on every tap elsewhere
     const keep = qState.mood, urgent = data.items.some(it => !isClosed(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today'));
-    qState.mood = ui.tab === 'focus' ? (urgent ? 'start' : 'any') : ui.tab === 'week' ? 'sit' : 'any';
+    qState.mood = urgent || ui.tab === 'week' ? 'start' : 'any';
     qFillQ = qPick(); qState.mood = keep; qFillAt = Date.now();
   }
   const q = qFillQ, main = isHe() ? (q.he || q.en) : (q.en || q.he);
@@ -1825,7 +1825,7 @@ $('#btnReview').addEventListener('click', openReview);
 $('#btnWheel').addEventListener('click', openWheel);
 $('#fabWheel').addEventListener('click', () => { togglePlay(false); openWheel(); });
 $('#btnQuote').addEventListener('click', () => openQuote());
-$('#fmQuote').addEventListener('click', () => openQuote(fs && fs.endAt ? 'finish' : 'sit'));
+$('#fmQuote').addEventListener('click', () => openQuote(fs && fs.plan && (Date.now() - fs.start) > fs.plan * 30e3 ? 'finish' : 'start'));
 
 /* ---------- ☀ My day: up to 3 tasks chosen for today (intentions — due dates are not touched) ---------- */
 const todayIso = () => iso(today());
@@ -3734,130 +3734,65 @@ const AREA_EMOJI = { Work: '💼', Home: '🏠', Personal: '🙂', 'M.Sc': '🎓
    c: s = starting · f = sitting down to it / focus · d = finishing · t = time & putting off · p = keep going · h = with a smile
    o: the language of the original (he = Hebrew source; otherwise the Hebrew is a translation) */
 const QUOTES = [
-  ['d', 'he', 'לא עליך המלאכה לגמור, ולא אתה בן חורין להיבטל ממנה.', 'It is not your duty to finish the work, but neither are you free to desist from it.', 'רבי טרפון', 'Rabbi Tarfon', 'פרקי אבות ב, טז'],
-  ['t', 'he', 'היום קצר והמלאכה מרובה, והפועלים עצלים, והשכר הרבה, ובעל הבית דוחק.', 'The day is short, the work is great, the workers are lazy, the reward is much, and the Master is pressing.', 'רבי טרפון', 'Rabbi Tarfon', 'פרקי אבות ב, טו'],
+  ['sd', 'he', 'לא עליך המלאכה לגמור, ולא אתה בן חורין להיבטל ממנה.', 'It is not your duty to finish the work, but neither are you free to desist from it.', 'רבי טרפון', 'Rabbi Tarfon', 'פרקי אבות ב, טז'],
   ['s', 'he', 'אם אין אני לי — מי לי? וכשאני לעצמי — מה אני? ואם לא עכשיו — אימתי?', 'If I am not for myself, who will be for me? And being for myself, what am I? And if not now, when?', 'הלל הזקן', 'Hillel the Elder', 'פרקי אבות א, יד'],
-  ['f', 'he', 'אמור מעט ועשה הרבה.', 'Say little and do much.', 'שמאי', 'Shammai', 'פרקי אבות א, טו'],
-  ['p', 'he', 'לפום צערא אגרא.', 'According to the effort is the reward.', 'בן הא הא', 'Ben Hei Hei', 'פרקי אבות ה, כג'],
-  ['t', 'he', 'אל תאמר לכשאפנה אשנה — שמא לא תפנה.', 'Do not say “when I have time I will study” — perhaps you will never have time.', 'הלל הזקן', 'Hillel the Elder', 'פרקי אבות ב, ד'],
-  ['f', 'he', 'תפסת מרובה — לא תפסת; תפסת מועט — תפסת.', 'Grasp too much and you hold nothing; grasp a little and you hold it.', 'התלמוד הבבלי', 'Babylonian Talmud', 'ראש השנה ד ע״ב'],
+  ['d', 'he', 'לפום צערא אגרא.', 'According to the effort is the reward.', 'בן הא הא', 'Ben Hei Hei', 'פרקי אבות ה, כג'],
+  ['s', 'he', 'אל תאמר לכשאפנה אשנה — שמא לא תפנה.', 'Do not say “when I have time I will study” — perhaps you will never have time.', 'הלל הזקן', 'Hillel the Elder', 'פרקי אבות ב, ד'],
   ['s', 'he', 'כל ההתחלות קשות.', 'All beginnings are hard.', 'מכילתא דרבי ישמעאל', 'Mekhilta of Rabbi Ishmael', 'יתרו, פרשה ב'],
   ['s', 'he', 'אם תרצו — אין זו אגדה.', 'If you will it, it is no legend.', 'בנימין זאב הרצל', 'Theodor Herzl', 'אלטנוילנד, 1902'],
-  ['p', 'he', 'יגעת ומצאת — תאמין.', 'If someone says “I toiled and found” — believe them.', 'התלמוד הבבלי', 'Babylonian Talmud', 'מגילה ו ע״ב'],
-  ['s', 'he', 'זריזין מקדימין.', 'The diligent hurry to do what is right — early.', 'התלמוד הבבלי', 'Babylonian Talmud', 'פסחים ד ע״א'],
+  ['d', 'he', 'יגעת ומצאת — תאמין.', 'If someone says “I toiled and found” — believe them.', 'התלמוד הבבלי', 'Babylonian Talmud', 'מגילה ו ע״ב'],
   ['d', 'he', 'המתחיל במצווה — אומרים לו: גמור.', 'Whoever starts a good deed is told: finish it.', 'התלמוד הבבלי', 'Babylonian Talmud', 'סוטה יג ע״ב'],
   ['d', 'he', 'טוב אחרית דבר מראשיתו.', 'The end of a thing is better than its beginning.', 'קהלת', 'Ecclesiastes', 'קהלת ז, ח'],
-  ['f', 'he', 'כל אשר תמצא ידך לעשות בכוחך — עשה.', 'Whatever your hand finds to do, do it with all your might.', 'קהלת', 'Ecclesiastes', 'קהלת ט, י'],
-  ['p', 'he', 'הזורעים בדמעה — ברינה יקצורו.', 'Those who sow in tears shall reap in joy.', 'תהלים', 'Psalms', 'תהלים קכו, ה'],
-  ['t', 'he', 'לך אל נמלה עצל, ראה דרכיה וחכם.', 'Go to the ant, you sluggard; consider her ways and be wise.', 'משלי', 'Proverbs', 'משלי ו, ו'],
-  ['t', 'he', 'עד מתי עצל תשכב? מתי תקום משנתך?', 'How long will you lie there, sluggard? When will you get up from your sleep?', 'משלי', 'Proverbs', 'משלי ו, ט'],
-  ['s', 'he', 'בדרך שאדם רוצה לילך — בה מוליכין אותו.', 'In the way a person wishes to go, there he is led.', 'התלמוד הבבלי', 'Babylonian Talmud', 'מכות י ע״ב'],
-  ['p', 'he', 'אם אתה מאמין שיכולים לקלקל — תאמין שיכולים לתקן.', 'If you believe that you can damage, believe that you can fix.', 'רבי נחמן מברסלב', 'Rabbi Nachman of Breslov', 'ליקוטי מוהר״ן תנינא, קיב'],
-  ['s', 'he', 'כל העולם כולו גשר צר מאוד, והעיקר לא לפחד כלל.', 'The whole world is a very narrow bridge, and the main thing is not to be afraid at all.', 'רבי נחמן מברסלב', 'Rabbi Nachman of Breslov', 'ליקוטי מוהר״ן תנינא, מח'],
-  ['p', 'he', 'אין שום ייאוש בעולם כלל.', 'There is no despair in the world at all.', 'רבי נחמן מברסלב', 'Rabbi Nachman of Breslov', 'ליקוטי מוהר״ן תנינא, עח'],
+  ['d', 'he', 'הזורעים בדמעה — ברינה יקצורו.', 'Those who sow in tears shall reap in joy.', 'תהלים', 'Psalms', 'תהלים קכו, ה'],
+  ['d', 'he', 'אין שום ייאוש בעולם כלל.', 'There is no despair in the world at all.', 'רבי נחמן מברסלב', 'Rabbi Nachman of Breslov', 'ליקוטי מוהר״ן תנינא, עח'],
   ['s', 'en', 'מסע של אלף מילין מתחיל בצעד אחד.', 'A journey of a thousand miles begins with a single step.', 'לאו דזה', 'Lao Tzu', 'טאו טה צ׳ינג, 64'],
-  ['f', 'en', 'את הקשה עשה כשהוא עוד קל; את הגדול — כשהוא עוד קטן.', 'Deal with the difficult while it is still easy; deal with the great while it is still small.', 'לאו דזה', 'Lao Tzu', 'טאו טה צ׳ינג, 63'],
   ['s', 'en', 'מי שהתחיל — עשה חצי. העז להיות חכם: התחל!', 'He who has begun is half done. Dare to be wise; begin!', 'הורטיוס', 'Horace', 'איגרות א, 2'],
   ['s', 'en', 'ההתחלה היא החלק החשוב ביותר של העבודה.', 'The beginning is the most important part of the work.', 'אפלטון', 'Plato', 'המדינה, 377a'],
-  ['s', 'en', 'התחלה טובה היא חצי מהעבודה.', 'Well begun is half done.', 'אריסטו (מצטט פתגם)', 'Aristotle (quoting a proverb)', 'פוליטיקה'],
-  ['t', 'en', 'לא שיש לנו מעט זמן לחיות — אלא שאנחנו מבזבזים ממנו הרבה.', 'It is not that we have a short time to live, but that we waste a lot of it.', 'סנקה', 'Seneca', 'על קוצר החיים'],
-  ['t', 'en', 'בזמן שאנחנו דוחים — החיים חולפים.', 'While we are postponing, life speeds by.', 'סנקה', 'Seneca', 'איגרות אל לוקיליוס, 1'],
+  ['s', 'en', 'בזמן שאנחנו דוחים — החיים חולפים.', 'While we are postponing, life speeds by.', 'סנקה', 'Seneca', 'איגרות אל לוקיליוס, 1'],
   ['s', 'en', 'התחל מיד לחיות, וספור כל יום כחיים שלמים.', 'Begin at once to live, and count each separate day as a separate life.', 'סנקה', 'Seneca', 'איגרות אל לוקיליוס, 101'],
-  ['f', 'en', 'די לבזבז זמן בוויכוח מהו אדם טוב. היה אחד.', 'Waste no more time arguing what a good man should be. Be one.', 'מרקוס אורליוס', 'Marcus Aurelius', 'הגיגים י, 16'],
-  ['p', 'en', 'מה שעומד בדרך — הופך לדרך.', 'What stands in the way becomes the way.', 'מרקוס אורליוס', 'Marcus Aurelius', 'הגיגים ה, 20'],
-  ['f', 'en', 'עשה כל דבר כאילו היה האחרון בחייך.', 'Do every act of your life as though it were the very last act of your life.', 'מרקוס אורליוס', 'Marcus Aurelius', 'הגיגים ב, 5'],
+  ['s', 'en', 'די לבזבז זמן בוויכוח מהו אדם טוב. היה אחד.', 'Waste no more time arguing what a good man should be. Be one.', 'מרקוס אורליוס', 'Marcus Aurelius', 'הגיגים י, 16'],
+  ['d', 'en', 'מה שעומד בדרך — הופך לדרך.', 'What stands in the way becomes the way.', 'מרקוס אורליוס', 'Marcus Aurelius', 'הגיגים ה, 20'],
   ['s', 'en', 'אמור לעצמך קודם מה אתה רוצה להיות — ואז עשה את מה שצריך לעשות.', 'First say to yourself what you would be; and then do what you have to do.', 'אפיקטטוס', 'Epictetus', 'שיחות ג, 23'],
-  ['p', 'en', 'שום דבר גדול לא נוצר בבת אחת.', 'No great thing is created suddenly.', 'אפיקטטוס', 'Epictetus', 'שיחות א, 15'],
-  ['p', 'en', 'טיפה חוצבת אבן.', 'Dripping water hollows out stone.', 'אובידיוס', 'Ovid', 'מכתבים מן הפונטוס'],
-  ['s', 'en', 'המזל עוזר לאמיצים.', 'Fortune favors the bold.', 'ורגיליוס', 'Virgil', 'האנאידה י, 284'],
-  ['t', 'en', 'נצל את היום.', 'Seize the day.', 'הורטיוס', 'Horace', 'שירים א, 11 (Carpe diem)'],
-  ['f', 'en', 'מהר — לאט.', 'Make haste slowly.', 'אוגוסטוס', 'Augustus', 'לפי סווטוניוס (Festina lente)'],
-  ['p', 'en', 'מי שיש לו "למה" לחיות — יכול לשאת כמעט כל "איך".', 'He who has a why to live can bear almost any how.', 'פרידריך ניטשה', 'Friedrich Nietzsche', 'דמדומי האלילים'],
-  ['p', 'en', 'שני הלוחמים החזקים ביותר הם סבלנות וזמן.', 'The two most powerful warriors are patience and time.', 'לב טולסטוי', 'Leo Tolstoy', 'מלחמה ושלום'],
-  ['f', 'en', 'לדעת — לא מספיק; צריך ליישם. לרצות — לא מספיק; צריך לעשות.', 'Knowing is not enough; we must apply. Willing is not enough; we must do.', 'יוהאן וולפגנג פון גתה', 'Johann Wolfgang von Goethe', 'שנות הנדודים של וילהלם מייסטר'],
+  ['d', 'en', 'שום דבר גדול לא נוצר בבת אחת.', 'No great thing is created suddenly.', 'אפיקטטוס', 'Epictetus', 'שיחות א, 15'],
+  ['d', 'en', 'טיפה חוצבת אבן.', 'Dripping water hollows out stone.', 'אובידיוס', 'Ovid', 'מכתבים מן הפונטוס'],
   ['d', 'en', 'המושלם הוא האויב של הטוב.', 'The best is the enemy of the good.', 'וולטר', 'Voltaire', 'המילון הפילוסופי'],
-  ['f', 'en', 'אנחנו מה שאנחנו עושים שוב ושוב. מצוינות, אם כן, אינה מעשה — אלא הרגל.', 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.', 'וויל דוראנט (בעקבות אריסטו)', 'Will Durant (after Aristotle)', 'סיפור הפילוסופיה, 1926'],
-  ['p', 'en', 'הדרך הטובה ביותר החוצה היא תמיד דרך.', 'The best way out is always through.', 'רוברט פרוסט', 'Robert Frost', 'A Servant to Servants, 1914'],
-  ['p', 'en', 'ניסית. נכשלת. לא משנה. נסה שוב. היכשל שוב. היכשל טוב יותר.', 'Ever tried. Ever failed. No matter. Try again. Fail again. Fail better.', 'סמואל בקט', 'Samuel Beckett', 'Worstward Ho, 1983'],
-  ['p', 'en', 'גאונות היא אחוז אחד השראה ותשעים ותשעה אחוזים זיעה.', 'Genius is one percent inspiration, ninety-nine percent perspiration.', 'תומאס אדיסון', 'Thomas Edison', '1932'],
-  ['p', 'en', 'לעולם אל תיכנע — לעולם, לעולם, לעולם.', 'Never give in, never give in, never, never, never.', 'וינסטון צ׳רצ׳יל', 'Winston Churchill', 'נאום בבית הספר הארו, 1941'],
+  ['d', 'en', 'הדרך הטובה ביותר החוצה היא תמיד דרך.', 'The best way out is always through.', 'רוברט פרוסט', 'Robert Frost', 'A Servant to Servants, 1914'],
+  ['d', 'en', 'ניסית. נכשלת. לא משנה. נסה שוב. היכשל שוב. היכשל טוב יותר.', 'Ever tried. Ever failed. No matter. Try again. Fail again. Fail better.', 'סמואל בקט', 'Samuel Beckett', 'Worstward Ho, 1983'],
+  ['d', 'en', 'גאונות היא אחוז אחד השראה ותשעים ותשעה אחוזים זיעה.', 'Genius is one percent inspiration, ninety-nine percent perspiration.', 'תומאס אדיסון', 'Thomas Edison', '1932'],
+  ['d', 'en', 'לעולם אל תיכנע — לעולם, לעולם, לעולם.', 'Never give in, never give in, never, never, never.', 'וינסטון צ׳רצ׳יל', 'Winston Churchill', 'נאום בבית הספר הארו, 1941'],
   ['s', 'en', 'אתה מפספס מאה אחוז מהזריקות שאתה לא זורק.', 'You miss 100% of the shots you don’t take.', 'ויין גרצקי', 'Wayne Gretzky', '1983'],
   ['s', 'en', 'בין אם אתה חושב שאתה יכול ובין אם אתה חושב שאינך יכול — אתה צודק.', 'Whether you think you can, or you think you can’t — you’re right.', 'הנרי פורד', 'Henry Ford', 'מצוטט ב-Reader’s Digest, 1947'],
-  ['f', 'en', 'שום דבר אינו קשה במיוחד אם מחלקים אותו למשימות קטנות.', 'Nothing is particularly hard if you divide it into small jobs.', 'הנרי פורד', 'Henry Ford', 'My Life and Work, 1922'],
+  ['s', 'en', 'שום דבר אינו קשה במיוחד אם מחלקים אותו למשימות קטנות.', 'Nothing is particularly hard if you divide it into small jobs.', 'הנרי פורד', 'Henry Ford', 'My Life and Work, 1922'],
   ['s', 'en', 'עשה מה שאתה יכול, עם מה שיש לך, איפה שאתה נמצא.', 'Do what you can, with what you have, where you are.', 'תאודור רוזוולט', 'Theodore Roosevelt', 'האוטוביוגרפיה, 1913'],
-  ['f', 'en', 'תוכניות הן חסרות ערך — אבל התכנון הוא הכול.', 'Plans are worthless, but planning is everything.', 'דווייט אייזנהאואר', 'Dwight D. Eisenhower', 'נאום, 1957'],
-  ['f', 'en', 'מה שחשוב — לעיתים רחוקות דחוף; ומה שדחוף — לעיתים רחוקות חשוב.', 'What is important is seldom urgent and what is urgent is seldom important.', 'דווייט אייזנהאואר', 'Dwight D. Eisenhower', 'נאום, 1954'],
-  ['f', 'en', 'השראה היא לחובבים. כל השאר פשוט מגיעים ומתחילים לעבוד.', 'Inspiration is for amateurs — the rest of us just show up and get to work.', 'צ׳אק קלוס', 'Chuck Close', 'ראיון'],
-  ['f', 'en', 'הדרך היחידה לעשות עבודה נהדרת היא לאהוב את מה שאתה עושה.', 'The only way to do great work is to love what you do.', 'סטיב ג׳ובס', 'Steve Jobs', 'נאום בסטנפורד, 2005'],
+  ['s', 'en', 'השראה היא לחובבים. כל השאר פשוט מגיעים ומתחילים לעבוד.', 'Inspiration is for amateurs — the rest of us just show up and get to work.', 'צ׳אק קלוס', 'Chuck Close', 'ראיון'],
   ['d', 'en', 'אמנים אמיתיים משחררים (את העבודה).', 'Real artists ship.', 'סטיב ג׳ובס', 'Steve Jobs', '1983'],
-  ['f', 'en', 'מיקוד פירושו לומר לא.', 'Focusing is about saying no.', 'סטיב ג׳ובס', 'Steve Jobs', 'WWDC, 1997'],
-  ['p', 'en', 'החיים הם כמו רכיבה על אופניים: כדי לשמור על איזון צריך להמשיך לנוע.', 'Life is like riding a bicycle. To keep your balance you must keep moving.', 'אלברט איינשטיין', 'Albert Einstein', 'מכתב לבנו אדוארד, 1930'],
-  ['t', 'en', 'זמן שאבד — לא יימצא לעולם.', 'Lost time is never found again.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן'],
-  ['t', 'en', 'יש לך משהו לעשות מחר? עשה אותו היום.', 'Have you somewhat to do to-morrow, do it to-day.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן, 1742'],
+  ['s', 'en', 'יש לך משהו לעשות מחר? עשה אותו היום.', 'Have you somewhat to do to-morrow, do it to-day.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן, 1742'],
   ['d', 'en', 'עשוי היטב — עדיף על אמור היטב.', 'Well done is better than well said.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן, 1737'],
-  ['t', 'en', 'אתה יכול להתמהמה — הזמן לא יתמהמה.', 'You may delay, but time will not.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן'],
-  ['f', 'en', 'כתוב משהו שראוי לקרוא — או עשה משהו שראוי לכתוב עליו.', 'Either write something worth reading or do something worth writing.', 'בנג׳מין פרנקלין', 'Benjamin Franklin', 'אלמנך ריצ׳רד המסכן, 1738'],
-  ['t', 'en', 'דחיינות היא גנבת הזמן.', 'Procrastination is the thief of time.', 'אדוארד יאנג', 'Edward Young', 'Night Thoughts, 1742'],
-  ['t', 'en', 'החלט לעולם לא להתבטל. מי שאינו מאבד זמן — לעולם לא יתלונן על מחסור בו.', 'Determine never to be idle. No person will have occasion to complain of the want of time who never loses any.', 'תומאס ג׳פרסון', 'Thomas Jefferson', 'מכתב לבתו מרתה, 1787'],
-  ['t', 'en', 'איך שאנחנו מבלים את הימים שלנו — כך אנחנו מבלים את חיינו.', 'How we spend our days is, of course, how we spend our lives.', 'אנני דילארד', 'Annie Dillard', 'The Writing Life, 1989'],
-  ['t', 'en', 'הזמן הוא מה שאנחנו רוצים יותר מכול — ומשתמשים בו הכי גרוע.', 'Time is what we want most, but what we use worst.', 'ויליאם פן', 'William Penn', 'Some Fruits of Solitude, 1682'],
-  ['f', 'en', 'כל עוד לא ננהל את הזמן — לא ננהל שום דבר אחר.', 'Until we can manage time, we can manage nothing else.', 'פיטר דרוקר', 'Peter Drucker', 'The Effective Executive'],
-  ['f', 'en', 'אין דבר חסר תועלת יותר מלעשות ביעילות את מה שלא היה צריך להיעשות בכלל.', 'There is nothing so useless as doing efficiently that which should not be done at all.', 'פיטר דרוקר', 'Peter Drucker', ''],
-  ['f', 'en', 'העיקר אינו לתעדף את מה שבלוח הזמנים — אלא לשבץ בלוח את סדרי העדיפויות.', 'The key is not to prioritize what’s on your schedule, but to schedule your priorities.', 'סטיבן קובי', 'Stephen Covey', ''],
-  ['f', 'en', 'דברים ראשונים — קודם.', 'Put first things first.', 'סטיבן קובי', 'Stephen Covey', '7 ההרגלים של אנשים אפקטיביים במיוחד'],
-  ['s', 'en', 'התחל כשהסוף בראש.', 'Begin with the end in mind.', 'סטיבן קובי', 'Stephen Covey', '7 ההרגלים של אנשים אפקטיביים במיוחד'],
-  ['f', 'en', 'אתה יכול לעשות כל דבר — אבל לא כל דבר.', 'You can do anything, but not everything.', 'דייוויד אלן', 'David Allen', 'Getting Things Done'],
-  ['f', 'en', 'הראש נועד ליצור רעיונות, לא להחזיק אותם.', 'Your mind is for having ideas, not holding them.', 'דייוויד אלן', 'David Allen', 'Getting Things Done'],
-  ['s', 'en', 'אם זה לוקח פחות משתי דקות — עשה את זה עכשיו.', 'If it takes less than two minutes, do it now.', 'דייוויד אלן', 'David Allen', 'Getting Things Done'],
+  ['s', 'en', 'דחיינות היא גנבת הזמן.', 'Procrastination is the thief of time.', 'אדוארד יאנג', 'Edward Young', 'Night Thoughts, 1742'],
   ['s', 'en', 'אם צריך לאכול צפרדע — עדיף לעשות את זה ראשון בבוקר.', 'If you have to eat a frog, it’s best to do it first thing in the morning.', 'בריאן טרייסי', 'Brian Tracy', 'Eat That Frog!'],
-  ['p', 'en', 'משמעת שווה חופש.', 'Discipline equals freedom.', 'ג׳וקו ווילינק', 'Jocko Willink', ''],
-  ['p', 'en', 'משמעת היא הגשר בין מטרות להישגים.', 'Discipline is the bridge between goals and accomplishment.', 'ג׳ים רון', 'Jim Rohn', ''],
-  ['f', 'en', 'או שאתה מנהל את היום — או שהיום מנהל אותך.', 'Either you run the day, or the day runs you.', 'ג׳ים רון', 'Jim Rohn', ''],
-  ['p', 'en', 'כולנו נסבול אחד משניים: כאב המשמעת או כאב החרטה.', 'We must all suffer one of two things: the pain of discipline or the pain of regret.', 'ג׳ים רון', 'Jim Rohn', ''],
-  ['p', 'en', 'מוטיבציה היא מה שגורם לך להתחיל. הרגל — מה שגורם לך להמשיך.', 'Motivation is what gets you started. Habit is what keeps you going.', 'ג׳ים ריון', 'Jim Ryun', ''],
-  ['p', 'en', 'עבודה קשה מנצחת כישרון כשהכישרון לא עובד קשה.', 'Hard work beats talent when talent doesn’t work hard.', 'טים נוטקה', 'Tim Notke', ''],
-  ['p', 'en', 'רוב הדברים החשובים בעולם הושגו בידי אנשים שהמשיכו לנסות כשנראה שאין שום תקווה.', 'Most of the important things in the world have been accomplished by people who have kept on trying when there seemed to be no hope at all.', 'דייל קרנגי', 'Dale Carnegie', ''],
-  ['p', 'en', 'לא את ההר אנחנו כובשים — אלא את עצמנו.', 'It is not the mountain we conquer but ourselves.', 'אדמונד הילרי', 'Edmund Hillary', ''],
+  ['d', 'en', 'כולנו נסבול אחד משניים: כאב המשמעת או כאב החרטה.', 'We must all suffer one of two things: the pain of discipline or the pain of regret.', 'ג׳ים רון', 'Jim Rohn', ''],
   ['s', 'en', 'התשובה הקצרה ביותר היא לעשות.', 'The shortest answer is doing.', 'ג׳ורג׳ הרברט', 'George Herbert', 'Jacula Prudentum, 1651'],
-  ['s', 'en', 'עשייה לא תמיד מביאה אושר — אבל אין אושר בלי עשייה.', 'Action may not always bring happiness; but there is no happiness without action.', 'בנג׳מין דיזראלי', 'Benjamin Disraeli', 'Lothair, 1870'],
   ['s', 'en', 'בעוד שנה אולי תצטער שלא התחלת היום.', 'A year from now you may wish you had started today.', 'קארן לאמב', 'Karen Lamb', ''],
-  ['f', 'en', 'אל תסתכל על השעון; עשה מה שהוא עושה — תמשיך.', 'Don’t watch the clock; do what it does. Keep going.', 'סם לבנסון', 'Sam Levenson', ''],
-  ['t', 'en', 'החדשות הרעות: הזמן טס. החדשות הטובות: אתה הטייס.', 'The bad news is time flies. The good news is you’re the pilot.', 'מייקל אלטשולר', 'Michael Altshuler', ''],
-  ['p', 'en', 'נפול שבע פעמים, קום שמונה.', 'Fall seven times, stand up eight.', 'פתגם יפני', 'Japanese proverb', ''],
+  ['d', 'en', 'נפול שבע פעמים, קום שמונה.', 'Fall seven times, stand up eight.', 'פתגם יפני', 'Japanese proverb', ''],
   ['s', 'en', 'הזמן הטוב ביותר לשתול עץ היה לפני עשרים שנה. הזמן השני הכי טוב — עכשיו.', 'The best time to plant a tree was 20 years ago. The second best time is now.', 'פתגם', 'Proverb', ''],
-  ['p', 'en', 'אל תפחד להתקדם לאט; פחד רק לעמוד במקום.', 'Be not afraid of going slowly; be afraid only of standing still.', 'פתגם סיני', 'Chinese proverb', ''],
-  ['p', 'en', 'לאט ובהתמדה — מנצחים במירוץ.', 'Slow and steady wins the race.', 'איזופוס', 'Aesop', 'הצב והארנבת'],
-  ['p', 'en', 'זה אמור להיות קשה. אם זה לא היה קשה — כולם היו עושים את זה. הקושי הוא מה שעושה את זה נהדר.', 'It’s supposed to be hard. If it wasn’t hard, everyone would do it. The hard is what makes it great.', 'ג׳ימי דוגן (טום הנקס)', 'Jimmy Dugan (Tom Hanks)', 'ליגה משלהן, 1992'],
-  ['p', 'en', 'תעסוק בלחיות — או תעסוק במוות.', 'Get busy living, or get busy dying.', 'סטיבן קינג', 'Stephen King', 'ריטה הייוורת׳ והבריחה משושנק'],
-  ['f', 'en', 'עשה, או אל תעשה. אין "לנסות".', 'Do. Or do not. There is no try.', 'יודה', 'Yoda', 'האימפריה מכה שנית, 1980'],
-  ['p', 'en', 'פשוט להמשיך לשחות.', 'Just keep swimming.', 'דורי', 'Dory', 'מוצאים את נמו, 2003'],
-  ['h', 'en', 'אני אוהב דדליינים. אני אוהב את רעש הוווש שהם עושים כשהם חולפים.', 'I love deadlines. I love the whooshing noise they make as they go by.', 'דאגלס אדמס', 'Douglas Adams', 'The Salmon of Doubt'],
-  ['h', 'en', 'חוק הופשטטר: זה תמיד לוקח יותר זמן ממה שחשבת — גם כשמביאים בחשבון את חוק הופשטטר.', 'Hofstadter’s Law: It always takes longer than you expect, even when you take into account Hofstadter’s Law.', 'דאגלס הופשטטר', 'Douglas Hofstadter', 'גדל, אשר, באך'],
-  ['h', 'en', 'עבודה מתרחבת עד שהיא ממלאת את כל הזמן שהוקצב לה.', 'Work expands so as to fill the time available for its completion.', 'סיריל נורת׳קוט פרקינסון', 'C. Northcote Parkinson', 'האקונומיסט, 1955'],
-  ['h', 'en', '90 האחוזים הראשונים של הקוד לוקחים 90 אחוז מהזמן. 10 האחוזים הנותרים לוקחים את 90 האחוזים האחרים.', 'The first 90 percent of the code accounts for the first 90 percent of the development time. The remaining 10 percent accounts for the other 90 percent.', 'טום קרגיל', 'Tom Cargill', 'בל לאבס'],
-  ['h', 'en', 'אם אתה רוצה שמשהו ייעשה — בקש מאדם עסוק.', 'If you want something done, ask a busy person.', 'פתגם', 'Proverb', ''],
-  ['s', 'en', 'חשוב על דברים רבים; עשה אחד.', 'Think of many things; do one.', 'פתגם פורטוגלי', 'Portuguese proverb', ''],
-  ['p', 'en', 'מעט מעט — מגיעים רחוק.', 'Little by little, one goes far.', 'פתגם ספרדי', 'Spanish proverb', ''],
-  ['p', 'en', 'רומא לא נבנתה ביום אחד.', 'Rome wasn’t built in a day.', 'פתגם', 'Proverb', ''],
-  ['s', 'en', 'בישראל, כדי להיות ריאליסט — צריך להאמין בניסים.', 'In Israel, in order to be a realist you must believe in miracles.', 'דוד בן־גוריון', 'David Ben-Gurion', 'ראיון ל-CBS, 1956'],
-  ['d', 'en', 'מה שאתה עושה היום יכול לשפר את כל המחרים שלך.', 'What you do today can improve all your tomorrows.', 'ראלף מרסטון', 'Ralph Marston', ''],
-  ['p', 'en', 'בחירות קשות — חיים קלים. בחירות קלות — חיים קשים.', 'Hard choices, easy life. Easy choices, hard life.', 'ג׳רזי גרגורק', 'Jerzy Gregorek', ''],
-  ['f', 'en', 'יעילות היא לעשות דברים נכון; אפקטיביות — לעשות את הדברים הנכונים.', 'Efficiency is doing things right; effectiveness is doing the right things.', 'פיטר דרוקר', 'Peter Drucker', '']
+  ['d', 'en', 'זה אמור להיות קשה. אם זה לא היה קשה — כולם היו עושים את זה. הקושי הוא מה שעושה את זה נהדר.', 'It’s supposed to be hard. If it wasn’t hard, everyone would do it. The hard is what makes it great.', 'ג׳ימי דוגן (טום הנקס)', 'Jimmy Dugan (Tom Hanks)', 'ליגה משלהן, 1992'],
+  ['s', 'en', 'עשה, או אל תעשה. אין "לנסות".', 'Do. Or do not. There is no try.', 'יודה', 'Yoda', 'האימפריה מכה שנית, 1980']
 ];
-const Q_MOODS = [['start', '🚀', 'To start', 'להתחיל', 'st'], ['sit', '🪑', 'To sit down to it', 'לשבת על זה עכשיו', 'ftsh'], ['finish', '🏁', 'To finish', 'לסיים', 'dp'], ['any', '✨', 'Surprise me', 'הפתע אותי', 'sftdph']];
+const Q_MOODS = [['start', '🚀', 'To start', 'להתחיל', 's'], ['finish', '🏁', 'To finish', 'לסיים', 'd'], ['any', '✨', 'Surprise me', 'הפתע אותי', 'sd']];
 let qState = { mood: 'any', cur: null, online: [], onlineP: null };
 const qKey = (q) => (q.en || q.he || '').slice(0, 40);
 function qSeen() { return store.get('aip.qSeen', []); }
 function qMark(q) { const s = qSeen().filter(x => x !== qKey(q)); s.push(qKey(q)); store.set('aip.qSeen', s.slice(-400)); }
 /* more real quotes from ZenQuotes (through the sheet's script), only ones about work / time / starting / keeping on */
 function qLoadOnline() {
+  return null;   // only the curated, hand-checked quotes are used
   if (qState.onlineP || settings.demo) return qState.onlineP;
   qState.onlineP = api('POST', { action: 'quotes' }).then(j => { qState.online = (j.quotes || []).map(x => ({ c: 'o', o: 'en', he: '', en: x.q, w: [x.a, x.a], s: '', online: true })); }).catch(() => { qState.online = []; });
   return qState.onlineP;
 }
 function qPick() {
   const cats = (Q_MOODS.find(m => m[0] === qState.mood) || Q_MOODS[3])[4];
-  const local = QUOTES.map(r => ({ c: r[0], o: r[1], he: r[2], en: r[3], w: [r[4], r[5]], s: r[6] })).filter(q => cats.includes(q.c));
+  const local = QUOTES.map(r => ({ c: r[0], o: r[1], he: r[2], en: r[3], w: [r[4], r[5]], s: r[6] })).filter(q => [...q.c].some(ch => cats.includes(ch)));
   const seen = new Set(qSeen());
   let pool = local.filter(q => !seen.has(qKey(q)));
   const fresh = qState.online.filter(q => !seen.has(qKey(q)));
@@ -4001,7 +3936,7 @@ $('#dlgWheel').addEventListener('click', (e) => {
   const it = wh.pick.it;
   if (a.dataset.wh === 'again') { whSpin(); return; }
   if (a.dataset.wh === 'open') { $('#dlgWheel').close(); openEdit(it); return; }
-  if (a.dataset.wh === 'quote') { openQuote(wh.goal === 'finish' ? 'finish' : 'sit'); return; }
+  if (a.dataset.wh === 'quote') { openQuote(wh.goal === 'finish' ? 'finish' : 'start'); return; }
   if (a.dataset.wh === 'focus') {
     const plan = wh.goal === 'finish' && wh.pick.est ? Math.min(wh.pick.est, wh.min) : wh.min;
     $('#dlgWheel').close(); openFocusSetup(it); if (fsSetup && fsSetup.it === it) { fsSetup.plan = plan; fsSetupRender(); }
@@ -4661,7 +4596,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 78;
+const APP_VERSION = 79;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
