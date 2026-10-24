@@ -3861,7 +3861,7 @@ function whSetup() {
     <div class="wh-q">${L('What do you want?', 'מה המטרה?')}</div>
     <div class="seg wh-goal"><button type="button" class="${wh.goal === 'finish' ? 'on' : ''}" data-whgoal="finish">🏁 ${L('Finish a task now', 'לסיים משימה עכשיו')}</button><button type="button" class="${wh.goal === 'progress' ? 'on' : ''}" data-whgoal="progress">📈 ${L('Make progress', 'להתקדם במשהו')}</button></div>
     <p class="hint wh-count">${whCountText()}</p>
-    <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary wh-go" id="whGo" ${whCandidates().length ? '' : 'disabled'}>🎡 ${L('Spin!', 'סובב!')}</button></div>`;
+    <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary wh-go" id="whGo" ${whCandidates().length ? '' : 'disabled'}>🎯 ${L('Spin!', 'סובב!')}</button></div>`;
 }
 function whAreaChips() {
   const open = data.items.filter(it => !isClosed(it) && it.status !== 'Waiting');
@@ -3951,7 +3951,7 @@ function renderPlayMenu() {
   const items = [];
   const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll' && !isGuest();
   void inColl;   // new task / new Collection entry: the ＋ button next to ▶
-  if (!isGuest()) { const n = whCandidates().length; items.push(['wheel', '🎡', L('Wheel of fortune', 'גלגל המזל'), n ? L(`I have free time — pick an urgent task (${n})`, `יש לי זמן פנוי — שיבחר משימה דחופה (${n})`) : L('I have free time — pick a task', 'יש לי זמן פנוי — שיבחר משימה')]); }
+  if (!isGuest()) { const n = whCandidates().length; items.push(['wheel', '🎡', L('Spin & Do', 'סובב ועשה'), n ? L(`I have free time — pick an urgent task (${n})`, `יש לי זמן פנוי — שיבחר משימה דחופה (${n})`) : L('I have free time — pick a task', 'יש לי זמן פנוי — שיבחר משימה')]); }
   items.push(['quote', '💬', L('Motivation', 'משפט מוטיבציה'), L('A real quote to start, sit down or finish', 'משפט חכמה אמיתי — להתחיל, לשבת או לסיים')]);
   if (!isGuest()) items.push(['sync', '🔄', L('Sync calendars', 'סנכרון מהיומן'), L('New events to choose from', 'הצעות ממה שחדש ביומן')]);
   if (!isGuest()) items.push(['welcome', '🌅', L('What do we focus on today?', 'במה מתמקדים היום?'), L('Work & home daily videos', 'הסרטונים היומיים — עבודה ובית')]);
@@ -4596,7 +4596,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 80;
+const APP_VERSION = 81;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
