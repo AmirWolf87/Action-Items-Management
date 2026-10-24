@@ -61,7 +61,8 @@ const IC = {
   map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
   filter: '<path d="M4 5h16l-6 8v5l-4 2v-7z"/>',
   back: '<path d="m15 6-6 6 6 6"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>'
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'
 };
 const ico = (n, cls) => IC[n] ? `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : '';
 function fillIcons(root) { (root || document).querySelectorAll('[data-ic]:empty').forEach(el => { el.innerHTML = ico(el.dataset.ic, el.dataset.icCls || ''); }); }
@@ -426,6 +427,11 @@ function qFill() {
 }
 let qFillTries = 0;
 addEventListener('resize', qFillSoon);
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'collQ') return;
+  const pos = e.target.selectionStart; collQ = e.target.value; render();
+  const i = $('#collQ'); if (i) { i.focus({ preventScroll: true }); try { i.setSelectionRange(pos, pos); } catch (err) { /* search inputs on some browsers */ } }
+});
 document.addEventListener('click', (e) => {
   const f = e.target.closest('.q-fill'); if (!f) return;
   qFillQ = null; f.classList.add('qf-out'); setTimeout(qFill, 180);
@@ -704,9 +710,19 @@ function cfSet(id, o) { ui.cf = Object.assign({}, ui.cf, { [id]: o }); store.set
 function cfCount(id) { const o = cfOf(id); return (o.st !== 'all' ? 1 : 0) + (o.kind.length ? 1 : 0) + Object.keys(o.f).filter(k => (o.f[k] || []).length).length; }
 const kindKey = (en, st) => st === 'food' ? (foodType(en) || '_') : st === 'drink' ? (en.base || 'other') : '';
 /* the entries of one category after search + filters (status filter last, so its counts stay right) */
+let collQ = '';
+function collQMatch(x, q) {
+  q = q.toLowerCase();
+  const bits = [x.title, x.notes, x.place, x.by, x.for, x.ing, x.base, x.base && baseOf(x.base) ? baseOf(x.base).slice(2).join(' ') : '', x.base && foodOf(x.base) ? foodOf(x.base).slice(2).join(' ') : ''].concat(Object.keys(x.x || {}).filter(k => k[0] !== '_').map(k => x.x[k]));
+  return q.split(/\s+/).filter(Boolean).every(w => bits.join(' ').toLowerCase().includes(w));
+}
+function collEmpty(cat) {
+  return collQ ? `<div class="empty"><b>🔎</b>${L(`Nothing matches “${esc(collQ)}”.`, `אין תוצאות ל"${esc(collQ)}".`)}</div>`
+    : `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}${collRO() ? '' : `<br><small>${L('Add with ＋ below.', 'מוסיפים עם ＋ למטה.')}</small>`}</div>`;
+}
 function collFiltered(cat, noStatus) {
   const o = cfOf(cat.id), st = catStyleC(cat), tpl = catTpl(cat);
-  let list = coll.filter(x => x.cat === cat.id && collMatches(x));
+  let list = coll.filter(x => x.cat === cat.id && collMatches(x) && (!collQ || collQMatch(x, collQ)));
   if (o.kind.length && (st === 'food' || st === 'drink')) list = list.filter(x => o.kind.includes(kindKey(x, st)));
   Object.keys(o.f).forEach(k => { const v = o.f[k] || []; if (v.length && tplField(tpl, k)) list = list.filter(x => v.includes(xv(x, k) || '_')); });
   if (!noStatus && cat.kind !== 'note' && o.st !== 'all') list = list.filter(x => o.st === 'tried' ? x.status === 'tried' : x.status !== 'tried');
@@ -774,6 +790,7 @@ function renderCollection() {
     <div class="c-tools2"><div class="c-view c-layout">${views}</div><span class="grow"></span>
     ${hasFilters ? `<button class="c-fbtn ${fc ? 'on' : ''}" data-cfsheet>${ico('filter')} ${L('Filter', 'סינון')}${fc ? ` <i>${fc}</i>` : ''}</button>` : ''}</div>`;
   html += collActiveFilters(cat);
+  if (coll.some(x => x.cat === cat.id)) html += `<label class="c-search">${ico('search')}<input id="collQ" type="search" dir="auto" enterkeyhint="search" autocomplete="off" value="${esc(collQ)}" placeholder="${esc(L(`Search in ${catLabel(cat)}…`, `חיפוש ב${catLabel(cat)}…`))}" aria-label="${esc(L('Search in this category', 'חיפוש בקטגוריה'))}">${collQ ? `<button type="button" class="c-qx" data-cqx aria-label="${esc(L('Clear', 'נקה'))}">✕</button>` : ''}</label>`;
   const list = collFiltered(cat);
   if (layout === 'map') {
     const pins = list.filter(x => x.lat !== null && x.lat !== undefined && x.lat !== '');
@@ -787,12 +804,9 @@ function renderCollection() {
   if (layout === 'table') return `<div class="c-wrap">${html}${collTable(cat, list)}</div>`;
   if (layout === 'list') return `<div class="c-wrap">${html}${tplList(cat, list)}</div>`;
   list.sort((a, b) => (a.status === 'tried') - (b.status === 'tried') || (b.rating - a.rating) || String(b.updated || b.added).localeCompare(String(a.updated || a.added)));
-  const addCard = ro ? '' : `<div class="c-card c-new" style="--c-bg:${C_PAL[catIdx(cat.id) % C_PAL.length]};--c-ink:${C_INK[catIdx(cat.id) % C_INK.length]}">
-      <div class="c-band"><span class="c-emoji">${catEmoji(cat)}</span><span>${L('New', 'חדש')}</span></div>
-      <input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(kind === 'wish' ? L('I wish…', 'הייתי רוצה…') : kind === 'note' ? L('Write it down…', 'כתוב כאן…') : L('Name, or paste a link…', 'שם, או הדבק קישור…'))}">
-      <button class="c-more" data-cnew>${L('＋ with details', '＋ עם פרטים')}</button></div>`;
+  const addCard = '';
   html += `<div class="c-board">${addCard}${list.map(collCard).join('')}</div>`;
-  if (!list.length && ro) html += `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`;
+  if (!list.length) html += collEmpty(cat);
   return `<div class="c-wrap">${html}</div>`;
 }
 /* the filters that are on, as small chips you can remove with ✕ */
@@ -866,9 +880,9 @@ function tplList(cat, list) {
           ${aliveBtn(en)}${collRO() ? '' : `${cat.kind !== 'note' ? `<button class="btn ghost" data-cdone="${esc(en.id)}">${done ? esc(w.want) : esc(w.tried)}</button>` : ''}<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
       </div>` : ''}</div>`;
   };
-  const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
+  const add = '';   // adding is the ＋ button in the bottom bar
   const body = order.map(k => `<section class="ct-group">${gf ? `<h4 dir="auto">${k === '_' ? esc(L('Other', 'אחר')) : esc(k)} <i>${groups[k].length}</i></h4>` : ''}${groups[k].sort((a, b) => (a.status === 'tried') - (b.status === 'tried') || cmp(a.title, b.title)).map(row).join('')}</section>`).join('');
-  return `<div class="c-table">${add}${list.length ? body : `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`}</div>`;
+  return `<div class="c-table">${add}${list.length ? body : collEmpty(cat)}</div>`;
 }
 /* ---- 🍸 table view (e.g. drinks): grouped by base, tap a row to open recipe / description / video ---- */
 function collTable(cat, list) {
@@ -895,9 +909,9 @@ function collTable(cat, list) {
           ${collRO() ? '' : `<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
       </div>` : ''}</div>`;
   };
-  const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(drink ? L('Add a cocktail — name or paste a link…', 'הוסף קוקטייל — שם או הדבק קישור…') : L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
+  const add = '';   // adding is the ＋ button in the bottom bar
   const body = order.filter(k => groups[k]).map(k => `<section class="ct-group"><h4>${head(k)} <i>${groups[k].length}</i></h4>${groups[k].sort((a, b) => (b.rating - a.rating) || a.title.localeCompare(b.title)).map(row).join('')}</section>`).join('');
-  return `<div class="c-table">${add}${body || `<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div>`}</div>`;
+  return `<div class="c-table">${add}${body || collEmpty(cat)}</div>`;
 }
 /* ☰ table for a category with a template: Name + its short details as columns, tap a row to open it */
 function tplTable(cat, list) {
@@ -917,8 +931,8 @@ function tplTable(cat, list) {
       <div class="ct-actions">${en.link ? `<button class="btn ghost" data-clink="${esc(en.link)}">${ctIsVideo(en.link) ? L('▶ Watch', '▶ לסרטון') : L('🔗 Open link', '🔗 לקישור')}</button>` : ''}${tplFind(en, tpl)}
         ${aliveBtn(en)}${collRO() ? '' : `${cat.kind !== 'note' ? `<button class="btn ghost" data-cdone="${esc(en.id)}">${done ? esc(w.want) : esc(w.tried)}</button>` : ''}<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div></div></td></tr>`;
   }).join('');
-  const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Add — name or paste a link…', 'הוסף — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
-  if (!rows.length) return `<div class="c-table">${add}<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div></div>`;
+  const add = '';   // adding is the ＋ button in the bottom bar
+  if (!rows.length) return `<div class="c-table">${collEmpty(cat)}</div>`;
   return `<div class="c-table">${add}<table class="dt tp-table no-i18n"><thead><tr><th>${L('Name', 'שם')}</th>${cols.map(f => `<th dir="auto">${esc(f.l)}</th>`).join('')}<th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 /* 🍸 drinks: a real table — Base | Name | Other ingredients — sorted by base, then name (A→Z / א→ת); tap a row to open it */
@@ -952,8 +966,8 @@ function drinkTable(cat, list) {
           ${collRO() ? '' : `<button class="btn ghost" data-copen="${esc(en.id)}">✏️ ${L('Edit', 'עריכה')}</button>`}</div>
       </div></td></tr>`;
   }).join('');
-  const add = collRO() ? '' : `<div class="ct-add"><input id="collNew" dir="auto" enterkeyhint="done" autocomplete="off" placeholder="${esc(L('Add a cocktail — name or paste a link…', 'הוסף קוקטייל — שם או הדבק קישור…'))}"><button class="btn ghost" data-cnew>${L('＋ details', '＋ פרטים')}</button></div>`;
-  if (!rows.length) return `<div class="c-table">${add}<div class="empty"><b>${catEmoji(cat)}</b>${L('Nothing here yet.', 'עדיין אין כאן כלום.')}</div></div>`;
+  const add = '';   // adding is the ＋ button in the bottom bar
+  if (!rows.length) return `<div class="c-table">${collEmpty(cat)}</div>`;
   return `<div class="c-table">${add}<table class="dt no-i18n"><thead><tr><th>${L('Base', 'בסיס')}</th><th>${L('Name', 'שם')}</th><th>${L('Other ingredients', 'מצרכים נוספים')}</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 function collCard(en) {
@@ -2333,8 +2347,9 @@ document.addEventListener('click', (e) => {
   const bk = t.closest('[data-book]');
   if (bk) { ui.nbBook = bk.dataset.book; store.set('aip.ui', ui); render(); return; }
   const cc = t.closest('[data-ccat]');
-  if (cc) { ui.collCat = cc.dataset.ccat; ui.collView = 'board'; store.set('aip.ui', ui); render(); window.scrollTo({ top: 0 }); return; }
+  if (cc) { collQ = ''; ui.collCat = cc.dataset.ccat; ui.collView = 'board'; store.set('aip.ui', ui); render(); window.scrollTo({ top: 0 }); return; }
   if (t.closest('[data-cfsheet]')) { openCollFilter(); return; }
+  if (t.closest('[data-cqx]')) { collQ = ''; render(); const i = $('#collQ'); if (i) i.focus(); return; }
   const cfx = t.closest('[data-cfx]'); if (cfx) { cfToggle(cfx.dataset.cfx, cfx.dataset.cfv || ''); render(); return; }
   const ctp = t.closest('[data-ctpl]'); if (ctp) { openTplEditor(ctp.dataset.ctpl); return; }
   const cal = t.closest('[data-calive]'); if (cal) { e.stopPropagation(); collAlive(cal.dataset.calive); return; }
@@ -4596,7 +4611,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 81;
+const APP_VERSION = 82;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

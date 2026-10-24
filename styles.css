@@ -1535,3 +1535,11 @@ body .bottom-bar .fab-wheel{padding:6px;overflow:visible}
 .fab-wheel .wd1{animation-delay:.8s}.fab-wheel .wd2{animation-delay:1.6s}
 @keyframes whBlink{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion: reduce){.fab-wheel [class^=wd]{animation:none}.fab-wheel .wh-spin{transition:none}}
+/* 🔎 search inside a Collection category (adding is the ＋ button) */
+.c-search{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:0 12px;min-height:46px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--muted)}
+.c-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+.c-search input{flex:1;min-width:0;border:0;background:transparent;padding:10px 0;outline:none;color:var(--ink);-webkit-appearance:none;appearance:none}
+.c-search input::-webkit-search-cancel-button{display:none}
+.c-qx{border:0;background:var(--focus-pressed);color:var(--muted);width:28px;height:28px;border-radius:50%;cursor:pointer;flex:0 0 auto}
+.empty small{color:var(--muted);font-size:13px}
+.c-search{flex-direction:row!important;font-size:16px;font-weight:400}.c-search .ic{flex:0 0 auto;width:20px;height:20px}
