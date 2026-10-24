@@ -1526,3 +1526,12 @@ body .toast{max-width:min(520px,calc(100vw - 32px));white-space:normal;line-heig
 .qf-text::before{content:"“";color:var(--play-accent);opacity:.6;margin-inline-end:2px}
 .qf-text::after{content:"”";color:var(--play-accent);opacity:.6;margin-inline-start:2px}
 .qf-who{margin-top:6px;font-size:13.5px}
+/* 🎡 wheel icon v2 */
+body .bottom-bar .fab-wheel{padding:6px;overflow:visible}
+.fab-wheel .wheel-ic{width:100%;height:100%;overflow:visible;transform:none!important}
+.fab-wheel .wh-spin{transform-origin:20px 20px;transform-box:view-box;transition:transform .9s cubic-bezier(.15,.75,.2,1)}
+.fab-wheel:hover .wh-spin,.fab-wheel:active .wh-spin{transform:rotate(225deg)}
+.fab-wheel [class^=wd]{animation:whBlink 2.4s ease-in-out infinite}
+.fab-wheel .wd1{animation-delay:.8s}.fab-wheel .wd2{animation-delay:1.6s}
+@keyframes whBlink{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){.fab-wheel [class^=wd]{animation:none}.fab-wheel .wh-spin{transition:none}}
