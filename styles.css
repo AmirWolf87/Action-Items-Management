@@ -1353,3 +1353,9 @@ body.tour-open{overflow:hidden}
 .q-who span{font-weight:400;color:var(--muted)}
 .q-credit{margin:0;font-size:11px;color:var(--muted)}.q-credit a{color:inherit}
 @media (prefers-color-scheme: dark){:root:not([data-theme=light]) .q-who{color:#C4B5FD}}
+/* 🎡 wheel button in the bottom bar */
+body .bottom-bar .fab-wheel{width:52px;height:52px;border-radius:16px;flex:0 0 auto;padding:7px;background:linear-gradient(135deg,#F59E0B,#EF4444);box-shadow:0 6px 16px rgba(239,68,68,.35);display:grid;place-items:center}
+.fab-wheel svg{width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+.fab-wheel:hover svg,.fab-wheel:active svg{transform:rotate(200deg)}
+body.story-open .fab-wheel{visibility:hidden}
+.wh-opts .chip i{font-style:normal;opacity:.65;font-size:12px;margin-inline-start:2px}

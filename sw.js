@@ -1,6 +1,6 @@
 /* Offline shell: caches the app files; data always comes live from the sheet. */
-const CACHE = 'action-items-v75';
-const FILES = ['./', 'index.html', 'styles.css?v=75', 'i18n.js?v=75', 'app.js?v=75', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
+const CACHE = 'action-items-v76';
+const FILES = ['./', 'index.html', 'styles.css?v=76', 'i18n.js?v=76', 'app.js?v=76', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith(CACHE.replace(/\d+$/, '')) && k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener('fetch', e => {

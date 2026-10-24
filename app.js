@@ -1742,6 +1742,7 @@ document.addEventListener('click', async (e) => {
 });
 $('#btnReview').addEventListener('click', openReview);
 $('#btnWheel').addEventListener('click', openWheel);
+$('#fabWheel').addEventListener('click', () => { togglePlay(false); openWheel(); });
 $('#btnQuote').addEventListener('click', () => openQuote());
 $('#fmQuote').addEventListener('click', () => openQuote(fs && fs.endAt ? 'finish' : 'sit'));
 
@@ -3807,12 +3808,12 @@ $('#dlgQuote').addEventListener('click', (e) => {
 });
 
 /* ---------- 🎡 wheel of fortune: "I have N minutes" → spins and picks a fitting urgent task ---------- */
-let wh = { min: store.get('ai.wheelMin', 30), goal: store.get('ai.wheelGoal', 'finish'), cands: [], pick: null, angle: 0, spinning: false };
+let wh = { min: store.get('ai.wheelMin', 30), goal: store.get('ai.wheelGoal', 'finish'), areas: null, cands: [], pick: null, angle: 0, spinning: false };
 const WH_COLORS = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FB923C', '#2DD4BF'];
 const whEst = (it) => { const h = parseFloat(it.hrs), a = parseFloat(it.acthrs) || 0; return h > 0 ? Math.max(5, Math.round((h - a > 0 ? h - a : h) * 60)) : null; };   // minutes left, if estimated
 function whCandidates() {
   const open = data.items.filter(it => !isClosed(it) && it.status !== 'Waiting');
-  let base = open.filter(it => areaOk(it.area)); if (!base.length) base = open;
+  const base = open.filter(it => !wh.areas || wh.areas.includes(it.area));
   const day = new Set(typeof dayRows === 'function' ? dayRows().map(String) : []);
   const scored = base.map(it => {
     const h = horizon(it), hi = /^1/.test(it.prio || ''), est = whEst(it);
@@ -3829,7 +3830,8 @@ function whCandidates() {
 }
 function openWheel() {
   if (isGuest()) return;
-  wh.pick = null; wh.spinning = false; whSetup(); $('#dlgWheel').showModal();
+  wh.pick = null; wh.spinning = false; wh.areas = areaSel() ? areaSel().slice() : null;   // starts with the area(s) on screen
+  whSetup(); $('#dlgWheel').showModal();
 }
 function whSetup() {
   const mins = [10, 15, 30, 45, 60, 90, 120];
@@ -3838,10 +3840,18 @@ function whSetup() {
     <div class="wh-q">${L('How much time do you have?', 'כמה זמן יש לך?')}</div>
     <div class="wh-opts">${mins.map(m => `<button type="button" class="chip ${wh.min === m ? 'on' : ''}" data-whmin="${m}">${m < 60 ? m + L(' min', ' דק׳') : (m / 60) + L(' h', ' שע׳')}</button>`).join('')}<button type="button" class="chip ${custom ? 'on' : ''}" data-whmin="-1">${L('Other', 'אחר')}</button></div>
     ${custom ? `<label class="wh-custom">${L('Minutes', 'דקות')}<input type="number" id="whMinIn" min="5" max="480" step="5" inputmode="numeric" value="${wh.min}"></label>` : ''}
+    <div class="wh-q">${L('Which areas?', 'אילו תחומים?')}</div>
+    <div class="wh-opts">${whAreaChips()}</div>
     <div class="wh-q">${L('What do you want?', 'מה המטרה?')}</div>
     <div class="seg wh-goal"><button type="button" class="${wh.goal === 'finish' ? 'on' : ''}" data-whgoal="finish">🏁 ${L('Finish a task now', 'לסיים משימה עכשיו')}</button><button type="button" class="${wh.goal === 'progress' ? 'on' : ''}" data-whgoal="progress">📈 ${L('Make progress', 'להתקדם במשהו')}</button></div>
     <p class="hint wh-count">${whCountText()}</p>
     <div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary wh-go" id="whGo" ${whCandidates().length ? '' : 'disabled'}>🎡 ${L('Spin!', 'סובב!')}</button></div>`;
+}
+function whAreaChips() {
+  const open = data.items.filter(it => !isClosed(it) && it.status !== 'Waiting');
+  const n = (a) => { const keep = wh.areas; wh.areas = a ? [a] : null; const c = whCandidates().length; wh.areas = keep; return c; };
+  return `<button type="button" class="chip ${!wh.areas ? 'on' : ''}" data-wharea="*">${L('All', 'הכל')} <i>${n(null)}</i></button>` +
+    data.areas.filter(a => open.some(it => it.area === a)).map(a => `<button type="button" class="chip ${wh.areas && wh.areas.includes(a) ? 'on' : ''}" data-wharea="${esc(a)}">${esc(tr(a))} <i>${n(a)}</i></button>`).join('');
 }
 function whCountText() {
   const c = whCandidates();
@@ -3902,6 +3912,8 @@ function whDone() {
 $('#dlgWheel').addEventListener('click', (e) => {
   const m = e.target.closest('[data-whmin]');
   if (m) { const v = Number(m.dataset.whmin); wh.min = v === -1 ? (![10, 15, 30, 45, 60, 90, 120].includes(wh.min) ? wh.min : 20) : v; store.set('ai.wheelMin', wh.min); whSetup(); return; }
+  const ar = e.target.closest('[data-wharea]');
+  if (ar) { const a = ar.dataset.wharea; if (a === '*') wh.areas = null; else { const cur = wh.areas || []; const nx = cur.includes(a) ? cur.filter(x => x !== a) : cur.concat(a); wh.areas = nx.length ? nx : null; } whSetup(); return; }
   const g = e.target.closest('[data-whgoal]'); if (g) { wh.goal = g.dataset.whgoal; store.set('ai.wheelGoal', wh.goal); whSetup(); return; }
   if (e.target.closest('#whGo')) { const ci = $('#whMinIn'); if (ci) { wh.min = Math.max(5, Math.min(480, Number(ci.value) || 30)); store.set('ai.wheelMin', wh.min); } whSpin(); return; }
   const a = e.target.closest('[data-wh]'); if (!a || !wh.pick) return;
@@ -4567,7 +4579,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 75;
+const APP_VERSION = 76;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
