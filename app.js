@@ -1229,7 +1229,7 @@ async function collCheckWeb() {
   const f = $('#frmColl'), c = catOf($('#collCat').value), tpl = catTpl(c), btn = $('#collCheck');
   const title = f.elements.title.value.trim(); if (!title) return;
   btn.disabled = true; btn.textContent = L('🔎 Searching the web…', '🔎 מחפש באינטרנט…');
-  const box = $('#collCheckBox'); box.hidden = false; box.className = 'ck-box'; box.innerHTML = `<p class="hint">${L('Looking the place up — this takes a few seconds…', 'מחפש את המקום — זה לוקח כמה שניות…')}</p>`;
+  const box = $('#collCheckBox'); box.hidden = false; box.className = 'ck-box'; box.innerHTML = `<p class="hint">${L('Looking the place up — usually a few seconds (up to a minute if the AI is busy)…', 'מחפש את המקום — בדרך כלל כמה שניות (עד דקה אם ה-AI עמוס)…')}</p>`;
   let r = null;
   try { r = await api('POST', { action: 'placeCheck', cat: c.id, catName: c.name, title, place: f.elements.place.value.trim(), link: f.elements.link.value.trim(), notes: f.elements.notes.value.slice(0, 800),
     base: $('#collBase').value === NEW_BASE ? '' : $('#collBase').value, fields: tpl ? tpl.fields : null, x: tplFormRead() }); } catch (e) { r = { ok: false, message: e.message }; }
@@ -4918,7 +4918,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 90;
+const APP_VERSION = 91;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

@@ -1429,12 +1429,12 @@ function aiJson_(text) {
   try { return JSON.parse(raw); } catch (e) { /* try a cleaned copy */ }
   try { return JSON.parse(raw.replace(/\s*\[\d+(?:,\s*\d+)*\]/g, '').replace(/,\s*([}\]])/g, '$1')); } catch (e) { return { error: 'AI: unreadable answer — try again' }; }
 }
-function aiCall_(parts, tools) {
+function aiCall_(parts, tools, retried) {
   const key = aiKey_(); if (!key) return null;
   // free-tier models first; a model that is out of quota (429) or not open to this key (403/404) → try the next one
   const P = PropertiesService.getScriptProperties();
   const models = [P.getProperty('GEMINI_MODEL') || P.getProperty('GEMINI_OK_MODEL') || 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
-  let lastErr = null;
+  const errs = [];
   for (const model of models.filter((m, i, a) => m && a.indexOf(m) === i)) {
     const body = { contents: [{ role: 'user', parts: parts }], generationConfig: { temperature: 0.2 } };
     if (tools) body.tools = tools; else body.generationConfig.responseMimeType = 'application/json';
@@ -1447,7 +1447,8 @@ function aiCall_(parts, tools) {
         if (r2.getResponseCode() < 300) r = r2;
       }
       const code = r.getResponseCode(), txt = r.getContentText();
-      if (code === 404 || code === 403 || code === 429) { lastErr = { code: code, txt: String(txt), model: model }; continue; }
+      if (code === 404 || code === 403 || code === 429) { errs.push({ code: code, txt: String(txt), model: model }); continue; }
+      if (code === 400 && tools && /tool|search|grounding|not supported/i.test(txt)) { errs.push({ code: code, txt: String(txt), model: model }); continue; }   // this model can't search → next one
       if (code >= 300) return { error: 'AI ' + code + ': ' + String(txt).slice(0, 160) };
       if (P.getProperty('GEMINI_OK_MODEL') !== model) P.setProperty('GEMINI_OK_MODEL', model);   // remember the model that works
       const j = JSON.parse(txt), out = (((j.candidates || [])[0] || {}).content || {}).parts || [];
@@ -1455,13 +1456,23 @@ function aiCall_(parts, tools) {
       return aiJson_(text);
     } catch (e) { return { error: 'AI: ' + e.message }; }
   }
-  if (lastErr && lastErr.code === 429) {
-    const zero = /limit:\s*0\b/.test(lastErr.txt), daily = /PerDay|per_day|RPD/i.test(lastErr.txt);
-    return { error: zero ? 'ה-AI: המפתח הזה לא מקבל מכסה חינמית (limit: 0). צור מפתח בפרויקט חדש ב-AI Studio, או הפעל חיוב (Billing) בפרויקט.'
-      : daily ? 'ה-AI: נגמרה המכסה היומית החינמית — היא מתאפסת בכל יום בערך ב-10 בבוקר (שעון ישראל). נסה שוב אחר כך.'
-      : 'ה-AI: יותר מדי בקשות בדקה — חכה דקה ונסה שוב.' };
+  const busy = errs.filter(e => e.code === 429);
+  if (busy.length) {
+    // a short per-minute limit: Google says how long to wait — wait once (up to 30 s) and try again, instead of failing
+    const waits = busy.map(e => { const m = e.txt.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/); return m ? Number(m[1]) : null; }).filter(x => x !== null);
+    const wait = waits.length ? Math.min.apply(null, waits) : null;
+    const daily = (t) => /PerDay|per_day|RPD/i.test(t), zero = (t) => /limit:\s*0\b/.test(t);
+    if (!retried && wait !== null && wait <= 30 && !busy.every(e => daily(e.txt) || zero(e.txt))) { Utilities.sleep(Math.ceil(wait * 1000) + 800); return aiCall_(parts, tools, true); }
+    const first = busy[0], q = (first.txt.match(/"quotaId"\s*:\s*"([^"]+)"/) || first.txt.match(/metric:\s*([\w./-]+)/) || [])[1] || '';
+    const lim = (first.txt.match(/limit:\s*(\d+)/) || [])[1];
+    const why = ' [' + first.model + (q ? ' · ' + q : '') + (lim ? ' · limit ' + lim : '') + ']';
+    const search = tools && /search|ground/i.test(busy.map(e => e.txt).join(' '));
+    return { error: busy.every(e => zero(e.txt)) ? 'ה-AI: המפתח הזה לא מקבל מכסה חינמית ' + (search ? 'לחיפוש ברשת' : '') + ' (limit: 0). צור מפתח בפרויקט חדש ב-AI Studio, או הפעל חיוב (Billing) בפרויקט.' + why
+      : busy.some(e => daily(e.txt)) ? 'ה-AI: נגמרה המכסה היומית החינמית' + (search ? ' של חיפוש ברשת' : '') + ' — היא מתאפסת בכל יום בערך ב-10 בבוקר (שעון ישראל). נסה שוב אחר כך.' + why
+      : 'ה-AI: יותר מדי בקשות בדקה' + (search ? ' לחיפוש ברשת' : '') + ' — חכה דקה ונסה שוב.' + why };
   }
-  if (lastErr) return { error: 'AI ' + lastErr.code + ' (' + lastErr.model + '): ' + lastErr.txt.slice(0, 160) };
+  const last = errs[errs.length - 1];
+  if (last) return { error: 'AI ' + last.code + ' (' + last.model + '): ' + last.txt.slice(0, 160) };
   return { error: 'AI: no model available' };
 }
 function aiExtract_(style, catName, raw, url, blocked, fields, image) {
