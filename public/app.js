@@ -1136,7 +1136,7 @@ function collLinkNote(info, fromText) {
     box.innerHTML = (info && info.shot ? L('📷 <b>The screenshot couldn’t be read.</b> ', '📷 <b>לא הצלחתי לקרוא את צילום המסך.</b> ') + (info.aiError ? esc(info.aiError) : L('Try a sharper screenshot where the name and place are visible.', 'נסה צילום חד יותר שבו רואים את השם והמקום.'))
       : L('📋 <b>The post couldn’t be read</b> (Instagram/Facebook often block it). Take a <b>screenshot</b> of the post and add it here — or copy its text into <b>Notes</b> and tap <b>✨ Fill from text</b>.',
       '📋 <b>לא הצלחתי לקרוא את הפוסט</b> (אינסטגרם/פייסבוק חוסמים לפעמים). צלם <b>צילום מסך</b> של הפוסט והוסף אותו כאן — או העתק את הטקסט ל<b>הערות</b> ולחץ <b>✨ מלא מהטקסט</b>.')) +
-      (settings.demo || collRO() ? '' : `<br><label class="btn primary c-shot-big">📷 ${L('Add a screenshot of the post', 'הוספת צילום מסך של הפוסט')}<input type="file" accept="image/*" hidden data-collshot></label>`);
+      (settings.demo || collRO() ? '' : `<br><span class="c-shot-row"><button type="button" class="btn primary c-shot-big" data-collpaste>📋 ${L('Paste a screenshot', 'הדבק צילום מסך מהלוח')}</button><label class="btn ghost c-shot-big c-shot-alt">📷 ${L('Choose a photo', 'בחר מהגלריה')}<input type="file" accept="image/*" hidden data-collshot></label></span>`);
   } else {
     box.className = 'c-note ok'; box.hidden = false;
     box.innerHTML = (info.shot ? '📷 ' + L('Read from the screenshot', 'נקרא מצילום המסך') : info.ai ? '✨ ' + L('Read with AI', 'נקרא עם AI') : '✓ ' + (fromText ? L('Filled from the text', 'מולא מהטקסט') : L('Filled from the link', 'מולא מהקישור'))) + ' · ' + L('check and Save', 'בדוק ולחץ שמירה') + (catOf($('#collCat').value).map && !settings.demo ? ' · ' + L('🔎 you can also verify it on the web below', '🔎 אפשר גם לוודא מול האינטרנט (כפתור למטה)') : '') +
@@ -1173,6 +1173,34 @@ function collApplyInfo(info, blockedBefore) {
   if (info.lat !== null && info.lat !== undefined && (f.dataset.lat === '' || f.dataset.manual === 'link')) { f.dataset.lat = info.lat; f.dataset.lng = info.lng; f.dataset.manual = 'link'; f.dataset.geo = info.geoName || ''; }
   collFormUi();
 }
+/* ---- 📋 paste from the clipboard: a screenshot → read it · a link → read the link · text → fill from the text ---- */
+async function clipRead() {
+  const out = { image: null, text: '' };
+  if (navigator.clipboard && navigator.clipboard.read) {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const it of items) {
+        const t = it.types.find(x => /^image\//.test(x)); if (t && !out.image) { const b = await it.getType(t); out.image = new File([b], 'clip.' + (t.split('/')[1] || 'png'), { type: t }); }
+        if (!out.text && it.types.includes('text/plain')) out.text = await (await it.getType('text/plain')).text();
+      }
+      return out;
+    } catch (e) { /* older browsers / permission → try text only */ }
+  }
+  try { out.text = await navigator.clipboard.readText(); } catch (e) { out.err = true; }
+  return out;
+}
+async function collPasteClip() {
+  const c = await clipRead(), f = $('#frmColl');
+  if (c.image) { collFillFromShot(c.image); return; }
+  const txt = String(c.text || '').trim();
+  if (!txt) { toast(c.err ? L('The clipboard can’t be read here — long-press a field and choose Paste', 'אי אפשר לקרוא את הלוח כאן — לחיצה ארוכה על שדה › הדבק') : L('The clipboard is empty — copy a link, text or screenshot first', 'הלוח ריק — העתק קודם קישור, טקסט או צילום מסך')); return; }
+  const m = txt.match(/https?:\/\/\S+/);
+  if (m) { f.elements.link.value = m[0]; f.dataset.lat = f.dataset.manual ? f.dataset.lat : ''; const rest = txt.replace(m[0], '').trim(); if (rest.length >= 15 && !f.elements.notes.value.trim()) f.elements.notes.value = rest; collFormUi(); collFillFromLink(); return; }
+  f.elements.notes.value = (f.elements.notes.value.trim() ? f.elements.notes.value.trim() + '\n\n' : '') + txt; collFormUi();
+  if (txt.length >= 15) collFillFromLink(); else toast(L('Pasted into Notes', 'הודבק בהערות'));
+}
+$('#collPaste').addEventListener('click', collPasteClip);
+document.addEventListener('click', (e) => { if (e.target.closest('[data-collpaste]')) collPasteClip(); });
 /* ---- 📷 a screenshot of the post → AI reads it → fills the entry → then checks the place on the web ---- */
 async function collFillFromShot(file) {
   if (!file || !/^image\//.test(file.type || 'image/')) return;
@@ -1367,6 +1395,7 @@ function collFormUi() {
   if (!$('#collFill').disabled) $('#collFill').textContent = $('#collNote').classList.contains('warn') || !/^https?:\/\//i.test(l) ? L('✨ Fill from text', '✨ מלא מהטקסט') : L('✨ Fill from link', '✨ מלא מהקישור');
   { const canCk = !ro && !settings.demo && f.elements.title.value.trim().length > 1 && (c.map || ['food'].includes(catStyleC(c)));
     $('#collCheck').hidden = !canCk; if (!$('#collCheck').disabled) $('#collCheck').textContent = L('🔎 Check & complete from the web', '🔎 בדוק והשלם מהאינטרנט'); }
+  $('#collPaste').hidden = ro || settings.demo; $('#collPasteLbl').textContent = L('Paste', 'הדבק מהלוח');
   $('#collShotBtn').hidden = ro || settings.demo; if (!$('#collShotBtn').classList.contains('busy')) $('#collShotLbl').textContent = L('From a screenshot', 'מצילום מסך');
   $('#collImg').hidden = !f.dataset.img; if (f.dataset.img && $('#collImg').getAttribute('src') !== f.dataset.img) $('#collImg').setAttribute('src', f.dataset.img);
   const has = f.dataset.lat !== '' && f.dataset.lat !== 'null';
@@ -4250,7 +4279,7 @@ function renderPlayMenu() {
   { const n = data.items.filter(it => areaOk(it.area) && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;   // the video follows the area(s) on screen
     items.push(['story:', '🎬', L(`What’s urgent · ${areaSelLabel()}`, `מה דחוף · ${areaSelLabel()}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); }
   if (!isGuest()) {
-    items.push(['clip', '📋', L('Link → Collection', 'קישור לאוסף'), L('Paste the link you just copied', 'מדביק את הקישור שהעתקת עכשיו')]);
+    items.push(['clip', '📋', L('Link → Collection', 'קישור לאוסף'), L('Paste the link or screenshot you just copied', 'מדביק את הקישור או צילום המסך שהעתקת')]);
     items.push(['review', '🗓', L('Weekly review', 'סקירה שבועית'), L('Overdue · waiting · next week', 'באיחור · ממתין · השבוע הבא')]);
     items.push(['report', '✉️', L('Weekly report', 'דוח שבועי'), L('Ready to send', 'מוכן לשליחה')]);
   }
@@ -4278,10 +4307,10 @@ $('#playMenu').addEventListener('click', async (e) => {
   if (k === 'report') { openReport(); return; }
   if (k === 'sync') { runCalSync(); return; }
   if (k === 'clip') {
-    let txt = '';
-    try { txt = await navigator.clipboard.readText(); } catch (err) { txt = ''; }
+    const c = await clipRead(), txt = c.text || '';
+    if (c.image && !settings.demo) { ui.tab = 'notebook'; ui.nbBook = 'coll'; if (!ui.collCat || ui.collCat === '*') ui.collCat = (collCats[0] || {}).id; store.set('aip.ui', ui); render(); openColl({ cat: ui.collCat, status: 'want' }); collFillFromShot(c.image); return; }
     const m = String(txt || '').match(/https?:\/\/\S+/);
-    if (!m) { toast(L('No link on the clipboard — copy a link first', 'אין קישור בלוח — העתק קודם קישור')); return; }
+    if (!m) { toast(L('No link or screenshot on the clipboard — copy one first', 'אין קישור או צילום מסך בלוח — העתק קודם')); return; }
     ui.tab = 'notebook'; ui.nbBook = 'coll'; if (!ui.collCat || ui.collCat === '*') ui.collCat = (collCats[0] || {}).id; store.set('aip.ui', ui); render();
     collQuickAdd(m[0]);
   }
@@ -4889,7 +4918,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 89;
+const APP_VERSION = 90;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

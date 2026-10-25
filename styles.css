@@ -1679,3 +1679,6 @@ body .toast,.fs-banner{bottom:calc(152px + env(safe-area-inset-bottom))}
 .c-shot{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;cursor:pointer;color:var(--play-accent)!important;font-size:15px}
 .c-shot.busy{opacity:.7;pointer-events:none}
 .c-shot-big{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;margin-top:10px;cursor:pointer;color:#fff!important}
+.c-shot-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.c-shot-row .c-shot-big{margin-top:0}
+.c-shot-alt{color:var(--ink)!important}
