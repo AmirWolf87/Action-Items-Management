@@ -1675,3 +1675,7 @@ body .toast,.fs-banner{bottom:calc(152px + env(safe-area-inset-bottom))}
 .rep-x{border:0;background:#FEE2E2;color:#B91C1C;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:12px;line-height:24px;padding:0}
 .rep-x-td{width:28px;text-align:center;vertical-align:middle;padding:0 2px}
 #repPreview.rep-free{outline:2px dashed var(--accent);outline-offset:4px;border-radius:8px}
+/* 📷 fill from a screenshot */
+.c-shot{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;cursor:pointer;color:var(--play-accent)!important;font-size:15px}
+.c-shot.busy{opacity:.7;pointer-events:none}
+.c-shot-big{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;margin-top:10px;cursor:pointer;color:#fff!important}

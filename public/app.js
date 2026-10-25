@@ -1116,9 +1116,9 @@ async function collQuickAdd(text) {
   await collStore({ cat: ui.collCat, title, link, status: 'want', rating: 0 });
   const inp = $('#collNew'); if (inp) inp.focus();
 }
-async function linkInfo(url, cat, text) {
+async function linkInfo(url, cat, text, image) {
   const tpl = cat && catTpl(cat);
-  try { return await api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '', fields: tpl ? tpl.fields : null }); } catch (e) { return null; }
+  try { return await api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '', fields: tpl ? tpl.fields : null, image: image || '' }); } catch (e) { return image ? { found: false, aiError: e.message } : null; }
 }
 function collFromInfo(info, base) {
   info = info || {};
@@ -1133,11 +1133,13 @@ function collLinkNote(info, fromText) {
   const box = $('#collNote');
   if (!info || !info.found || info.blocked) {
     box.className = 'c-note warn'; box.hidden = false;
-    box.innerHTML = L('📋 <b>The post couldn’t be read</b> (Instagram/Facebook often block it). Copy the post’s text in the app, paste it into <b>Notes</b> below and tap <b>✨ Fill from text</b>.',
-      '📋 <b>לא הצלחתי לקרוא את הפוסט</b> (אינסטגרם/פייסבוק חוסמים לפעמים). העתק את הטקסט של הפוסט באפליקציה, הדבק ב<b>הערות</b> למטה ולחץ <b>✨ מלא מהטקסט</b>.');
+    box.innerHTML = (info && info.shot ? L('📷 <b>The screenshot couldn’t be read.</b> ', '📷 <b>לא הצלחתי לקרוא את צילום המסך.</b> ') + (info.aiError ? esc(info.aiError) : L('Try a sharper screenshot where the name and place are visible.', 'נסה צילום חד יותר שבו רואים את השם והמקום.'))
+      : L('📋 <b>The post couldn’t be read</b> (Instagram/Facebook often block it). Take a <b>screenshot</b> of the post and add it here — or copy its text into <b>Notes</b> and tap <b>✨ Fill from text</b>.',
+      '📋 <b>לא הצלחתי לקרוא את הפוסט</b> (אינסטגרם/פייסבוק חוסמים לפעמים). צלם <b>צילום מסך</b> של הפוסט והוסף אותו כאן — או העתק את הטקסט ל<b>הערות</b> ולחץ <b>✨ מלא מהטקסט</b>.')) +
+      (settings.demo || collRO() ? '' : `<br><label class="btn primary c-shot-big">📷 ${L('Add a screenshot of the post', 'הוספת צילום מסך של הפוסט')}<input type="file" accept="image/*" hidden data-collshot></label>`);
   } else {
     box.className = 'c-note ok'; box.hidden = false;
-    box.innerHTML = (info.ai ? '✨ ' + L('Read with AI', 'נקרא עם AI') : '✓ ' + (fromText ? L('Filled from the text', 'מולא מהטקסט') : L('Filled from the link', 'מולא מהקישור'))) + ' · ' + L('check and Save', 'בדוק ולחץ שמירה') + (catOf($('#collCat').value).map && !settings.demo ? ' · ' + L('🔎 you can also verify it on the web below', '🔎 אפשר גם לוודא מול האינטרנט (כפתור למטה)') : '') +
+    box.innerHTML = (info.shot ? '📷 ' + L('Read from the screenshot', 'נקרא מצילום המסך') : info.ai ? '✨ ' + L('Read with AI', 'נקרא עם AI') : '✓ ' + (fromText ? L('Filled from the text', 'מולא מהטקסט') : L('Filled from the link', 'מולא מהקישור'))) + ' · ' + L('check and Save', 'בדוק ולחץ שמירה') + (catOf($('#collCat').value).map && !settings.demo ? ' · ' + L('🔎 you can also verify it on the web below', '🔎 אפשר גם לוודא מול האינטרנט (כפתור למטה)') : '') +
       (info.aiError ? `<br><small>${esc(L('AI didn’t answer: ', 'ה-AI לא ענה: ') + info.aiError)}</small>` : '');
   }
   if ($('#dlgColl').open) collFormUi();
@@ -1153,6 +1155,10 @@ async function collFillFromLink() {
   b.disabled = false; b.textContent = old;
   collLinkNote(info, useText);
   if (!info || !info.found) return;
+  collApplyInfo(info, blockedBefore);
+}
+function collApplyInfo(info, blockedBefore) {
+  const f = $('#frmColl');
   const cur = f.elements.title.value.trim(), auto = f.dataset.autoTitle || '';
   if (info.title && (!cur || cur === auto || /^[\w.-]+\.(com|co\.il|il|net|org|io)$/i.test(cur))) { f.elements.title.value = info.title; f.dataset.autoTitle = info.title; }
   const set = (k, v) => { if (v && !f.elements[k].value.trim()) f.elements[k].value = v; };
@@ -1167,6 +1173,25 @@ async function collFillFromLink() {
   if (info.lat !== null && info.lat !== undefined && (f.dataset.lat === '' || f.dataset.manual === 'link')) { f.dataset.lat = info.lat; f.dataset.lng = info.lng; f.dataset.manual = 'link'; f.dataset.geo = info.geoName || ''; }
   collFormUi();
 }
+/* ---- 📷 a screenshot of the post → AI reads it → fills the entry → then checks the place on the web ---- */
+async function collFillFromShot(file) {
+  if (!file || !/^image\//.test(file.type || 'image/')) return;
+  const cat = catOf($('#collCat').value), btn = $('#collShotBtn');
+  $('#collShotLbl').textContent = L('Reading the screenshot…', 'קורא את צילום המסך…'); btn.classList.add('busy');
+  const box = $('#collNote'); box.className = 'c-note'; box.hidden = false; box.innerHTML = `📷 ${L('Reading the screenshot with AI…', 'קורא את צילום המסך עם AI…')}`;
+  let info = null;
+  try { const data = await shrinkImage(file, 1400, 0.8); info = await linkInfo($('#frmColl').elements.link.value.trim(), cat, '', data); }
+  catch (e) { info = { found: false, aiError: e.message }; }
+  $('#collShotLbl').textContent = L('From a screenshot', 'מצילום מסך'); btn.classList.remove('busy');
+  info = Object.assign({ found: false }, info, { shot: true });
+  collLinkNote(info, true);
+  if (!info.found) return;
+  collApplyInfo(info, true);
+  if (cat.map && !$('#collCheck').hidden) { toast(L('📷 Filled from the screenshot — now checking the place on the web…', '📷 מולא מצילום המסך — עכשיו בודק את המקום ברשת…')); await collCheckWeb(); const bx = $('#collCheckBox'); if (bx && !bx.hidden) bx.scrollIntoView({ behavior: 'smooth', block: 'center' }); }   // and verify it on the web
+}
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'collShot' || e.target.matches('[data-collshot]')) { const fl = e.target.files; if (fl && fl[0]) collFillFromShot(fl[0]); e.target.value = ''; }
+});
 /* ---- 🔎 check the place on the web and offer the exact details (nothing changes until you approve) ---- */
 let ckRes = null;
 const ckNorm = (v) => String(v || '').toLowerCase().replace(/[\s"'׳״,.\-–־()]+/g, '');
@@ -1342,6 +1367,7 @@ function collFormUi() {
   if (!$('#collFill').disabled) $('#collFill').textContent = $('#collNote').classList.contains('warn') || !/^https?:\/\//i.test(l) ? L('✨ Fill from text', '✨ מלא מהטקסט') : L('✨ Fill from link', '✨ מלא מהקישור');
   { const canCk = !ro && !settings.demo && f.elements.title.value.trim().length > 1 && (c.map || ['food'].includes(catStyleC(c)));
     $('#collCheck').hidden = !canCk; if (!$('#collCheck').disabled) $('#collCheck').textContent = L('🔎 Check & complete from the web', '🔎 בדוק והשלם מהאינטרנט'); }
+  $('#collShotBtn').hidden = ro || settings.demo; if (!$('#collShotBtn').classList.contains('busy')) $('#collShotLbl').textContent = L('From a screenshot', 'מצילום מסך');
   $('#collImg').hidden = !f.dataset.img; if (f.dataset.img && $('#collImg').getAttribute('src') !== f.dataset.img) $('#collImg').setAttribute('src', f.dataset.img);
   const has = f.dataset.lat !== '' && f.dataset.lat !== 'null';
   $('#collGeo').textContent = !c.map ? '' : has ? (f.dataset.manual === 'pick' ? L('✓ Chosen from the map — the pin goes exactly there', '✓ נבחר מהמפה — הנעץ יסומן בדיוק שם') : f.dataset.manual === 'link' ? L('📍 Found on the map', '📍 נמצא במפה') + (f.dataset.geo ? ': ' + f.dataset.geo : '') + L(' — not right? type the place and pick from the list', ' — לא נכון? הקלד את המקום ובחר מהרשימה') : f.dataset.manual ? L('📍 Your current location will be pinned', '📍 המיקום הנוכחי שלך יסומן במפה') : L('✓ On the map', '✓ מסומן במפה')) :
@@ -1373,6 +1399,8 @@ $('#frmColl').addEventListener('input', (e) => {
 });
 $('#collCat').addEventListener('change', collFormUi);
 $('#frmColl').addEventListener('paste', (e) => {
+  const img = [...((e.clipboardData && e.clipboardData.items) || [])].find(x => x.kind === 'file' && /^image\//.test(x.type));
+  if (img && !collRO() && !settings.demo) { e.preventDefault(); collFillFromShot(img.getAsFile()); return; }
   if (e.target.name !== 'link' || collRO()) return;
   setTimeout(() => { const f = $('#frmColl'); if (!f.elements.title.value.trim() || !f.elements.notes.value.trim()) collFillFromLink(); }, 50);
 });
@@ -4861,7 +4889,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 88;
+const APP_VERSION = 89;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

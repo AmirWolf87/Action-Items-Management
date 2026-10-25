@@ -312,7 +312,7 @@ function doPost(e) {
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
-      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text, fields: req.fields })));
+      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text, fields: req.fields, image: req.image })));
       case 'quotes': return json_({ ok: true, quotes: quotesOnline_() });
       case 'collDesign': { const r = collDesign_(req.name, req.kind); if (!r.ok) r.error = r.message; return json_(r); }
       case 'placeCheck': { const r = placeCheck_(req); if (!r.ok) r.error = r.message; return json_(r); }
@@ -1464,7 +1464,7 @@ function aiCall_(parts, tools) {
   if (lastErr) return { error: 'AI ' + lastErr.code + ' (' + lastErr.model + '): ' + lastErr.txt.slice(0, 160) };
   return { error: 'AI: no model available' };
 }
-function aiExtract_(style, catName, raw, url, blocked, fields) {
+function aiExtract_(style, catName, raw, url, blocked, fields, image) {
   const rules = {
     food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence. base = the kind of place, ONE of: cafe, cart (coffee cart / food truck), bakery, italian, pizza, burger, diner, meat, asian, mexican, middle (middle-eastern / hummus / shawarma), fish, veg, street, bar, chef (chef / fine dining), other.',
     trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
@@ -1478,7 +1478,8 @@ function aiExtract_(style, catName, raw, url, blocked, fields) {
     (fields && fields.length ? 'x = the details this list keeps for every entry (empty string when unknown): ' + fields.map(f => f.k + ' = ' + f.l + (f.t === 'choice' ? ' (ONE of: ' + f.o.join(' / ') + ')' : f.t === 'mono' ? ' (copy chords / tabs / notation EXACTLY as written, keep every line break and space)' : f.t === 'number' ? ' (a number)' : '')).join('; ') + '\n' : '') +
     'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":"","ing":""' : style === 'food' ? ',"base":""' : '') + (fields && fields.length ? ',"x":{' + fields.map(f => '"' + f.k + '":""').join(',') + '}' : '') + '}\n\n' +
     'URL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 6000);
-  const parts = [{ text: prompt }];
+  const parts = [{ text: prompt + (image ? '\n\nA SCREENSHOT of the post is attached — read ALL the text in it (Hebrew too): business / place name, address, city, what to order, hours, prices, author. The screenshot is the main source.' : '') }];
+  if (image) parts.push({ inline_data: { mime_type: 'image/jpeg', data: image } });
   const yt = /youtube\.com|youtu\.be/i.test(url);
   if (yt && String(raw.caption || '').length < 120) parts.push({ file_data: { file_uri: url } });   // let the AI watch a short / under-described video
   // chords / tabs live in the page body (not in its preview) → let the AI open the page itself
@@ -1577,15 +1578,18 @@ function drinkBase_(text) { const t = String(text || ''); const f = DRINK_BASES_
 function linkInfo_(url, opt) {
   opt = opt || {};
   url = String(url || '').trim();
-  if (!/^https?:\/\//i.test(url) && !opt.text) throw new Error('Not a link');
-  const raw = /^https?:\/\//i.test(url) ? linkGather_(url, opt.text) : { url: '', source: 'text', title: '', caption: String(opt.text).slice(0, 8000), place: '', by: '', img: '', lat: null, lng: null };
+  const image = /^[A-Za-z0-9+/=]{100,}$/.test(String(opt.image || '').replace(/^data:[^,]+,/, '')) ? String(opt.image).replace(/^data:[^,]+,/, '') : '';
+  if (image.length > 6e6) throw new Error('The screenshot is too large');
+  if (image && !aiKey_()) return { found: false, aiError: 'ה-AI לא מוגדר (☰ › AI) — צריך אותו כדי לקרוא צילום מסך' };
+  if (!/^https?:\/\//i.test(url) && !opt.text && !image) throw new Error('Not a link');
+  const raw = image && !/^https?:\/\//i.test(url) ? { url: '', source: 'screenshot', title: '', caption: String(opt.text || '').slice(0, 8000), place: '', by: '', img: '', lat: null, lng: null } : /^https?:\/\//i.test(url) ? linkGather_(url, opt.text) : { url: '', source: 'text', title: '', caption: String(opt.text).slice(0, 8000), place: '', by: '', img: '', lat: null, lng: null };
   if (!raw.place) raw.place = captionBits_(raw.caption).place;
   const style = catStyle_(opt.cat, opt.catName);
   const out = { url: raw.url || url, source: raw.source, title: '', notes: captionBits_(raw.caption).notes, place: raw.place, by: raw.by, img: /^https:\/\//i.test(raw.img || '') ? raw.img : '', lat: raw.lat, lng: raw.lng, style: style, ai: false };
   if (raw.maps) { out.title = raw.title; }
   else {
     let ai = null;
-    if (aiKey_() && (raw.caption || raw.title || raw.blocked)) ai = aiExtract_(style, opt.catName || style, raw, raw.url || url, raw.blocked, (tplClean_({ fields: opt.fields || [] }) || {}).fields);
+    if (aiKey_() && (raw.caption || raw.title || raw.blocked || image)) ai = aiExtract_(style, opt.catName || style, raw, raw.url || url, raw.blocked && !image, (tplClean_({ fields: opt.fields || [] }) || {}).fields, image);
     if (ai && !ai.error) {
       out.ai = true;
       out.title = String(ai.title || '').trim();
