@@ -154,10 +154,10 @@ function showOutlookDialog() {
 const API_SHEET = 'Action Items';
 const API_FIRST = 6, API_LAST = 505;
 const API_COLS = { item: 1, status: 2, area: 3, prio: 4, due: 5, topic: 8, focal: 9, created: 10,
-                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23, private: 24, checklist: 25, wsince: 26, cal: 27 };
-// added by the app:  W = Start Time · X = Private · Y = Checklist (JSON) · Z = Waiting since · AA = iPhone calendar
-const API_NCOLS = 27;
-const API_HEADS = { time: 'Start Time', private: 'Private', checklist: 'Checklist', wsince: 'Waiting Since', cal: 'iPhone Calendar' };
+                   hrs: 11, rec: 12, done: 14, acthrs: 15, com: 16, time: 23, private: 24, checklist: 25, wsince: 26, cal: 27, photos: 28 };
+// added by the app:  W = Start Time · X = Private · Y = Checklist (JSON) · Z = Waiting since · AA = iPhone calendar · AB = Photos (JSON: Drive file ids)
+const API_NCOLS = 28;
+const API_HEADS = { time: 'Start Time', private: 'Private', checklist: 'Checklist', wsince: 'Waiting Since', cal: 'iPhone Calendar', photos: 'Photos' };
 function ensureCols_(sh) { if (sh.getMaxColumns() < API_NCOLS) sh.insertColumnsAfter(sh.getMaxColumns(), API_NCOLS - sh.getMaxColumns()); }
 const APP_URL = 'https://action-items/Action-Items-Management/public/';
 const EDITION = 'public';   // the public template build sets 'public'
@@ -332,7 +332,10 @@ function doPost(e) {
       case 'saveGuest': return json_({ ok: true, guests: saveGuest_(req.guest).map(publicGuest_) });
       case 'deleteGuest': return json_({ ok: true, guests: deleteGuest_(req.id).map(publicGuest_) });
       case 'save': return withLock_(() => json_({ ok: true, row: saveItem_(req.item) }));
-      case 'delete': return withLock_(() => { clearRow_(req.row); return json_({ ok: true }); });
+      case 'delete': return withLock_(() => { photoTrashRow_(req.row); clearRow_(req.row); return json_({ ok: true }); });
+      case 'photoAdd': return json_(Object.assign({ ok: true }, photoAdd_(req)));
+      case 'photoGet': return json_(Object.assign({ ok: true }, photoGet_(req.id)));
+      case 'photoDelete': return json_(Object.assign({ ok: true }, photoDelete_(req.ids)));
       case 'approve': return withLock_(() => json_({ ok: true, row: approvePending_(req.id, req.item || {}) }));
       case 'reject': return withLock_(() => { decidePending_(req.id, 'Rejected'); return json_({ ok: true }); });
       case 'getFeed': return json_(Object.assign({ ok: true }, feedInfo_()));
@@ -497,7 +500,7 @@ function readAll_() {
       if (v instanceof Date) v = Utilities.formatDate(v, tz, k === 'time' ? 'HH:mm' : 'yyyy-MM-dd');
       o[k] = v === null || v === undefined ? '' : v;
       if (k === 'private') o[k] = v === true || String(v).toUpperCase() === 'TRUE';
-      if (k === 'checklist') { try { o[k] = v ? JSON.parse(v) : []; } catch (e) { o[k] = []; } }
+      if (k === 'checklist' || k === 'photos') { try { o[k] = v ? JSON.parse(v) : []; } catch (e) { o[k] = []; } }
     });
     items.push(o);
   });
@@ -519,7 +522,7 @@ function toCell_(k, v) {
   }
   if (k === 'hrs' || k === 'acthrs') return v === '' ? '' : Number(v);
   if (k === 'private') return v === true || v === 'TRUE' || v === 'true' ? true : '';
-  if (k === 'checklist') return Array.isArray(v) ? (v.length ? JSON.stringify(v) : '') : String(v || '');
+  if (k === 'checklist' || k === 'photos') return Array.isArray(v) ? (v.length ? JSON.stringify(v) : '') : String(v || '');
   return v;
 }
 
@@ -540,10 +543,47 @@ function saveItem_(it) {
   Object.keys(API_COLS).forEach(k => {
     if (!(k in it)) return;
     const cell = sh.getRange(row, API_COLS[k]);
-    if (k === 'time' || k === 'checklist') cell.setNumberFormat('@');          // keep as plain text
+    if (k === 'time' || k === 'checklist' || k === 'photos') cell.setNumberFormat('@');          // keep as plain text
     cell.setValue(toCell_(k, it[k]));
   });
   return row;
+}
+
+/* =====================================================================
+ *  📷 Task photos — saved in your own Google Drive, folder "ORBIT Photos" (private; only the app, signed in as you, can open them)
+ *  The task keeps a list of file ids in column AB. Removed/deleted photos go to the Drive trash (restored if an undo needs them).
+ * ===================================================================== */
+function photoFolder_() {
+  const P = PropertiesService.getScriptProperties(), id = P.getProperty('PHOTO_FOLDER');
+  if (id) { try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) { /* make a new one */ } }
+  const f = DriveApp.createFolder('ORBIT Photos'); P.setProperty('PHOTO_FOLDER', f.getId()); return f;
+}
+function photoFile_(id) {                                  // only files inside the app's folder
+  const f = DriveApp.getFileById(String(id || '')), fid = photoFolder_().getId(), ps = f.getParents();
+  while (ps.hasNext()) if (ps.next().getId() === fid) return f;
+  throw new Error('Not an app photo');
+}
+function photoAdd_(req) {
+  const bytes = Utilities.base64Decode(String(req.data || '').replace(/^data:[^,]*,/, ''));
+  if (!bytes.length) throw new Error('Empty photo');
+  if (bytes.length > 10 * 1024 * 1024) throw new Error('The photo is too large');
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  const name = 'task-' + Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd_HH-mm-ss') + '-' + Math.random().toString(36).slice(2, 6) + '.jpg';
+  const f = photoFolder_().createFile(Utilities.newBlob(bytes, 'image/jpeg', name));
+  return { id: f.getId() };
+}
+function photoGet_(id) {
+  const f = photoFile_(id); if (f.isTrashed()) f.setTrashed(false);     // e.g. after ↶ Undo of a delete
+  const b = f.getBlob(); return { mime: b.getContentType() || 'image/jpeg', data: Utilities.base64Encode(b.getBytes()) };
+}
+function photoDelete_(ids) {
+  let n = 0; (Array.isArray(ids) ? ids : [ids]).forEach(id => { try { photoFile_(id).setTrashed(true); n++; } catch (e) { /* already gone */ } });
+  return { trashed: n };
+}
+function photoTrashRow_(row) {
+  row = Number(row); if (!(row >= API_FIRST && row <= API_LAST)) return;
+  try { const v = SpreadsheetApp.getActive().getSheetByName(API_SHEET).getRange(row, API_COLS.photos).getValue(); const L = v ? JSON.parse(v) : [];
+    if (L.length) photoDelete_(L.map(x => x.id)); } catch (e) { /* never block the delete */ }
 }
 
 function clearRow_(row) {

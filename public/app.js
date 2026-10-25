@@ -358,6 +358,7 @@ function card(it, opt) {
   const wait = wd !== null ? `<span class="${wd >= 3 ? 'wait-late' : ''}">⏳ ${L(`waiting ${wd}d`, `ממתין ${wd} ימ׳`)}</span>` : '';
   const rec = it.rec && it.rec !== 'None' ? `<span title="${esc(L('Recurring', 'חוזרת'))}">↻ ${esc(tr(it.rec))}</span>` : '';
   const cl = Array.isArray(it.checklist) && it.checklist.length ? `<span>☑ ${it.checklist.filter(x => x.d).length}/${it.checklist.length}</span>` : '';
+  const pho = Array.isArray(it.photos) && it.photos.length && !isGuest() ? `<span title="${esc(L('Photos', 'תמונות'))}">📷 ${it.photos.length}</span>` : '';
   const priv = it.private ? '<span class="private-ic" title="Private — hidden from guests">🔒</span>' : '';
   const cal = it.cal && !isGuest() ? `<span class="cal-ic" title="${esc(L('In iPhone calendar: ', 'ביומן האייפון: ') + it.cal)}">📅</span>` : '';
   const sep = (arr) => arr.filter(Boolean).join('<span class="dot" aria-hidden="true">·</span>');
@@ -367,7 +368,7 @@ function card(it, opt) {
     <div class="body">
       <div class="title"><bdi>${esc(it.item)}</bdi></div>
       ${area || hi ? `<div class="meta m1">${area}${hi}</div>` : ''}
-      ${when || st || who || wait || rec || cl || priv || cal ? `<div class="meta m2">${sep([when ? `<span class="c-when">${when}</span>` : '', st, who, wait, rec, cl, priv, cal])}</div>` : ''}
+      ${when || st || who || wait || rec || cl || pho || priv || cal ? `<div class="meta m2">${sep([when ? `<span class="c-when">${when}</span>` : '', st, who, wait, rec, cl, pho, priv, cal])}</div>` : ''}
       ${it.com ? `<div class="note" dir="auto">${esc(it.com)}</div>` : ''}
     </div>${mine && owner ? `<button class="c-more c-unday" data-dayrm="${it.row}" aria-label="${esc(L('Remove from My day', 'הסר משלי להיום'))}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}${owner && !closed ? `<button class="c-more" data-cmenu="${it.row}" aria-label="${esc(L('More actions', 'פעולות נוספות'))}" aria-haspopup="menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>` : ''}</div>`;
 }
@@ -1557,7 +1558,8 @@ function openEdit(it) {
   if (v.cal && ![...F('cal').options].some(o => o.value === v.cal)) F('cal').insertAdjacentHTML('beforeend', `<option value="${esc(v.cal)}">${esc(v.cal)}</option>`);
   F('calOn').checked = !!v.cal; F('cal').value = v.cal || (calCfg.map || {})[v.area] || (calCfg.names || [])[0] || ''; updateCalBox();
   curCl = Array.isArray(v.checklist) ? v.checklist.map(x => ({ t: x.t, d: !!x.d })) : [];
-  renderCl(); updateWaitBox(v);
+  phEd = { list: Array.isArray(v.photos) ? v.photos.map(x => Object.assign({}, x)) : [], added: [], removed: [], busy: [], saved: false };
+  renderCl(); renderPh(); updateWaitBox(v);
   const ro = isGuest();
   [...frm.elements].forEach(el => { if (el.name) el.disabled = ro; });
   frm.querySelector('button[type=submit]').style.display = ro ? 'none' : '';
@@ -1589,6 +1591,8 @@ frm.addEventListener('submit', async (e) => {
   it.private = F('private').checked;
   it.cal = F('calOn').checked ? F('cal').value : '';
   it.checklist = curCl.filter(x => x.t);
+  if (phEd.busy.length) { toast(L('Uploading the photo…', 'מעלה את התמונה…')); await Promise.all(phEd.busy).catch(() => {}); }
+  it.photos = phEd.list.filter(x => x.id);
   if (it.status === 'Waiting' && (!editing || editing.status !== 'Waiting' || !editing.wsince)) it.wsince = (editing && editing.status === 'Waiting' && editing.wsince) || iso(today());
   if (it.status !== 'Waiting') it.wsince = '';
   const justDone = it.status === 'Done' && (!editing || editing.status !== 'Done');
@@ -1606,6 +1610,7 @@ frm.addEventListener('submit', async (e) => {
       if (!ok) it.hrs = String(ref.h);
     }
   }
+  phEd.saved = true; if (phEd.removed.length) photoTrash(phEd.removed);
   dlgEdit.close();
   if (justDone) celebrate(innerWidth / 2, innerHeight * 0.45);
   if (await save(it)) { toast(editing ? 'Saved' : 'Added'); }
@@ -1992,14 +1997,21 @@ $('#apDone').addEventListener('click', () => {
 });
 $('#apAll').addEventListener('click', () => { document.querySelectorAll('#apList input').forEach(x => { x.checked = false; }); $('#apDone').click(); });
 $('#apOrder').addEventListener('click', () => { $('#dlgAreaPick').close(); openOrder(); });
+let qaPh = { list: [], added: [], busy: [] };
+function qaPhRender() {
+  const g = $('#qaPhotos'); g.hidden = !qaPh.list.length;
+  g.innerHTML = phThumbs(qaPh.list, true, 'data-qaphdel'); phLoadImgs(g);
+}
+function qaPhReset(trash) { const st = qaPh; if (trash && st.list.length) Promise.all(st.busy.slice()).finally(() => photoTrash(st.added)); qaPh = { list: [], added: [], busy: [] }; qaPhRender(); }
 function openQuick() {
   const d = $('#dlgQuick');
+  $('#qa').value = ''; qaPreview(); qaPhReset(true);   // always a clean line for a new task
   $('#qaHelpList').innerHTML = [[L('Date', 'תאריך'), L('today, tomorrow, Sunday, 25/10', 'היום, מחר, ביום ראשון, 25/10')], [L('Time', 'שעה'), '9:30'], [L('Priority', 'עדיפות'), L('!1 high · !3 low', '!1 גבוהה · !3 נמוכה')], [L('Hours', 'שעות'), '~2h · ~0.5'], [L('Person', 'אדם'), '@' + L('Dana', 'דנה')], [L('Area', 'תחום'), L('detected from the words, or asked', 'מזוהה מהמילים, או שאשאל')]]
     .map(([k, v]) => `<li><b>${k}</b> <span dir="auto">${v}</span></li>`).join('');
   d.showModal(); setTimeout(() => $('#qa').focus(), 60);
 }
 $('#qaHelpBtn').addEventListener('click', () => { const h = $('#qaHelp'); h.hidden = !h.hidden; $('#qaHelpBtn').setAttribute('aria-expanded', !h.hidden); });
-$('#qaFull').addEventListener('click', () => { const v = $('#qa').value.trim(); $('#dlgQuick').close(); openEdit(null); if (v) { const p = parseQuick(v); F('item').value = p.item || v; if (p.due) F('due').value = p.due; if (p.time) F('time').value = p.time; if (p.prio) F('prio').value = p.prio; if (p.area) F('area').value = p.area; if (p.hrs) F('hrs').value = p.hrs; if (p.focal) F('focal').value = p.focal; } });
+$('#qaFull').addEventListener('click', () => { const v = $('#qa').value.trim(), ph = qaPh; qaPh = { list: [], added: [], busy: [] }; $('#qa').value = ''; qaPreview(); qaPhRender(); $('#dlgQuick').close(); openEdit(null); if (ph.list.length) { phEd.list = ph.list; phEd.added = ph.added; phEd.busy = ph.busy; renderPh(); } if (v) { const p = parseQuick(v); F('item').value = p.item || v; if (p.due) F('due').value = p.due; if (p.time) F('time').value = p.time; if (p.prio) F('prio').value = p.prio; if (p.area) F('area').value = p.area; if (p.hrs) F('hrs').value = p.hrs; if (p.focal) F('focal').value = p.focal; } });
 // keep the sheet above the iPhone keyboard
 if (window.visualViewport) { const kb = () => document.documentElement.style.setProperty('--kb', Math.max(0, innerHeight - visualViewport.height - visualViewport.offsetTop) + 'px'); visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb); }
 
@@ -2542,6 +2554,7 @@ function toast(msg, action) {
 
 /* ---------- demo backend (no sheet needed) ---------- */
 let demoAreas = null, demoItems = null, demoNotify = null, demoGuests = [], demoPending = [], demoFeed = {};
+const demoPhotos = {};
 function demoApi(method, body) {
   if (!demoItems) {
     const t = today(), d = (n) => iso(addDays(t, n));
@@ -2577,6 +2590,9 @@ function demoApi(method, body) {
     return Promise.resolve({ ok: true, row: it.row });
   }
   if (body.action === 'delete') { demoItems = demoItems.filter(x => x.row !== body.row); return Promise.resolve({ ok: true }); }
+  if (body.action === 'photoAdd') { const id = 'demo-' + Date.now() + Math.random().toString(36).slice(2, 5); demoPhotos[id] = body.data; return Promise.resolve({ ok: true, id }); }
+  if (body.action === 'photoGet') return demoPhotos[body.id] ? Promise.resolve({ ok: true, mime: 'image/jpeg', data: demoPhotos[body.id] }) : Promise.resolve({ ok: false, error: 'Photo not found' });
+  if (body.action === 'photoDelete') return Promise.resolve({ ok: true, trashed: 0 });
   if (body.action === 'getNotify') return Promise.resolve({ ok: true, config: demoNotify || { topic: 'ai-demo-topic', rules: [], detail: 'titles' }, triggerOn: !!demoNotify, email: 'you@example.com' });
   if (body.action === 'saveNotify') { demoNotify = body.config; return Promise.resolve({ ok: true, config: demoNotify, triggerOn: true }); }
   if (body.action === 'getCal' || body.action === 'saveCal' || body.action === 'calResend') return Promise.resolve({ ok: false, error: 'demo' });
@@ -2877,6 +2893,90 @@ $('#clList').addEventListener('click', (e) => {
   const d = e.target.closest('[data-cldel]'); if (d) { curCl.splice(+d.dataset.cldel, 1); renderCl(); }
 });
 
+/* ---------- 📷 photos on a task — kept in your Google Drive (folder "ORBIT Photos"), opened only through the app ---------- */
+let phEd = { list: [], added: [], removed: [], busy: [], saved: false };
+const phCache = {};
+function shrinkImage(file, max = 1600, q = 0.82) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); resolve(c.toDataURL('image/jpeg', q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(L('Can’t read this image', 'לא ניתן לקרוא את התמונה'))); };
+    img.src = url;
+  });
+}
+const phErr = (e) => /Unknown action/i.test(e.message) ? L('Paste the new ActionItems_Script.gs into Apps Script and deploy a new version first.', 'קודם הדבק את ActionItems_Script.gs החדש ב-Apps Script ופרסם גרסה חדשה (New version).') : /DriveApp|permission|authoriz/i.test(e.message) ? L('Apps Script needs one-time Drive permission: open the script › Run › photoFolder_ › Allow.', 'נדרשת הרשאת Drive חד-פעמית: פתח את הסקריפט › בחר photoFolder_ › Run › Allow.') : e.message;
+/* uploads into `st` ({list, added, busy}) and calls `redraw` as it goes */
+function photoPick(files, st, redraw) {
+  [...files].filter(f => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name)).slice(0, 10).forEach(file => {
+    const ph = { id: '', n: file.name || 'photo.jpg', loading: true };
+    st.list.push(ph); redraw();
+    const p = shrinkImage(file).then(async (dataUrl) => {
+      ph.local = dataUrl; redraw();
+      const j = await api('POST', { action: 'photoAdd', data: dataUrl.split(',')[1], name: ph.n });
+      ph.id = j.id; phCache[j.id] = dataUrl; st.added.push(j.id);
+    }).catch((e) => { st.list.splice(st.list.indexOf(ph), 1); toast(L('Photo not added: ', 'התמונה לא נוספה: ') + phErr(e)); })
+      .finally(() => { delete ph.loading; delete ph.local; st.busy.splice(st.busy.indexOf(p), 1); redraw(); });
+    st.busy.push(p);
+  });
+}
+function photoTrash(ids) { ids = ids.filter(Boolean); if (ids.length) api('POST', { action: 'photoDelete', ids }).catch(() => {}); }
+async function photoSrc(id) {
+  if (phCache[id]) return phCache[id];
+  const j = await api('POST', { action: 'photoGet', id }); return (phCache[id] = `data:${j.mime || 'image/jpeg'};base64,${j.data}`);
+}
+function phThumbs(list, canEdit, delAttr) {
+  return list.map((x, i) => `<div class="ph-th ${x.loading ? 'loading' : ''}">
+    <button type="button" class="ph-img" data-phview="${i}" aria-label="${esc(L('Open photo', 'פתיחת התמונה'))}">${x.local ? `<img src="${x.local}" alt="">` : x.id ? `<img data-phid="${esc(x.id)}" alt="">` : ''}</button>
+    ${x.loading ? '<span class="ph-spin" aria-hidden="true"></span>' : canEdit ? `<button type="button" class="ph-del" ${delAttr}="${i}" aria-label="${esc(L('Remove photo', 'הסרת התמונה'))}">✕</button>` : ''}</div>`).join('');
+}
+function phLoadImgs(root) {
+  root.querySelectorAll('img[data-phid]').forEach(img => {
+    const id = img.dataset.phid; img.removeAttribute('data-phid');
+    photoSrc(id).then(src => { img.src = src; }).catch(() => { img.closest('.ph-th')?.classList.add('broken'); });
+  });
+}
+function renderPh() {
+  const box = $('#phBox'); if (!box) return;
+  const ro = isGuest(); box.hidden = ro;
+  if (ro) return;
+  $('#phHead').innerHTML = `📷 ${L('Photos', 'תמונות')} <span>${phEd.list.length || ''}</span>`;
+  $('#phGrid').innerHTML = phThumbs(phEd.list, true, 'data-phdel') +
+    `<label class="ph-add"><input type="file" accept="image/*" multiple id="phInput" hidden><span aria-hidden="true">＋</span><small>${L('Photo / camera', 'תמונה / צילום')}</small></label>`;
+  phLoadImgs($('#phGrid'));
+}
+$('#phGrid').addEventListener('change', (e) => { if (e.target.id === 'phInput') { photoPick(e.target.files, phEd, renderPh); e.target.value = ''; } });
+$('#phGrid').addEventListener('click', (e) => {
+  const d = e.target.closest('[data-phdel]');
+  if (d) { const x = phEd.list.splice(+d.dataset.phdel, 1)[0]; if (x && x.id) { if (phEd.added.includes(x.id)) photoTrash([x.id]); else phEd.removed.push(x.id); } renderPh(); return; }
+  const v = e.target.closest('[data-phview]'); if (v) openPhoto(phEd.list, +v.dataset.phview);
+});
+dlgEdit.addEventListener('close', () => { const st = phEd; if (st.saved) return; st.saved = true; Promise.all(st.busy.slice()).finally(() => photoTrash(st.added)); });   // closed without saving → drop the new uploads
+/* full-screen viewer: swipe/arrow between the task's photos */
+function openPhoto(list, i) {
+  const items = list.filter(x => x.id || x.local); if (!items.length) return;
+  i = Math.max(0, Math.min(items.length - 1, items.indexOf(list[i]) >= 0 ? items.indexOf(list[i]) : 0));
+  let v = $('#phView');
+  if (!v) { v = document.createElement('dialog'); v.id = 'phView'; v.className = 'ph-view'; document.body.appendChild(v); v.addEventListener('cancel', (e) => { e.preventDefault(); v.close(); }); }   // a dialog, so it sits above the open editor
+  const show = () => {
+    const x = items[i];
+    v.innerHTML = `<button type="button" class="ph-v-x" data-pv="x" aria-label="${esc(L('Close', 'סגירה'))}">✕</button>
+      <div class="ph-v-img"><img alt="" ${x.local ? `src="${x.local}"` : `data-phid="${esc(x.id)}"`}><span class="ph-spin"></span></div>
+      ${items.length > 1 ? `<button type="button" class="ph-v-nav prev" data-pv="-1" aria-label="‹">‹</button><button type="button" class="ph-v-nav next" data-pv="1" aria-label="›">›</button><div class="ph-v-n">${i + 1} / ${items.length}</div>` : ''}`;
+    phLoadImgs(v); const im = v.querySelector('img'); im.onload = () => v.querySelector('.ph-spin')?.remove(); if (im.complete && im.src) v.querySelector('.ph-spin')?.remove();
+  };
+  v.onclick = (e) => { const b = e.target.closest('[data-pv]'); if (b && b.dataset.pv !== 'x') { i = (i + Number(b.dataset.pv) + items.length) % items.length; show(); return; } if (b || e.target === v || e.target.classList.contains('ph-v-img')) close(); };
+  let sx = null; v.ontouchstart = (e) => { sx = e.touches[0].clientX; }; v.ontouchend = (e) => { if (sx === null || items.length < 2) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 50) { i = (i + (dx < 0 ? 1 : -1) + items.length) % items.length; show(); } };
+  const key = (e) => { if (!v.open) { document.removeEventListener('keydown', key, true); return; } if (items.length > 1 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { i = (i + (e.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length; show(); } };
+  const close = () => { if (v.open) v.close(); document.removeEventListener('keydown', key, true); };
+  document.addEventListener('keydown', key, true);
+  if (!v.open) v.showModal(); show();
+}
+
 /* ---------- snooze & drag-and-drop ---------- */
 async function snooze(row) {
   const it = data.items.find(x => String(x.row) === String(row)); if (!it) return;
@@ -3010,14 +3110,23 @@ function askArea(item, ranked) {
   });
 }
 $('#qa').addEventListener('input', qaPreview);
+$('#qaPhoto').addEventListener('change', (e) => { photoPick(e.target.files, qaPh, qaPhRender); e.target.value = ''; setTimeout(() => $('#qa').focus(), 50); });
+$('#qaPhotos').addEventListener('click', (e) => {
+  const d = e.target.closest('[data-qaphdel]'); if (d) { const x = qaPh.list.splice(+d.dataset.qaphdel, 1)[0]; if (x && x.id) photoTrash([x.id]); qaPh.added = qaPh.added.filter(id => id !== (x && x.id)); qaPhRender(); return; }
+  const v = e.target.closest('[data-phview]'); if (v) openPhoto(qaPh.list, +v.dataset.phview);
+});
+$('#dlgQuick').addEventListener('close', () => { if (qaPh.list.length && !$('#dlgEdit').open) qaPhReset(true); });
 $('#quickAdd').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const v = $('#qa').value.trim(); if (!v) return;
+  const v = $('#qa').value.trim(); if (!v) { if (qaPh.list.length) toast(L('Write what needs doing', 'כתוב מה צריך לעשות')); return; }
   const p = parseQuick(v); if (!p.item) { toast(L('Write what needs doing', 'כתוב מה צריך לעשות')); return; }
   let area = p.area;
   if (!area) { const g = guessArea(p.item, p.focal); area = await askArea(p.item, g && g.ranked); if (!area) return; }
   const it = { item: p.item, status: 'Not started', area, prio: p.prio || '2 - Medium',
     due: p.due, time: p.time, focal: p.focal || 'Me', hrs: p.hrs, rec: 'None', created: iso(today()) };
+  if (qaPh.busy.length) { toast(L('Uploading the photo…', 'מעלה את התמונה…')); await Promise.all(qaPh.busy).catch(() => {}); }
+  if (qaPh.list.some(x => x.id)) it.photos = qaPh.list.filter(x => x.id).map(x => ({ id: x.id, n: x.n }));
+  qaPh = { list: [], added: [], busy: [] }; qaPhRender();
   $('#qa').value = ''; qaPreview(); if ($('#dlgQuick').open) $('#dlgQuick').close();
   if (await save(it)) toast(L(`Added to ${it.area}: ${it.item}`, `נוסף ל${tr(it.area)}: ${it.item}`));
 });
