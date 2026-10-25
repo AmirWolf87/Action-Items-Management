@@ -1680,13 +1680,14 @@ function buildReport() {
   let html = `<div style="${F}font-size:14px;color:#1F2937;">`;
   html += P(`Hi ${esc(name)},`) + P(`Please find below my action items for the week of <b>${range}</b>.`);
   // summary "chips" as a one-row table
-  html += `<table cellpadding="0" cellspacing="6" border="0" style="border-collapse:separate;margin:0 0 14px -6px;"><tr>` +
-    r.sections.map((s, i) => `<td bgcolor="${TINT[s.color]}" style="background-color:${TINT[s.color]};color:${s.color};${F}font-size:13px;font-weight:bold;padding:6px 14px;white-space:nowrap;">${labels[i]}&nbsp;${s.items.length}</td>`).join('') +
-    `</tr></table>`;
+  const chips = r.sections.map((s, i) => `<span style="background-color:${TINT[s.color]};color:${s.color};${F}font-size:13px;font-weight:bold;padding:6px 14px;white-space:nowrap;">${labels[i]}&nbsp;${s.items.length}</span>`).join('&nbsp;&nbsp;');
   let text = `Hi ${name},\n\nPlease find below my action items for the week of ${range}.\n\n`;
   const th = (t, w) => `<th align="left" bgcolor="#F3F4F6" style="background-color:#F3F4F6;color:#4B5563;${F}font-size:11px;font-weight:bold;text-transform:uppercase;padding:7px 10px;border-bottom:1px solid #E5E7EB;text-align:left;${w ? 'width:' + w + ';' : ''}">${t}</th>`;
-  r.sections.forEach(s => {
-    html += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;max-width:860px;margin:0 0 20px 0;">`;
+  // ONE table for the whole report: a coloured header row per section, then its column sub-header and rows (easy to restyle in one place)
+  html += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;max-width:860px;margin:0 0 20px 0;">`;
+  html += `<tr><td colspan="6" style="padding:4px 0 18px 0;line-height:30px;border:0;">${chips}</td></tr>`;   // summary row
+  r.sections.forEach((s, si) => {
+    if (si) html += `<tr><td colspan="6" style="font-size:0;line-height:0;height:16px;padding:0;border:0;">&nbsp;</td></tr>`;
     html += `<tr><td colspan="6" bgcolor="${s.color}" style="background-color:${s.color};color:#FFFFFF;${F}font-size:14px;font-weight:bold;padding:9px 12px;">${esc(s.title.replace(/\s+/g, ' '))} (${s.items.length})</td></tr>`;
     text += `${s.title.replace(/\s+/g, ' ')}\n────────────────────────────\n`;
     if (!s.items.length) {
@@ -1704,8 +1705,9 @@ function buildReport() {
         text += `${i + 1}.  ${it.item}${it[s.dateKey] ? `   |   ${s.dateLabel} ${fmt(it[s.dateKey])}` : ''}${it.prio ? '   |   ' + it.prio.replace(/^\d - /, '') : ''}\n${it.com ? '       ↳ ' + it.com + '\n' : ''}`;
       });
     }
-    html += '</table>'; text += '\n';
+    text += '\n';
   });
+  html += '</table>';
   html += P('Happy to adjust priorities if needed.') + P(`Best regards,<br><b>${esc(from)}</b>`) + '</div>';
   text += `Happy to adjust priorities if needed.\n\nBest regards,\n${from}`;
   return { html, text, subject };
@@ -4816,7 +4818,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 86;
+const APP_VERSION = 87;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

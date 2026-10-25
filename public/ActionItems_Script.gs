@@ -37,14 +37,16 @@ function buildEmail_() {
 
   let counts = [];
   let blocks = '';
-  sections.forEach(sec => {
+  // ONE table for the whole report: per section a coloured header row, a column sub-header row and the rows
+  blocks = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:860px;margin:0 0 22px 0;font-size:13px;">`;
+  sections.forEach((sec, si) => {
     const title = v[sec.row - 1][0];
     const hdr = v[sec.row];                       // # | Item | Topic | Date | Priority | Status | Comments
     const rows = [];
     for (let r = sec.row + 1; r <= sec.row + 8; r++) if (v[r][1] !== '') rows.push(v[r]);
     counts.push(rows.length);
 
-    let t = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:860px;margin:0 0 22px 0;font-size:13px;">`;
+    let t = si ? `<tr><td colspan="6" style="font-size:0;line-height:0;height:16px;padding:0;border:0;">&nbsp;</td></tr>` : '';
     t += `<tr><td colspan="6" style="background:${sec.color};color:#fff;font-weight:bold;font-size:14px;padding:9px 12px;text-align:${align};">${esc(title)}</td></tr>`;
     if (rows.length === 0) {
       t += `<tr><td colspan="6" style="padding:10px 12px;color:#9CA3AF;font-style:italic;border-bottom:1px solid #E5E7EB;text-align:${align};">${he ? 'אין' : 'None'}</td></tr>`;
@@ -65,8 +67,9 @@ function buildEmail_() {
           '</tr>';
       });
     }
-    blocks += t + '</table>';
+    blocks += t;
   });
+  blocks += '</table>';
 
   const chip = (label, n, c) => `<span style="display:inline-block;margin:0 6px 6px 0;padding:6px 12px;border-radius:14px;background:${c}1A;color:${c};font-weight:bold;">${label} ${n}</span>`;
   const L = he ? ['בוצעו', 'מתוכננות', 'באיחור', 'ממתינות'] : ['Completed', 'Planned', 'Carried over', 'Waiting'];
@@ -80,7 +83,7 @@ function buildEmail_() {
     : `<p>Happy to adjust priorities if needed.</p><p>Best regards,<br><b>${esc(fromName)}</b></p>`;
 
   const html = `<div dir="${dir}" style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1F2937;text-align:${align};">` +
-    intro + `<div style="margin:6px 0 16px 0;">${summary}</div>` + blocks + outro + `</div>`;
+    intro + blocks.replace('font-size:13px;">', 'font-size:13px;"><tr><td colspan="6" style="padding:4px 0 16px 0;border:0;text-align:' + align + ';">' + summary + '</td></tr>') + outro + `</div>`;
 
   return { to: to, subject: subject, plain: plain, html: html, he: he };
 }
