@@ -1667,63 +1667,103 @@ function reportData(offset) {
 }
 /* Email HTML written for Outlook (Word engine): table layout, bgcolor + background-color, no transparency/rounded tricks */
 const TINT = { '#059669': '#E3F4EE', '#2563EB': '#E6EEFD', '#DC2626': '#FCE8E8', '#7C3AED': '#F0EAFE' };
-function buildReport() {
+/* ✏️ what goes in the report: columns, sections, summary row, opening/closing text, hidden rows (per week), free editing */
+const REP_COLS = [['topic', 'Topic', 'נושא'], ['date', 'Date', 'תאריך'], ['prio', 'Priority', 'עדיפות'], ['status', 'Status', 'סטטוס'], ['com', 'Comments', 'הערות']];
+const REP_SECS = [['Completed', 'בוצעו'], ['Planned', 'מתוכננות'], ['Carried over', 'באיחור'], ['Waiting', 'ממתינות']];
+const REP_INTRO = 'Hi {name},\n\nPlease find below my action items for the week of {range}.';
+const REP_OUTRO = 'Happy to adjust priorities if needed.\n\nBest regards,\n{from}';
+function repOpt() {
+  const o = Object.assign({ cols: {}, secs: [true, true, true, true], sum: true, intro: REP_INTRO, outro: REP_OUTRO }, store.get('aip.reportOpt', {}));
+  REP_COLS.forEach(([k]) => { if (o.cols[k] === undefined) o.cols[k] = true; });
+  return o;
+}
+const repSetOpt = (o) => store.set('aip.reportOpt', o);
+let repFree = false;
+const repWeekKey = () => iso(reportData(+$('#repWeek').value).ws);
+const repHidden = () => (store.get('aip.reportHide', {})[repWeekKey()] || []).map(Number);
+function repSetHidden(rows) { const all = store.get('aip.reportHide', {}); const k = repWeekKey(); Object.keys(all).forEach(x => { if (x < iso(addDays(today(), -60))) delete all[x]; }); if (rows.length) all[k] = rows; else delete all[k]; store.set('aip.reportHide', all); }
+function buildReport(opt) {
+  opt = opt || {};
+  const o = repOpt(), hide = repHidden(), edit = !!opt.edit;
   const offset = +$('#repWeek').value;
   const name = $('#repName').value.trim() || '';
   const from = (data.report && data.report.from) || '';
   const r = reportData(offset);
   const range = `${pad(r.ws.getDate())}/${pad(r.ws.getMonth() + 1)} – ${pad(r.we.getDate())}/${pad(r.we.getMonth() + 1)}/${r.we.getFullYear()}`;
   const subject = `Weekly Action Items | ${range} | ${from}`;
+  const fill = (t) => String(t || '').replace(/\{name\}/g, name).replace(/\{range\}/g, range).replace(/\{from\}/g, from);
   const F = 'font-family:Arial,Helvetica,sans-serif;';
-  const P = (t, x) => `<p style="${F}font-size:14px;color:#1F2937;margin:0 0 12px 0;${x || ''}">${t}</p>`;
-  const labels = ['Completed', 'Planned', 'Carried over', 'Waiting'];
-  let html = `<div style="${F}font-size:14px;color:#1F2937;">`;
-  html += P(`Hi ${esc(name)},`) + P(`Please find below my action items for the week of <b>${range}</b>.`);
-  // summary "chips" as a one-row table
-  const chips = r.sections.map((s, i) => `<span style="background-color:${TINT[s.color]};color:${s.color};${F}font-size:13px;font-weight:bold;padding:6px 14px;white-space:nowrap;">${labels[i]}&nbsp;${s.items.length}</span>`).join('&nbsp;&nbsp;');
-  let text = `Hi ${name},\n\nPlease find below my action items for the week of ${range}.\n\n`;
+  const P = (t, x) => `<p dir="auto" style="${F}font-size:14px;color:#1F2937;margin:0 0 12px 0;${x || ''}">${t}</p>`;
+  const paras = (t) => fill(t).split(/\n{2,}/).map(x => x.trim()).filter(Boolean).map(x => P(esc(x).replace(/\n/g, '<br>').replace(esc(range), `<b>${esc(range)}</b>`))).join('');
+  const secs = r.sections.map((s, i) => Object.assign({}, s, { i, items: s.items.filter(it => !hide.includes(Number(it.row))) })).filter(s => o.secs[s.i]);
+  const cols = [['item', 'Action item', '30%']].concat([['topic', 'Topic', '14%'], ['date', null, '11%'], ['prio', 'Priority', '11%'], ['status', 'Status', '11%'], ['com', 'Comments / next step', '']].filter(([k]) => o.cols[k]));
+  const n = cols.length + (edit ? 1 : 0);
+  let html = `<div style="${F}font-size:14px;color:#1F2937;">` + paras(o.intro);
+  let text = fill(o.intro) + '\n\n';
   const th = (t, w) => `<th align="left" bgcolor="#F3F4F6" style="background-color:#F3F4F6;color:#4B5563;${F}font-size:11px;font-weight:bold;text-transform:uppercase;padding:7px 10px;border-bottom:1px solid #E5E7EB;text-align:left;${w ? 'width:' + w + ';' : ''}">${t}</th>`;
-  // ONE table for the whole report: a coloured header row per section, then its column sub-header and rows (easy to restyle in one place)
+  // ONE table for the whole report: summary row, then per section a coloured header row, a column sub-header and the rows
   html += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;max-width:860px;margin:0 0 20px 0;">`;
-  html += `<tr><td colspan="6" style="padding:4px 0 18px 0;line-height:30px;border:0;">${chips}</td></tr>`;   // summary row
-  r.sections.forEach((s, si) => {
-    if (si) html += `<tr><td colspan="6" style="font-size:0;line-height:0;height:16px;padding:0;border:0;">&nbsp;</td></tr>`;
-    html += `<tr><td colspan="6" bgcolor="${s.color}" style="background-color:${s.color};color:#FFFFFF;${F}font-size:14px;font-weight:bold;padding:9px 12px;">${esc(s.title.replace(/\s+/g, ' '))} (${s.items.length})</td></tr>`;
+  if (o.sum && secs.length) html += `<tr><td colspan="${n}" style="padding:4px 0 18px 0;line-height:30px;border:0;">${secs.map(s => `<span style="background-color:${TINT[s.color]};color:${s.color};${F}font-size:13px;font-weight:bold;padding:6px 14px;white-space:nowrap;">${REP_SECS[s.i][0]}&nbsp;${s.items.length}</span>`).join('&nbsp;&nbsp;')}</td></tr>`;
+  secs.forEach((s, si) => {
+    if (si) html += `<tr><td colspan="${n}" style="font-size:0;line-height:0;height:16px;padding:0;border:0;">&nbsp;</td></tr>`;
+    html += `<tr><td colspan="${n}" bgcolor="${s.color}" style="background-color:${s.color};color:#FFFFFF;${F}font-size:14px;font-weight:bold;padding:9px 12px;">${esc(s.title.replace(/\s+/g, ' '))} (${s.items.length})</td></tr>`;
     text += `${s.title.replace(/\s+/g, ' ')}\n────────────────────────────\n`;
     if (!s.items.length) {
-      html += `<tr><td colspan="6" style="${F}font-size:13px;color:#9CA3AF;font-style:italic;padding:9px 12px;border-bottom:1px solid #E5E7EB;">None</td></tr>`;
+      html += `<tr><td colspan="${n}" style="${F}font-size:13px;color:#9CA3AF;font-style:italic;padding:9px 12px;border-bottom:1px solid #E5E7EB;">None</td></tr>`;
       text += 'None\n';
     } else {
-      html += `<tr>${th('Action item', '30%')}${th('Topic', '14%')}${th(s.dateLabel, '11%')}${th('Priority', '11%')}${th('Status', '11%')}${th('Comments / next step')}</tr>`;
+      html += `<tr>${cols.map(([k, t, w]) => th(k === 'date' ? s.dateLabel : t, w)).join('')}${edit ? th('', '28px') : ''}</tr>`;
       s.items.forEach((it, i) => {
         const bg = i % 2 ? '#F9FAFB' : '#FFFFFF';
         const p = PRIO_C[String(it.prio).charAt(0)] || ['#F3F4F6', '#374151'];
         const td = (v, x) => `<td dir="auto" bgcolor="${bg}" valign="top" style="background-color:${bg};${F}font-size:13px;color:#1F2937;padding:8px 10px;border-bottom:1px solid #E5E7EB;vertical-align:top;${x || ''}">${v || '&nbsp;'}</td>`;
-        html += '<tr>' + td(`<b>${esc(it.item)}</b>`) + td(esc(it.topic), 'color:#4B5563;') + td(fmt(it[s.dateKey], true), 'white-space:nowrap;') +
-          td(it.prio ? `<span style="background-color:${p[0]};color:${p[1]};font-weight:bold;padding:1px 6px;white-space:nowrap;">${esc(it.prio)}</span>` : '') +
-          td(esc(it.status), 'white-space:nowrap;') + td(esc(it.com), 'color:#4B5563;') + '</tr>';
-        text += `${i + 1}.  ${it.item}${it[s.dateKey] ? `   |   ${s.dateLabel} ${fmt(it[s.dateKey])}` : ''}${it.prio ? '   |   ' + it.prio.replace(/^\d - /, '') : ''}\n${it.com ? '       ↳ ' + it.com + '\n' : ''}`;
+        const cell = { item: () => td(`<b>${esc(it.item)}</b>`), topic: () => td(esc(it.topic), 'color:#4B5563;'), date: () => td(fmt(it[s.dateKey], true), 'white-space:nowrap;'),
+          prio: () => td(it.prio ? `<span style="background-color:${p[0]};color:${p[1]};font-weight:bold;padding:1px 6px;white-space:nowrap;">${esc(it.prio)}</span>` : ''),
+          status: () => td(esc(it.status), 'white-space:nowrap;'), com: () => td(esc(it.com), 'color:#4B5563;') };
+        html += '<tr>' + cols.map(([k]) => cell[k]()).join('') + (edit ? `<td class="rep-x-td" style="border-bottom:1px solid #E5E7EB;"><button type="button" class="rep-x" data-rhide="${it.row}" title="Remove this row" aria-label="Remove this row">✕</button></td>` : '') + '</tr>';
+        text += `${i + 1}.  ${it.item}${o.cols.date && it[s.dateKey] ? `   |   ${s.dateLabel} ${fmt(it[s.dateKey])}` : ''}${o.cols.prio && it.prio ? '   |   ' + it.prio.replace(/^\d - /, '') : ''}\n${o.cols.com && it.com ? '       ↳ ' + it.com + '\n' : ''}`;
       });
     }
     text += '\n';
   });
-  html += '</table>';
-  html += P('Happy to adjust priorities if needed.') + P(`Best regards,<br><b>${esc(from)}</b>`) + '</div>';
-  text += `Happy to adjust priorities if needed.\n\nBest regards,\n${from}`;
+  html += '</table>' + paras(o.outro) + '</div>';
+  text += fill(o.outro);
   return { html, text, subject };
 }
+function repEditUi() {
+  const o = repOpt(), hid = repHidden();
+  const chip = (attr, k, label, on) => `<button type="button" class="chip ${on ? 'on' : ''}" ${attr}="${k}" aria-pressed="${on}">${esc(label)}</button>`;
+  $('#repCols').innerHTML = `<span class="chip on rep-fixed">${esc(L('Action item', 'משימה'))}</span>` + REP_COLS.map(([k, en, he]) => chip('data-rcol', k, L(en, he), o.cols[k])).join('');
+  $('#repSecs').innerHTML = chip('data-rsum', '1', L('Summary row', 'שורת סיכום'), o.sum) + REP_SECS.map(([en, he], i) => chip('data-rsec', i, L(en, he), o.secs[i])).join('');
+  if (document.activeElement !== $('#repIntro')) $('#repIntro').value = o.intro;
+  if (document.activeElement !== $('#repOutro')) $('#repOutro').value = o.outro;
+  $('#repHidden').innerHTML = hid.length ? `${L(`${hid.length} row(s) removed this week`, `${hid.length} שורות הוסרו מהדוח השבוע`)} · <button type="button" class="linkish" data-rshowall>${L('Bring back', 'להחזיר')}</button>` : '';
+  $('#repFree').checked = repFree;
+  $('#repPreview').classList.toggle('rep-free', repFree);
+}
 function refreshReport() {
-  const r = buildReport();
+  const r = buildReport({ edit: !repFree });
   const to = $('#repEmail').value.trim();
   const q = encodeURIComponent;
   $('#repSubject').innerHTML = `<b>Subject:</b> ${esc(r.subject)}`;
-  $('#repPreview').innerHTML = r.html;
+  $('#repPreview').innerHTML = r.html; $('#repPreview').contentEditable = repFree ? 'true' : 'false'; repEditUi();
   $('#repOutlookWeb').href = `https://outlook.office.com/mail/deeplink/compose?to=${q(to)}&subject=${q(r.subject)}`;
   $('#repOutlookApp').href = `mailto:${q(to)}?subject=${q(r.subject)}`;
   $('#repGmail').href = `https://mail.google.com/mail/?view=cm&fs=1&to=${q(to)}&su=${q(r.subject)}`;
   store.set('aip.report', { name: $('#repName').value, email: to, week: $('#repWeek').value, areas: reportAreas() });
   $('#repAreas').innerHTML = data.areas.map(a => `<button type="button" class="chip ${reportAreas().indexOf(a) >= 0 ? 'on' : ''}" data-rarea="${esc(a)}">${esc(a)}</button>`).join('');
 }
+$('#repEdit').addEventListener('click', (e) => {
+  const o = repOpt(), t = e.target;
+  const c = t.closest('[data-rcol]'); if (c) { o.cols[c.dataset.rcol] = !o.cols[c.dataset.rcol]; repSetOpt(o); refreshReport(); return; }
+  const sc = t.closest('[data-rsec]'); if (sc) { const i = +sc.dataset.rsec; o.secs[i] = !o.secs[i]; if (!o.secs.some(Boolean)) { o.secs[i] = true; toast(L('Keep at least one section', 'צריך להשאיר לפחות חלק אחד')); } repSetOpt(o); refreshReport(); return; }
+  if (t.closest('[data-rsum]')) { o.sum = !o.sum; repSetOpt(o); refreshReport(); return; }
+  if (t.closest('[data-rshowall]')) { repSetHidden([]); refreshReport(); return; }
+  if (t.closest('#repReset')) { o.intro = REP_INTRO; o.outro = REP_OUTRO; repSetOpt(o); $('#repIntro').value = o.intro; $('#repOutro').value = o.outro; refreshReport(); }
+});
+['repIntro', 'repOutro'].forEach(id => $('#' + id).addEventListener('input', () => { const o = repOpt(); o[id === 'repIntro' ? 'intro' : 'outro'] = $('#' + id).value; repSetOpt(o); refreshReport(); }));
+$('#repFree').addEventListener('change', (e) => { repFree = e.target.checked; refreshReport(); if (repFree) toast(L('Edit anything right in the email below — changing an option above rebuilds it', 'אפשר לערוך כל דבר ישירות במייל למטה — שינוי אפשרות למעלה בונה אותו מחדש')); });
+$('#repPreview').addEventListener('click', (e) => { const x = e.target.closest('[data-rhide]'); if (!x || repFree) return; repSetHidden(repHidden().concat(Number(x.dataset.rhide))); refreshReport(); });
 $('#repAreas').addEventListener('click', (e) => {
   const b = e.target.closest('[data-rarea]'); if (!b) return;
   const a = b.dataset.rarea, sel = reportAreas(), i = sel.indexOf(a);
@@ -1741,6 +1781,9 @@ function openReport() {
 $('#repCopy').addEventListener('click', async () => {
   const r = buildReport();
   const el = $('#repPreview');
+  if (repFree) { r.html = el.innerHTML; r.text = el.innerText; }
+  else el.innerHTML = r.html;                                   // copy without the ✕ buttons
+  setTimeout(() => { if (!repFree) refreshReport(); }, 300);
   // 1) copy the rendered preview exactly like a manual select + Ctrl+C (most faithful when pasting into Outlook)
   let ok = false;
   try {
@@ -4818,7 +4861,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 87;
+const APP_VERSION = 88;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

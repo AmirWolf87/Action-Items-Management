@@ -251,6 +251,17 @@
     <label>To (email)<input id="repEmail" type="email"></label>
   </div>
   <div class="rep-areas"><span>Areas in the email:</span><div class="chips" id="repAreas"></div></div>
+  <details class="rep-edit" id="repEdit">
+    <summary>✏️ <span>Edit the report</span></summary>
+    <div class="rep-e-row"><span class="rep-e-h">Columns</span><div class="chips" id="repCols"></div></div>
+    <div class="rep-e-row"><span class="rep-e-h">Sections</span><div class="chips" id="repSecs"></div></div>
+    <label class="full">Opening text<textarea id="repIntro" rows="3" dir="auto"></textarea></label>
+    <label class="full">Closing text<textarea id="repOutro" rows="3" dir="auto"></textarea></label>
+    <p class="hint">{name} = recipient · {range} = the week · {from} = you. <button type="button" class="linkish" id="repReset">↺ Default text</button></p>
+    <p class="hint">To remove a row, tap ✕ next to it in the email below.</p>
+    <p class="hint rep-hidden" id="repHidden"></p>
+    <label class="remember"><input type="checkbox" id="repFree"> Free editing — change any word directly in the email</label>
+  </details>
   <div class="rep-actions">
     <button class="btn primary" id="repCopy">📋 Copy formatted email</button>
     <a class="btn link" id="repOutlookWeb" target="_blank" rel="noopener">Outlook web</a>

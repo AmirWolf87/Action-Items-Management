@@ -1663,3 +1663,15 @@ body .bottom-bar .bb-row .fab-wheel .wheel-ic{width:28px;height:28px}
 .list{padding-bottom:190px}
 body .play-menu,[dir=ltr] body .play-menu{bottom:calc(150px + env(safe-area-inset-bottom))}
 body .toast,.fs-banner{bottom:calc(152px + env(safe-area-inset-bottom))}
+/* ✏️ weekly report editing */
+.rep-edit{border:1px solid var(--line);border-radius:14px;padding:4px 12px;margin:10px 0}
+.rep-edit summary{cursor:pointer;font-weight:700;min-height:40px;display:flex;align-items:center;gap:6px;list-style:none}
+.rep-edit summary::-webkit-details-marker{display:none}
+.rep-edit[open]{padding-bottom:12px}
+.rep-e-row{display:flex;align-items:flex-start;gap:10px;margin:8px 0;flex-wrap:wrap}
+.rep-e-h{font-size:13px;font-weight:700;color:var(--muted);min-width:64px;padding-top:8px}
+.rep-e-row .chips{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.rep-fixed{opacity:.6;cursor:default}
+.rep-x{border:0;background:#FEE2E2;color:#B91C1C;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:12px;line-height:24px;padding:0}
+.rep-x-td{width:28px;text-align:center;vertical-align:middle;padding:0 2px}
+#repPreview.rep-free{outline:2px dashed var(--accent);outline-offset:4px;border-radius:8px}
