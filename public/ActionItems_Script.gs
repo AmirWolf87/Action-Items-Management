@@ -1054,6 +1054,31 @@ function collDesign_(name, kind) {
 }
 /* 🔎 look the place up on the web (Google Search through the AI): exact name, address, kind, kosher / Shabbat, hours…
    and say where it differs from what was written. Nothing is changed here — the app shows the findings to approve. */
+/* a small web search done by the script itself (DuckDuckGo's plain HTML page) + the text of the top pages — used when the AI's own Google Search is out of quota */
+function webSnippets_(q) {
+  const out = { text: '', urls: [] };
+  try {
+    const r = UrlFetchApp.fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=il-he', { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36' } });
+    if (r.getResponseCode() !== 200) return out;
+    const html = r.getContentText(), strip = (t) => htmlDecode_(String(t || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?(?:class="result__snippet"[^>]*>([\s\S]*?)<\/a>)?/g;
+    let m, i = 0; const res = [];
+    while ((m = re.exec(html)) && i < 8) {
+      let u = m[1]; const ud = u.match(/[?&]uddg=([^&]+)/); if (ud) u = decodeURIComponent(ud[1]); if (u.indexOf('//') === 0) u = 'https:' + u;
+      if (!/^https?:\/\//i.test(u) || /duckduckgo\.com\/y\.js/.test(u)) continue;
+      res.push({ u: u, t: strip(m[2]), s: strip(m[3]) }); i++;
+    }
+    out.urls = res.map(x => x.u);
+    let text = res.map((x, k) => (k + 1) + '. ' + x.t + ' — ' + x.u + '\n   ' + x.s).join('\n');
+    // the text of the first two ordinary pages (not social networks, which block scripts)
+    res.filter(x => !/instagram|facebook|tiktok|youtube|x\.com|twitter/i.test(x.u)).slice(0, 2).forEach(x => {
+      try { const pg = UrlFetchApp.fetch(x.u, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (pg.getResponseCode() === 200) text += '\n\nPAGE ' + x.u + ':\n' + strip(pg.getContentText().replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ')).slice(0, 2500); } catch (e) { /* skip */ }
+    });
+    out.text = text.slice(0, 9000);
+  } catch (e) { /* no web results */ }
+  return out;
+}
 function placeCheck_(req) {
   if (!aiKey_()) return { ok: false, message: 'ה-AI לא מוגדר (☰ › AI)' };
   const title = String(req.title || '').trim().slice(0, 120); if (!title) return { ok: false, message: 'חסר שם' };
@@ -1069,11 +1094,20 @@ function placeCheck_(req) {
     'closed = true if the place closed permanently. issues = short Hebrew sentences for each SAVED value that is wrong or out of date (empty list if all fine). sources = up to 3 https URLs you used.\n' +
     'Return ONLY JSON: {"found":true,"sure":"high|medium|low","title":"","place":"","city":"","hours":"","phone":"","site":""' + (style === 'food' ? ',"base":""' : '') + (fields.length ? ',"x":{' + fields.map(f => '"' + f.k + '":""').join(',') + '}' : '') + ',"closed":false,"issues":[],"sources":[]}';
   const tools = [{ google_search: {} }]; if (/^https?:\/\//i.test(cur.link)) tools.push({ url_context: {} });
-  const r = aiCall_([{ text: prompt }], tools);
+  let r = aiCall_([{ text: prompt }], tools), via = 'search';
   if (!r) return { ok: false, message: 'No key' };
+  if (r.error && /בקשות|מכסה|429|exhaust|quota/i.test(r.error)) {
+    // Google Search through the AI is out of quota → search the web ourselves and let the AI read the results (no search quota needed)
+    const web = webSnippets_(title + ' ' + (cur.place || ''));
+    if (web.text) {
+      const r2 = aiCall_([{ text: prompt.replace('Find this specific place on the web (use Google Search', 'Find this specific place using ONLY the web search results below (do not invent anything that is not in them') +
+        '\n\nWEB SEARCH RESULTS:\n' + web.text + '\nUse these URLs as sources.' }], null);
+      if (r2 && !r2.error) { r = r2; via = 'web'; if (!Array.isArray(r.sources) || !r.sources.length) r.sources = web.urls.slice(0, 3); }
+    }
+  }
   if (r.error) return { ok: false, message: r.error };
   const S = (v, n) => String(v === undefined || v === null ? '' : v).trim().slice(0, n);
-  const out = { ok: true, found: !!r.found, sure: ['high', 'medium', 'low'].indexOf(r.sure) >= 0 ? r.sure : 'medium', title: S(r.title, 120), place: S(r.place, 160), city: S(r.city, 60),
+  const out = { ok: true, via: via, found: !!r.found, sure: ['high', 'medium', 'low'].indexOf(r.sure) >= 0 ? r.sure : 'medium', title: S(r.title, 120), place: S(r.place, 160), city: S(r.city, 60),
     hours: S(r.hours, 200), phone: S(r.phone, 30), site: /^https:\/\//i.test(S(r.site, 300)) ? S(r.site, 300) : '', closed: !!r.closed,
     issues: (Array.isArray(r.issues) ? r.issues : []).map(x => S(x, 200)).filter(String).slice(0, 6),
     sources: (Array.isArray(r.sources) ? r.sources : []).map(x => S(x, 300)).filter(u => /^https:\/\//i.test(u)).slice(0, 3), x: {} };
@@ -1462,10 +1496,11 @@ function aiCall_(parts, tools, retried) {
     const waits = busy.map(e => { const m = e.txt.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/); return m ? Number(m[1]) : null; }).filter(x => x !== null);
     const wait = waits.length ? Math.min.apply(null, waits) : null;
     const daily = (t) => /PerDay|per_day|RPD/i.test(t), zero = (t) => /limit:\s*0\b/.test(t);
-    if (!retried && wait !== null && wait <= 30 && !busy.every(e => daily(e.txt) || zero(e.txt))) { Utilities.sleep(Math.ceil(wait * 1000) + 800); return aiCall_(parts, tools, true); }
+    if (!retried && (wait === null || wait <= 30) && !busy.every(e => daily(e.txt) || zero(e.txt))) { Utilities.sleep(wait === null ? 7000 : Math.ceil(wait * 1000) + 800); return aiCall_(parts, tools, true); }
     const first = busy[0], q = (first.txt.match(/"quotaId"\s*:\s*"([^"]+)"/) || first.txt.match(/metric:\s*([\w./-]+)/) || [])[1] || '';
     const lim = (first.txt.match(/limit:\s*(\d+)/) || [])[1];
-    const why = ' [' + first.model + (q ? ' · ' + q : '') + (lim ? ' · limit ' + lim : '') + ']';
+    const gmsg = ((first.txt.match(/"message"\s*:\s*"([^"]{0,90})/) || [])[1] || '').replace(/\\n/g, ' ');
+    const why = ' [' + first.model + (q ? ' · ' + q : '') + (lim ? ' · limit ' + lim : '') + (!q && gmsg ? ' · ' + gmsg : '') + ']';
     const search = tools && /search|ground/i.test(busy.map(e => e.txt).join(' '));
     return { error: busy.every(e => zero(e.txt)) ? 'ה-AI: המפתח הזה לא מקבל מכסה חינמית ' + (search ? 'לחיפוש ברשת' : '') + ' (limit: 0). צור מפתח בפרויקט חדש ב-AI Studio, או הפעל חיוב (Billing) בפרויקט.' + why
       : busy.some(e => daily(e.txt)) ? 'ה-AI: נגמרה המכסה היומית החינמית' + (search ? ' של חיפוש ברשת' : '') + ' — היא מתאפסת בכל יום בערך ב-10 בבוקר (שעון ישראל). נסה שוב אחר כך.' + why

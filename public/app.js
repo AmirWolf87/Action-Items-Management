@@ -1256,7 +1256,7 @@ function ckRender() {
   if (r.lat !== undefined && r.lat !== null && c.map && !(f.dataset.manual === 'pick' || f.dataset.manual === '1')) { const has = f.dataset.lat !== '' && f.dataset.lat !== 'null'; rows.push({ key: 'pin', label: L('Map pin', 'נעץ במפה'), cur: has ? L('placed', 'קיים') : '', val: '1', show: r.geoName || L('by the address found', 'לפי הכתובת שנמצאה'), on: !has }); }
   r._rows = rows;
   box.className = 'ck-box' + (r.closed ? ' warn' : '');
-  box.innerHTML = `<h4>🔎 ${L('Found on the web', 'נמצא באינטרנט')}${r.sure === 'low' ? ` <small>· ${L('not fully sure — check', 'לא בטוח לגמרי — כדאי לבדוק')}</small>` : ''}</h4>
+  box.innerHTML = `<h4>🔎 ${L('Found on the web', 'נמצא באינטרנט')}${r.via === 'web' ? ` <small>· ${L('via a regular web search (AI search was busy)', 'דרך חיפוש רגיל ברשת (החיפוש של ה-AI היה עמוס)')}</small>` : ''}${r.sure === 'low' ? ` <small>· ${L('not fully sure — check', 'לא בטוח לגמרי — כדאי לבדוק')}</small>` : ''}</h4>
     ${r.closed ? `<p class="ck-closed">⛔ ${L('Looks permanently closed', 'נראה שהמקום נסגר')}</p>` : ''}
     ${r.issues.length ? `<ul class="ck-issues">${r.issues.map(x => `<li>⚠ ${esc(x)}</li>`).join('')}</ul>` : ''}
     ${ok.length ? `<p class="ck-ok">✓ ${L('Matches what you wrote: ', 'תואם למה שרשמת: ')}${esc(ok.join(', '))}</p>` : ''}
@@ -4918,7 +4918,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 91;
+const APP_VERSION = 92;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();
