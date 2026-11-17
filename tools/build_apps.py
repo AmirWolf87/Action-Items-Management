@@ -48,12 +48,15 @@ def make_dump(src, out, icons_src):
     idx = re.sub(r'<meta name="theme-color" content="[^"]*">', '<meta name="theme-color" content="' + DUMP_THEME + '">', idx, count=1)
     idx = must(idx, '<link rel="manifest"', '<script>window.ORBIT_APP = \'dump\'; document.documentElement.classList.add(\'app-dump\');</script>\n<link rel="manifest"')
     idx = must(idx, 'data-brand="name">FOCUS<', 'data-brand="name">DUMP<', 2)
-    idx = must(idx, 'data-brand="tag">What matters.<br>Right now.<', 'data-brand="tag">Dump it here.<br>Sort it later.<')
-    idx = must(idx, 'data-brand="tag1">What matters. Right now.<', 'data-brand="tag1">Dump it here. Sort it later.<')
+    idx = must(idx, 'data-brand="tag">What matters.<br>Right now.<', 'data-brand="tag">Take a dump.<br>Feel lighter.<')
+    idx = must(idx, 'data-brand="tag1">What matters. Right now.<', 'data-brand="tag1">Take a dump. Feel lighter.<')
     idx = must(idx, '<h1 id="screenTitle" class="no-i18n">Focus</h1>', '<h1 id="screenTitle" class="no-i18n">Dump</h1>')
     idx = idx.replace(' src="assets/focus/focus_idle_small.webp"', '')      # the focus timer lives in Focus only
     head, rest = idx.split('</defs></svg>', 1)          # recolour only the ring's gradients
     for a, b in WARM.items(): head = head.replace(a, b)
+    # Dump's own mark on the launch and sign-in screens: a glowing swirl that is also a light bulb 💡
+    head += rd(os.path.join(ROOT, 'tools', 'dump_mark.svgfrag'))
+    rest = must(rest, '<use href="#orbitRing"/><g class="o-moon"><circle cx="143.63" cy="21.28" r="8.5" fill="url(#oS)"/></g>', '<use href="#dumpMark"/>', 2)
     wr(os.path.join(out, 'index.html'), head + '</defs></svg>' + rest)
 
     man = json.loads(rd(os.path.join(src, 'manifest.webmanifest')))
