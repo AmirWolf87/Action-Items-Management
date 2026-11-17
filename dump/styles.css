@@ -1687,8 +1687,6 @@ body .toast,.fs-banner{bottom:calc(152px + env(safe-area-inset-bottom))}
    ===================================================================== */
 .app-dump .focus-only,.app-focus .dump-only,html:not(.app-dump) .dump-only{display:none!important}
 /* the menu link to the other app */
-.menu .menu-item.other-app{text-decoration:none;font-weight:700;background:linear-gradient(135deg,color-mix(in srgb,#FF7AB8 16%,var(--bg)),color-mix(in srgb,#FFA53D 16%,var(--bg)));border:1px solid color-mix(in srgb,#FF7AB8 30%,var(--line));margin:0 0 10px}
-.app-dump .menu .menu-item.other-app{background:linear-gradient(135deg,color-mix(in srgb,#2F8BFF 16%,var(--bg)),color-mix(in srgb,#9F7AFA 16%,var(--bg)));border-color:color-mix(in srgb,#2F8BFF 30%,var(--line))}
 .other-app .oa-ic{font-size:20px;line-height:1}
 .other-app .oa-go{margin-inline-start:auto;font-size:20px;color:var(--muted);line-height:1}
 [dir=rtl] .other-app .oa-go{transform:scaleX(-1)}
@@ -1700,9 +1698,83 @@ body .toast,.fs-banner{bottom:calc(152px + env(safe-area-inset-bottom))}
 .app-dump body.guest .bottom-bar{display:none}
 .app-dump .list{padding-bottom:110px}
 .app-dump body .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
-.app-dump body .bottom-bar .add-btn{background:linear-gradient(135deg,#FF6A3D,#E23C8F);color:#fff;box-shadow:0 4px 14px rgba(226,60,143,.3)}
-/* 💡 Dump brand: warm arcs on the launch / sign-in screens */
-.app-dump{--o-arc1:rgba(255,106,61,.20);--o-arc2:rgba(226,60,143,.16);--o-glow:rgba(255,122,184,.28)}
-@media (prefers-color-scheme: dark){.app-dump:not([data-theme=light]){--o-bg:#12040F;--o-tag:#F5D3E4;--o-arc1:rgba(255,106,61,.55);--o-arc2:rgba(226,60,143,.45);--o-glow:rgba(255,122,184,.5)}}
-.app-dump[data-theme=dark]{--o-bg:#12040F;--o-tag:#F5D3E4;--o-arc1:rgba(255,106,61,.55);--o-arc2:rgba(226,60,143,.45);--o-glow:rgba(255,122,184,.5)}
-.app-dump{--banner:#6B1F4A;--banner-muted:#F3D3E3}
+.menu .menu-item.other-app{text-decoration:none;font-weight:600;background:var(--other-soft);border:1px solid color-mix(in srgb,var(--other) 35%,var(--line));color:var(--ink);margin:0 0 10px}
+
+/* =====================================================================
+   🐺 The Wolf family look — same design language as Financial Wolf:
+   warm cream paper, white cards with soft cream borders, Rubik, gold accents.
+   Each app has its own deep colour:  Financial Wolf = navy · 🎯 Focus = teal · 💡 Dump = plum
+   ===================================================================== */
+:root{
+  --bg:#FBF6EE; --card:#FFFFFF; --surface-raised:#FFFFFF; --card-2:#F6EFE3; --ink:#1E2A38; --muted:#5C6672; --line:#E6DCCB;
+  --gold:#C8922A; --gold-ink:#8A5E0C; --gold-soft:#F7E7C2;
+  --red:#B8392A; --red-bg:#F8DDD7; --amber:#A86A12; --amber-bg:#FBEBCB; --green:#1F7A72; --green-bg:#DDF0EC;
+  --r-card:18px; --radius:18px; --r-control:12px;
+  --shadow:0 1px 2px rgba(30,42,56,.06),0 4px 14px rgba(30,42,56,.06);
+  --wf-font:"Rubik",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  /* 🎯 Focus: deep teal */
+  --deep:#17474A; --deep-2:#1F7A72; --on-deep:#FFF8EC;
+  --banner:var(--deep); --banner-ink:var(--on-deep); --banner-muted:#CFE3DF;
+  --primary:var(--deep); --primary-ink:#FFF8EC; --on-primary:#FFF8EC; --accent:var(--deep-2);
+  --focus-soft:#E3F0EC; --focus-pressed:#D5E8E3; --qa-bg:#E3F0EC; --qa-line:#C4DDD6; --qa-ink:var(--deep);
+  --add:var(--gold); --add-ink:#2A1B00;
+  --other:#5A2A4C; --other-soft:#F4E6EE;
+  --o-bg:#FBF6EE; --o-ink:#1E2A38; --o-tag:#5C6672; --o-font:var(--wf-font);
+}
+.app-dump{
+  /* 💡 Dump: deep plum with coral */
+  --deep:#5A2A4C; --deep-2:#9A3F6E; --banner-muted:#EBD3E0;
+  --focus-soft:#F4E6EE; --focus-pressed:#EBD6E2; --qa-bg:#F4E6EE; --qa-line:#E2C6D5;
+  --add:#D9674E; --add-ink:#FFFFFF;
+  --other:#17474A; --other-soft:#E3F0EC;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme=light]){ --bg:#11161C; --card:#1A2129; --surface-raised:#1A2129; --card-2:#212A34; --ink:#EDE7DD; --muted:#A3ACB7; --line:#2D3742;
+    --gold:#E2B04A; --gold-ink:#F0C66E; --gold-soft:#3A2E15; --red:#F2836E; --red-bg:#3E1D18; --amber:#E7AC4E; --amber-bg:#3A2B10; --green:#5BC0B4; --green-bg:#12312E; --shadow:none;
+    --deep:#0F3134; --deep-2:#5BC0B4; --primary:#1F7A72; --accent:#5BC0B4; --focus-soft:#16302E; --focus-pressed:#1C3B38; --qa-bg:#16302E; --qa-line:#2D3742; --qa-ink:#9FDCD3;
+    --other-soft:#2A1E27; --o-bg:#11161C; --o-ink:#EDE7DD; --o-tag:#A3ACB7; }
+  .app-dump:not([data-theme=light]){ --deep:#3A1A31; --deep-2:#E39BC0; --primary:#8A3A66; --accent:#E39BC0; --focus-soft:#2E1C29; --focus-pressed:#3A2233; --qa-bg:#2E1C29; --qa-ink:#F0C2DA; --add:#E07A60; --other-soft:#16302E; }
+}
+:root[data-theme=dark]{ --bg:#11161C; --card:#1A2129; --surface-raised:#1A2129; --card-2:#212A34; --ink:#EDE7DD; --muted:#A3ACB7; --line:#2D3742;
+  --gold:#E2B04A; --gold-ink:#F0C66E; --gold-soft:#3A2E15; --red:#F2836E; --red-bg:#3E1D18; --amber:#E7AC4E; --amber-bg:#3A2B10; --green:#5BC0B4; --green-bg:#12312E; --shadow:none;
+  --deep:#0F3134; --deep-2:#5BC0B4; --primary:#1F7A72; --accent:#5BC0B4; --focus-soft:#16302E; --focus-pressed:#1C3B38; --qa-bg:#16302E; --qa-line:#2D3742; --qa-ink:#9FDCD3;
+  --other-soft:#2A1E27; --o-bg:#11161C; --o-ink:#EDE7DD; --o-tag:#A3ACB7; }
+.app-dump[data-theme=dark]{ --deep:#3A1A31; --deep-2:#E39BC0; --primary:#8A3A66; --accent:#E39BC0; --focus-soft:#2E1C29; --focus-pressed:#3A2233; --qa-bg:#2E1C29; --qa-ink:#F0C2DA; --add:#E07A60; --other-soft:#16302E; }
+
+html,body{font-family:var(--wf-font)}
+h1,h2,h3,.sheet-head h2{font-weight:600}
+/* top bar: the deep colour, a round app logo, like Financial Wolf */
+.top{background:var(--deep)}
+.top-row{align-items:center}
+.app-logo{width:38px;height:38px;border-radius:50%;flex:0 0 auto;margin-inline-end:10px;background:var(--gold-soft);box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+#screenTitle{font-weight:600;letter-spacing:0}
+.top .icon-btn{border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)}
+/* cards and groups: white on cream, 18px corners, soft cream border */
+.card,.c-tile,.c-card,.od-box,.myday,.empty-day,.story-row,.nb-books,.sr-item,.c-table,.wr-card{border-radius:var(--r-card);border:1px solid var(--line);box-shadow:var(--shadow)}
+.tabs{background:var(--bg);border-bottom:1px solid var(--line)}
+.tabs button{border-radius:999px;font-weight:500}
+body .tabs button.on{background:var(--deep);color:var(--on-deep)}
+.chip{border-radius:999px;background:var(--card);border:1px solid var(--line)}
+body .chip.on,body #areaChips .chip.on{background:var(--deep);color:var(--on-deep);border-color:var(--deep)}
+.btn{border-radius:var(--r-control)}
+.btn.primary{background:var(--primary);color:var(--primary-ink);border-color:var(--primary)}
+.linkish,.nb-link{color:var(--gold-ink);text-decoration:underline;text-underline-offset:3px}
+dialog.sheet{background:var(--bg)}
+.menu .menu-item{background:var(--card);border:1px solid var(--line)}
+/* the main ＋: gold like Financial Wolf's add button (coral in Dump) */
+body .bottom-bar .add-btn{background:var(--add);color:var(--add-ink);border-radius:999px;box-shadow:0 4px 14px color-mix(in srgb,var(--add) 40%,transparent);font-weight:600}
+body .bottom-bar .bb-row .fab{background:var(--card);border-color:var(--line);border-radius:16px}
+.bb-ic{color:var(--deep-2)}
+/* launch + sign-in screens: cream paper, the mark, the name, a gold family line */
+.o-bg{display:none}
+.o-mark{filter:drop-shadow(0 6px 18px rgba(30,42,56,.12))}
+.o-name{font-weight:600;letter-spacing:0;margin-inline-start:0;font-size:clamp(40px,12vw,56px)}
+.o-fam{font-family:var(--wf-font);color:var(--gold-ink);font-size:clamp(16px,4.6vw,20px);margin-top:10px;font-weight:500}
+.o-tag{letter-spacing:0}
+.o-by{letter-spacing:.08em}
+.o-lockbrand .o-name{font-size:30px;letter-spacing:0;margin-inline-start:0;margin-top:10px}
+.o-lockbrand .o-fam{font-size:15px;margin-top:4px}
+.lock .btn.primary,#lockForm .btn.primary{background:var(--deep);border-color:var(--deep);color:var(--on-deep)}
+.splash .o-name{animation-name:oUp}
+.top-title{min-width:0;flex:1}
+body .top .sub{flex-wrap:nowrap;white-space:nowrap;overflow:hidden;color:var(--banner-muted)}

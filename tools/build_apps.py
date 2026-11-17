@@ -12,11 +12,8 @@ import os, re, shutil, json, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# warm colours for Dump's ring (Focus keeps the blue Orbit ring)
-WARM = {'#5EEAF5': '#FFE27A', '#2F8BFF': '#FFA53D', '#2450F0': '#FF6A3D', '#3B5BFF': '#FF4F6E',
-        '#C4B5FD': '#FFC2E2', '#9F7AFA': '#FF7AB8', '#5B3BF0': '#E23C8F', '#3730C8': '#B0266F',
-        '#BFE3FF': '#FFE9B8', '#3B6BFF': '#FF8A3D', '#1E1B6B': '#5A0F2E'}
-DUMP_THEME = '#7A1E4B'
+# Dump's deep plum (Focus is teal, Financial Wolf navy)
+DUMP_THEME = '#5A2A4C'
 
 
 def rd(p): return open(p, encoding='utf-8').read()
@@ -52,15 +49,14 @@ def make_dump(src, out, icons_src):
     idx = must(idx, 'data-brand="tag1">What matters. Right now.<', 'data-brand="tag1">Take a dump. Feel lighter.<')
     idx = must(idx, '<h1 id="screenTitle" class="no-i18n">Focus</h1>', '<h1 id="screenTitle" class="no-i18n">Dump</h1>')
     idx = idx.replace(' src="assets/focus/focus_idle_small.webp"', '')      # the focus timer lives in Focus only
-    head, rest = idx.split('</defs></svg>', 1)          # recolour only the ring's gradients
-    for a, b in WARM.items(): head = head.replace(a, b)
+    head, rest = idx.split('</defs></svg>', 1)
     # Dump's own mark on the launch and sign-in screens: notes written on toilet paper 🧻✏️
     head += rd(os.path.join(ROOT, 'tools', 'dump_mark.svgfrag'))
-    rest = must(rest, '<use href="#orbitRing"/><g class="o-moon"><circle cx="143.63" cy="21.28" r="8.5" fill="url(#oS)"/></g>', '<use href="#dumpMark"/>', 2)
+    rest = must(rest, '<use href="#focusMark"/>', '<use href="#dumpMark"/>', 2)
     wr(os.path.join(out, 'index.html'), head + '</defs></svg>' + rest)
 
     man = json.loads(rd(os.path.join(src, 'manifest.webmanifest')))
-    man.update({'name': 'Dump', 'short_name': 'Dump', 'id': man.get('id', 'orbit') + '-dump', 'theme_color': DUMP_THEME, 'background_color': '#12040F'})
+    man.update({'name': 'Dump', 'short_name': 'Dump', 'id': man.get('id', 'orbit') + '-dump', 'theme_color': DUMP_THEME, 'background_color': '#FBF6EE'})
     wr(os.path.join(out, 'manifest.webmanifest'), json.dumps(man, ensure_ascii=False, indent=2))
 
     sw = rd(os.path.join(src, 'sw.js'))
