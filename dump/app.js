@@ -1116,12 +1116,16 @@ async function collQuickAdd(text) {
   text = text.trim(); if (!text) return;
   const m = text.match(/https?:\/\/\S+/i); const link = m ? m[0] : '';
   let title = link ? text.replace(link, '').trim() : text;
-  if (link && !settings.demo) {                                    // ✨ read the post / page and open a pre-filled entry to approve
-    toast(L('✨ Reading the link…', '✨ קורא את הקישור…'));
+  if (link && !settings.demo) {                                    // ✨ open the entry right away, then fill it in when the link has been read
     const cat = catOf(ui.collCat);
+    openColl({ cat: cat.id, status: 'want', title, link });
+    collReading(true);
     const info = await linkInfo(link, cat);
-    const en = Object.assign({ cat: cat.id, status: 'want' }, collFromInfo(info, { title, link }));
-    openColl(en); collLinkNote(info);
+    const f = $('#frmColl');
+    if (!$('#dlgColl').open || !f || f.elements.link.value.trim() !== link) return;   // closed, or another link meanwhile
+    collReading(false);
+    if (info && info.found) collApplyInfo(info, false);
+    collLinkNote(info);
     return;
   }
   if (!title && link) { try { title = new URL(link).hostname.replace(/^www\./, ''); } catch (e) { title = link; } }
@@ -1130,7 +1134,16 @@ async function collQuickAdd(text) {
 }
 async function linkInfo(url, cat, text, image) {
   const tpl = cat && catTpl(cat);
-  try { return await api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '', fields: tpl ? tpl.fields : null, image: image || '' }); } catch (e) { return image ? { found: false, aiError: e.message } : null; }
+  const call = api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '', fields: tpl ? tpl.fields : null, image: image || '' });
+  // never wait forever: after 75 s give the screen back (the sheet keeps the answer for a retry)
+  const late = new Promise(res => setTimeout(() => res({ found: false, slow: true, aiError: L('Reading took too long — tap 🔄 Try again (it is usually quicker the second time).', 'הקריאה לקחה יותר מדי זמן — לחץ 🔄 נסה שוב (בפעם השנייה זה בדרך כלל מהיר יותר).') }), 75000));
+  try { return await Promise.race([call, late]); } catch (e) { return { found: false, aiError: e.message }; }
+}
+/* the "reading…" line inside the entry while the link is being read */
+function collReading(on) {
+  const box = $('#collNote'); if (!box) return;
+  if (on) { box.className = 'c-note busy'; box.hidden = false; box.innerHTML = `<span class="c-spin" aria-hidden="true"></span> ${L('✨ Reading the link… you can already edit', '✨ קורא את הקישור… אפשר כבר לערוך')}`; }
+  else if (box.classList.contains('busy')) { box.hidden = true; box.className = 'c-note'; }
 }
 function collFromInfo(info, base) {
   info = info || {};
@@ -1148,10 +1161,11 @@ function collLinkNote(info, fromText) {
     box.innerHTML = (info && info.shot ? L('📷 <b>The screenshot couldn’t be read.</b> ', '📷 <b>לא הצלחתי לקרוא את צילום המסך.</b> ') + (info.aiError ? esc(info.aiError) : L('Try a sharper screenshot where the name and place are visible.', 'נסה צילום חד יותר שבו רואים את השם והמקום.'))
       : L('📋 <b>The post couldn’t be read</b> (Instagram/Facebook often block it). Take a <b>screenshot</b> of the post and add it here — or copy its text into <b>Notes</b> and tap <b>✨ Fill from text</b>.',
       '📋 <b>לא הצלחתי לקרוא את הפוסט</b> (אינסטגרם/פייסבוק חוסמים לפעמים). צלם <b>צילום מסך</b> של הפוסט והוסף אותו כאן — או העתק את הטקסט ל<b>הערות</b> ולחץ <b>✨ מלא מהטקסט</b>.')) +
-      (settings.demo || collRO() ? '' : `<br><span class="c-shot-row"><button type="button" class="btn primary c-shot-big" data-collpaste>📋 ${L('Paste a screenshot', 'הדבק צילום מסך מהלוח')}</button><label class="btn ghost c-shot-big c-shot-alt">📷 ${L('Choose a photo', 'בחר מהגלריה')}<input type="file" accept="image/*" hidden data-collshot></label></span>`);
+      (info && info.aiError && !info.shot ? `<br><small>${esc(info.aiError)}</small>` : '') +
+      (settings.demo || collRO() ? '' : `<br><span class="c-shot-row">${info && info.shot ? '' : `<button type="button" class="btn ghost c-shot-big" data-collretry>🔄 ${L('Try again', 'נסה שוב')}</button>`}<button type="button" class="btn primary c-shot-big" data-collpaste>📋 ${L('Paste a screenshot', 'הדבק צילום מסך מהלוח')}</button><label class="btn ghost c-shot-big c-shot-alt">📷 ${L('Choose a photo', 'בחר מהגלריה')}<input type="file" accept="image/*" hidden data-collshot></label></span>`);
   } else {
     box.className = 'c-note ok'; box.hidden = false;
-    box.innerHTML = (info.shot ? '📷 ' + L('Read from the screenshot', 'נקרא מצילום המסך') : info.ai ? '✨ ' + L('Read with AI', 'נקרא עם AI') : '✓ ' + (fromText ? L('Filled from the text', 'מולא מהטקסט') : L('Filled from the link', 'מולא מהקישור'))) + ' · ' + L('check and Save', 'בדוק ולחץ שמירה') + (catOf($('#collCat').value).map && !settings.demo ? ' · ' + L('🔎 you can also verify it on the web below', '🔎 אפשר גם לוודא מול האינטרנט (כפתור למטה)') : '') +
+    box.innerHTML = (info.shot ? '📷 ' + L('Read from the screenshot', 'נקרא מצילום המסך') : info.ai ? '✨ ' + (info.checked ? L('Read with AI and checked on the web', 'נקרא עם AI ונבדק ברשת') : L('Read with AI', 'נקרא עם AI')) + (info.sure === 'low' ? ' · ⚠️ ' + L('not sure about the name — please check it', 'לא בטוח בשם — כדאי לבדוק') : '') : '✓ ' + (fromText ? L('Filled from the text', 'מולא מהטקסט') : L('Filled from the link', 'מולא מהקישור'))) + ' · ' + L('check and Save', 'בדוק ולחץ שמירה') + (catOf($('#collCat').value).map && !settings.demo ? ' · ' + L('🔎 you can also verify it on the web below', '🔎 אפשר גם לוודא מול האינטרנט (כפתור למטה)') : '') +
       (info.aiError ? `<br><small>${esc(L('AI didn’t answer: ', 'ה-AI לא ענה: ') + info.aiError)}</small>` : '');
   }
   if ($('#dlgColl').open) collFormUi();
@@ -1162,8 +1176,10 @@ async function collFillFromLink() {
   const b = $('#collFill'); b.disabled = true; const old = b.textContent; b.textContent = L('✨ Reading…', '✨ קורא…');
   const cat = catOf($('#collCat').value);
   const blockedBefore = $('#collNote').classList.contains('warn');
-  const useText = blockedBefore || !/^https?:\/\//i.test(link);
+  const useText = (blockedBefore && notes.length >= 15) || !/^https?:\/\//i.test(link);
+  collReading(true);
   const info = await linkInfo(link, cat, useText ? notes : '');
+  collReading(false);
   b.disabled = false; b.textContent = old;
   collLinkNote(info, useText);
   if (!info || !info.found) return;
@@ -1212,7 +1228,7 @@ async function collPasteClip() {
   if (txt.length >= 15) collFillFromLink(); else toast(L('Pasted into Notes', 'הודבק בהערות'));
 }
 $('#collPaste').addEventListener('click', collPasteClip);
-document.addEventListener('click', (e) => { if (e.target.closest('[data-collpaste]')) collPasteClip(); });
+document.addEventListener('click', (e) => { if (e.target.closest('[data-collpaste]')) collPasteClip(); if (e.target.closest('[data-collretry]')) collFillFromLink(); });
 /* ---- 📷 a screenshot of the post → AI reads it → fills the entry → then checks the place on the web ---- */
 async function collFillFromShot(file) {
   if (!file || !/^image\//.test(file.type || 'image/')) return;
@@ -4942,7 +4958,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('ai.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 95;
+const APP_VERSION = 96;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

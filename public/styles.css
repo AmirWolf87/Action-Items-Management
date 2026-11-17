@@ -1778,3 +1778,7 @@ body .bottom-bar .bb-row .fab{background:var(--card);border-color:var(--line);bo
 .splash .o-name{animation-name:oUp}
 .top-title{min-width:0;flex:1}
 body .top .sub{flex-wrap:nowrap;white-space:nowrap;overflow:hidden;color:var(--banner-muted)}
+.c-note.busy{background:var(--focus-soft);color:var(--ink);display:flex;align-items:center;gap:10px}
+.c-spin{width:16px;height:16px;border-radius:50%;border:2.5px solid color-mix(in srgb,var(--accent) 30%,transparent);border-top-color:var(--accent);animation:cSpin .8s linear infinite;flex:0 0 auto}
+@keyframes cSpin{to{transform:rotate(360deg)}}
+.c-shot-big[data-collretry]{color:var(--ink)!important;background:var(--card);border:1px solid var(--line)}

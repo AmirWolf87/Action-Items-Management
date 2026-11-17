@@ -1463,7 +1463,7 @@ function aiJson_(text) {
   try { return JSON.parse(raw); } catch (e) { /* try a cleaned copy */ }
   try { return JSON.parse(raw.replace(/\s*\[\d+(?:,\s*\d+)*\]/g, '').replace(/,\s*([}\]])/g, '$1')); } catch (e) { return { error: 'AI: unreadable answer — try again' }; }
 }
-function aiCall_(parts, tools, retried) {
+function aiCall_(parts, tools, retried, schema) {
   const key = aiKey_(); if (!key) return null;
   // free-tier models first; a model that is out of quota (429) or not open to this key (403/404) → try the next one
   const P = PropertiesService.getScriptProperties();
@@ -1471,7 +1471,8 @@ function aiCall_(parts, tools, retried) {
   const errs = [];
   for (const model of models.filter((m, i, a) => m && a.indexOf(m) === i)) {
     const body = { contents: [{ role: 'user', parts: parts }], generationConfig: { temperature: 0.2 } };
-    if (tools) body.tools = tools; else body.generationConfig.responseMimeType = 'application/json';
+    if (tools) body.tools = tools;
+    else { body.generationConfig.responseMimeType = 'application/json'; if (schema) body.generationConfig.responseSchema = schema; }   // a fixed shape → never an "unreadable answer"
     try {
       // the key goes in the x-goog-api-key header (works for both the old "AIza…" and the new "AQ.…" keys); old style ?key= as a fallback
       const base = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
@@ -1483,6 +1484,8 @@ function aiCall_(parts, tools, retried) {
       const code = r.getResponseCode(), txt = r.getContentText();
       if (code === 404 || code === 403 || code === 429) { errs.push({ code: code, txt: String(txt), model: model }); continue; }
       if (code === 400 && tools && /tool|search|grounding|not supported/i.test(txt)) { errs.push({ code: code, txt: String(txt), model: model }); continue; }   // this model can't search → next one
+      if (code === 400 && schema && /schema/i.test(txt)) { schema = null; delete body.generationConfig.responseSchema; errs.push({ code: code, txt: String(txt), model: model }); continue; }
+      if (code >= 500) { errs.push({ code: code, txt: String(txt), model: model }); continue; }   // Google's side is busy → the next model
       if (code >= 300) return { error: 'AI ' + code + ': ' + String(txt).slice(0, 160) };
       if (P.getProperty('GEMINI_OK_MODEL') !== model) P.setProperty('GEMINI_OK_MODEL', model);   // remember the model that works
       const j = JSON.parse(txt), out = (((j.candidates || [])[0] || {}).content || {}).parts || [];
@@ -1496,7 +1499,8 @@ function aiCall_(parts, tools, retried) {
     const waits = busy.map(e => { const m = e.txt.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/); return m ? Number(m[1]) : null; }).filter(x => x !== null);
     const wait = waits.length ? Math.min.apply(null, waits) : null;
     const daily = (t) => /PerDay|per_day|RPD/i.test(t), zero = (t) => /limit:\s*0\b/.test(t);
-    if (!retried && (wait === null || wait <= 30) && !busy.every(e => daily(e.txt) || zero(e.txt))) { Utilities.sleep(wait === null ? 7000 : Math.ceil(wait * 1000) + 800); return aiCall_(parts, tools, true); }
+    // wait at most ~8 s, once (it used to be up to 30 s — that is what felt like "hanging")
+    if (!retried && (wait === null || wait <= 8) && !busy.every(e => daily(e.txt) || zero(e.txt))) { Utilities.sleep(wait === null ? 4000 : Math.ceil(wait * 1000) + 500); return aiCall_(parts, tools, true, schema); }
     const first = busy[0], q = (first.txt.match(/"quotaId"\s*:\s*"([^"]+)"/) || first.txt.match(/metric:\s*([\w./-]+)/) || [])[1] || '';
     const lim = (first.txt.match(/limit:\s*(\d+)/) || [])[1];
     const gmsg = ((first.txt.match(/"message"\s*:\s*"([^"]{0,90})/) || [])[1] || '').replace(/\\n/g, ' ');
@@ -1507,30 +1511,155 @@ function aiCall_(parts, tools, retried) {
       : 'ה-AI: יותר מדי בקשות בדקה' + (search ? ' לחיפוש ברשת' : '') + ' — חכה דקה ונסה שוב.' + why };
   }
   const last = errs[errs.length - 1];
+  if (last && last.code >= 500) return { error: 'ה-AI של Google עמוס כרגע — נסה שוב בעוד רגע. [' + last.code + ']' };
   if (last) return { error: 'AI ' + last.code + ' (' + last.model + '): ' + last.txt.slice(0, 160) };
   return { error: 'AI: no model available' };
 }
-function aiExtract_(style, catName, raw, url, blocked, fields, image) {
-  const rules = {
-    food: 'title = the restaurant/café/bar NAME followed by ", " and the CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence. base = the kind of place, ONE of: cafe, cart (coffee cart / food truck), bakery, italian, pizza, burger, diner, meat, asian, mexican, middle (middle-eastern / hummus / shawarma), fish, veg, street, bar, chef (chef / fine dining), other.',
-    trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
-    activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
-    recipe: 'title = the dish name only.', drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit (use judgment — the one the drink is built on, never "other" when it is clear). Prefer ONE of: gin, vodka, rum, tequila, whisky, brandy, pisco, cachaca, arak, campari, aperol, prosecco, sparkling (champagne / cava), wine, beer, liqueur, none (non-alcoholic). If none of these fits, write the short name of the spirit in Hebrew (e.g. "סאקה", "מזקל"). ing = the OTHER ingredients besides the base, names only, comma separated, short (e.g. "קמפרי, ורמוט אדום"). notes = ingredients with amounts and short preparation steps, one per line.', wish: 'title = the wished item, short.', other: 'title = a short descriptive name (max 6 words).'
-  };
-  const prompt = 'You read a social-media post or web page that someone saved to their "' + catName + '" list. Answer in the language of the post (Hebrew if Hebrew).\n' +
-    rules[style] + '\n' +
-    'place = the most precise location to put a map pin: business/site name + street/area + city if known (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). If only a city or region is known, give that. Empty if unknown.\n' +
-    'city = city / region. notes = 1-3 short lines with the useful facts (what to order, hours, price, tips) — no hashtags.\n' +
-    (fields && fields.length ? 'x = the details this list keeps for every entry (empty string when unknown): ' + fields.map(f => f.k + ' = ' + f.l + (f.t === 'choice' ? ' (ONE of: ' + f.o.join(' / ') + ')' : f.t === 'mono' ? ' (copy chords / tabs / notation EXACTLY as written, keep every line break and space)' : f.t === 'number' ? ' (a number)' : '')).join('; ') + '\n' : '') +
-    'Return ONLY JSON: {"title":"","place":"","city":"","notes":""' + (style === 'drink' ? ',"base":"","ing":""' : style === 'food' ? ',"base":""' : '') + (fields && fields.length ? ',"x":{' + fields.map(f => '"' + f.k + '":""').join(',') + '}' : '') + '}\n\n' +
-    'URL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 6000);
+/* the AI reads what was gathered and returns one entry.
+   Pass 1 = no tools: fast, the generous free quota, a fixed answer shape.
+   Pass 2 (verify) = Google Search + opening the link — only when pass 1 was unsure or the post could not be read. */
+const LINK_RULES_ = {
+  food: 'title = the restaurant / café / bar NAME + ", " + CITY (e.g. "פיצה ברדק, תל אביב"). Never a sentence, never the blogger. base = the kind of place, ONE of: cafe, cart (coffee cart / food truck), bakery, italian, pizza, burger, diner, meat, asian, mexican, middle (middle-eastern / hummus / shawarma), fish, veg, street, bar, chef (chef / fine dining), other.',
+  trip: 'title = the NAME of the spring / trail / site (e.g. "עין תינה", "מסלול נחל עמוד"). No adjectives.',
+  activity: 'title = a SHORT description of the activity, 3-6 words, including where if known (e.g. "סיור אוכל בשוק תלפיות").',
+  recipe: 'title = the dish name only.',
+  drink: 'title = the drink / cocktail / wine name only (e.g. "נגרוני"). base = the main spirit (the one the drink is built on, never "other" when it is clear). Prefer ONE of: gin, vodka, rum, tequila, whisky, brandy, pisco, cachaca, arak, campari, aperol, prosecco, sparkling (champagne / cava), wine, beer, liqueur, none (non-alcoholic). If none fits, the short name of the spirit in Hebrew (e.g. "סאקה"). ing = the OTHER ingredients besides the base, names only, comma separated. notes = ingredients with amounts and short preparation steps, one per line.',
+  wish: 'title = the wished item, short.',
+  other: 'title = a short descriptive name (max 6 words).'
+};
+function linkSchema_(style, fields) {
+  const S = { type: 'STRING' }, props = { title: S, place: S, city: S, notes: S, sure: { type: 'STRING', enum: ['high', 'medium', 'low'] }, search: S };
+  if (style === 'food' || style === 'drink') props.base = S;
+  if (style === 'drink') props.ing = S;
+  if (fields && fields.length) { const xp = {}; fields.forEach(f => { xp[f.k] = S; }); props.x = { type: 'OBJECT', properties: xp }; }
+  return { type: 'OBJECT', properties: props, required: ['title', 'place', 'city', 'notes', 'sure'] };
+}
+function aiExtract_(style, catName, raw, url, blocked, fields, image, verify, first) {
+  const placey = /food|trip|activity/.test(style), link = /^https?:\/\//i.test(url);
+  const prompt = (verify
+      ? 'Identify exactly what this saved link is about, using Google Search' + (link ? ' and by opening the link itself' : '') + '. Someone saved it to their "' + catName + '" list.\n' +
+        (first && first.title ? 'A first guess (may be wrong or vague): ' + JSON.stringify({ title: first.title, place: first.place, city: first.city }) + '\n' : '')
+      : 'You read a social-media post or web page that someone saved to their "' + catName + '" list.\n') +
+    'Answer in the language of the post (Hebrew if the post is Hebrew).\n' +
+    LINK_RULES_[style] + '\n' +
+    'Rules:\n' +
+    '- Use ONLY facts from the material' + (verify ? ' and from pages you actually found' : '') + '. Never invent a name, address or detail. Unknown → empty string.\n' +
+    '- The AUTHOR is who posted (often a blogger / influencer) — NOT the place. The place is usually the tagged location, an @mention of a business, a 📍 line, or a name in the text.\n' +
+    '- If the post lists several places, take the main one (the first / the one the post is about) and mention the others in notes.\n' +
+    (placey ? '- place = the most precise location for a map pin: business / site name + street or area + city (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). Only a city or region if that is all that is known.\n' : '- place = a location only if the item has one, else empty.\n') +
+    '- city = city / region. notes = 1-3 short lines of useful facts (what to order, hours, price, tips) — no hashtags.\n' +
+    '- sure = how sure you are that the title' + (placey ? ' and place are' : ' is') + ' right: high / medium / low.\n' +
+    '- search = the best short web-search query to find this exact ' + (placey ? 'place' : 'item') + ' (e.g. its name + city), or empty.\n' +
+    (fields && fields.length ? '- x = the details this list keeps for every entry (empty string when unknown): ' + fields.map(f => f.k + ' = ' + f.l + (f.t === 'choice' ? ' (ONE of: ' + f.o.join(' / ') + ')' : f.t === 'mono' ? ' (copy chords / tabs / notation EXACTLY as written, keep every line break and space)' : f.t === 'number' ? ' (a number)' : '')).join('; ') + '\n' : '') +
+    (verify ? 'Return ONLY JSON: {"title":"","place":"","city":"","notes":"","sure":"","search":""' + (style === 'drink' ? ',"base":"","ing":""' : style === 'food' ? ',"base":""' : '') + (fields && fields.length ? ',"x":{' + fields.map(f => '"' + f.k + '":""').join(',') + '}' : '') + '}\n' : '') +
+    '\nURL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') +
+    (raw.extra ? '\nMORE: ' + String(raw.extra).slice(0, 9500) : '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 6000);
   const parts = [{ text: prompt + (image ? '\n\nA SCREENSHOT of the post is attached — read ALL the text in it (Hebrew too): business / place name, address, city, what to order, hours, prices, author. The screenshot is the main source.' : '') }];
   if (image) parts.push({ inline_data: { mime_type: 'image/jpeg', data: image } });
   const yt = /youtube\.com|youtu\.be/i.test(url);
-  if (yt && String(raw.caption || '').length < 120) parts.push({ file_data: { file_uri: url } });   // let the AI watch a short / under-described video
-  // chords / tabs live in the page body (not in its preview) → let the AI open the page itself
-  const wantsPage = !yt && /^https?:\/\//i.test(url) && fields && fields.some(f => f.t === 'mono');
-  return aiCall_(parts, blocked ? [{ url_context: {} }, { google_search: {} }] : wantsPage ? [{ url_context: {} }] : null);
+  if (yt && !verify && String(raw.caption || '').length < 120) parts.push({ file_data: { file_uri: url } });   // let the AI watch a short / under-described video
+  if (verify) {
+    const tools = [{ google_search: {} }]; if (link && !yt) tools.push({ url_context: {} });
+    return aiCall_(parts, tools);
+  }
+  const wantsPage = !yt && link && fields && fields.some(f => f.t === 'mono');   // chords / tabs live in the page body → let the AI open it
+  if (wantsPage) return aiCall_(parts, [{ url_context: {} }]);
+  return aiCall_(parts, null, false, linkSchema_(style, fields));
+}
+/* pass 2 without Google's search quota: search the web ourselves (DuckDuckGo) and let the AI read only those results */
+function aiVerifyByWeb_(style, catName, raw, url, fields, first) {
+  // what to search for: the AI's own query › the name it found › the tagged place › a page / account name in the address (facebook.com/<page>/…)
+  const slug = (String(url).match(/^https?:\/\/[^/]+\/([^/?#]+)/) || [])[1] || '';
+  const slugQ = /^(share|reel|reels|p|tv|watch|video|videos|posts|story\.php|permalink\.php|groups|photo|photos|events|@?[\d.]+)$/i.test(slug) ? '' : decodeURIComponent(slug).replace(/^@/, '').replace(/[._-]+/g, ' ');
+  const q = String((first && (first.search || [first.title, first.city].filter(Boolean).join(' '))) || raw.place || raw.title || slugQ).trim();
+  if (q.length < 3) return null;
+  const web = webSnippets_(q.slice(0, 120)); if (!web.text) return null;
+  const r2 = Object.assign({}, raw, { extra: (raw.extra ? raw.extra + '\n' : '') + 'WEB SEARCH RESULTS for "' + q + '" (use them to confirm the exact name / address; ignore results about other places):\n' + web.text });
+  return aiExtract_(style, catName, r2, url, false, fields, '', false, null);
+}
+/* 📱 Instagram / TikTok / Facebook: ask every public way of reading the post AT THE SAME TIME (one round-trip instead of 4-6),
+   then keep the best text. These sites often hide posts from scripts, so several routes are tried together. */
+const UA_FB_ = 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)';
+const UA_BOT_ = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+const UA_PHONE_ = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+function loginish_(t) {
+  t = String(t || ''); if (!t.trim()) return true;
+  return t.length < 4000 && /\blog ?in\b|sign ?up|התחבר|create an account|isn.t available|Something went wrong|Log into Facebook/i.test(t.slice(0, 600));
+}
+function fetchAllSafe_(reqs) {
+  const list = reqs.map(r => Object.assign({ muteHttpExceptions: true, followRedirects: true }, r, { headers: Object.assign({ 'Accept-Language': 'he,en;q=0.8' }, r.headers || {}) }));
+  let res;
+  try { res = UrlFetchApp.fetchAll(list); }
+  catch (e) { res = list.map(r => { try { return UrlFetchApp.fetch(r.url, r); } catch (er) { return null; } }); }   // one bad address must not sink the rest
+  return res.map(r => { try { return r && r.getResponseCode() < 400 ? String(r.getContentText()) : ''; } catch (e) { return ''; } });
+}
+function socialGather_(final, host, raw, fill) {
+  const ig = /instagram\.com/i.test(host), tt = /tiktok\.com/i.test(host), fb = !ig && !tt;
+  raw.source = ig ? 'Instagram' : tt ? 'TikTok' : 'Facebook';
+  const reqs = [], kinds = [];
+  const add = (kind, url, ua, headers) => { kinds.push(kind); reqs.push({ url: url, headers: Object.assign({ 'User-Agent': ua }, headers || {}) }); };
+  if (ig) {
+    const sc = (final.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/) || [])[1];
+    if (sc) { add('igEmbed', 'https://www.instagram.com/p/' + sc + '/embed/captioned/', UA_PHONE_); add('igEmbed', 'https://www.instagram.com/reel/' + sc + '/embed/captioned/', UA_PHONE_); }
+    add('og', final, UA_FB_); add('og', final, UA_BOT_);
+  }
+  if (tt) { add('ttOembed', 'https://www.tiktok.com/oembed?url=' + encodeURIComponent(final), UA_PHONE_); add('ttPage', final, UA_PHONE_); add('og', final, UA_FB_); }
+  if (fb) { add('og', final, UA_FB_); add('og', final.replace(/\/\/(www\.|m\.|web\.)?facebook\.com/i, '//mbasic.facebook.com'), UA_PHONE_); }
+  add('reader', 'https://r.jina.ai/' + final, UA_PHONE_, { 'Accept': 'text/plain', 'X-Return-Format': 'text' });
+  const res = fetchAllSafe_(reqs), cands = [];
+  const more = (line) => { raw.extra = (raw.extra ? raw.extra + '\n' : '') + line; };
+  res.forEach((body, i) => {
+    if (!body) return; const k = kinds[i];
+    try {
+      if (k === 'igEmbed') {
+        const cm = body.match(/class="Caption"[^>]*>([\s\S]*?)<\/div>/i);
+        const cap = cm ? htmlDecode_(cm[1].replace(/<br\s*\/?>/gi, '\n').replace(/<a[^>]*class="CaptionUsername"[^>]*>[\s\S]*?<\/a>/i, '').replace(/<[^>]+>/g, '')).trim() : '';
+        const um = body.match(/class="UsernameText"[^>]*>([^<]+)</i) || body.match(/class="CaptionUsername"[^>]*>([^<]+)</i);
+        const im = body.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/i), lm = body.match(/"location"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/);
+        if (um) fill({ by: '@' + htmlDecode_(um[1]).trim() });
+        if (im) fill({ img: htmlDecode_(im[1]) });
+        if (lm) { fill({ place: lm[1] }); more('Instagram location tag: ' + lm[1]); }
+        if (cap) cands.push({ w: 3, cap: cap });
+      } else if (k === 'ttOembed') {
+        const j = JSON.parse(body);
+        if (j && j.title) cands.push({ w: 2, cap: j.title, title: String(j.title).split('\n')[0] });
+        if (j) fill({ by: j.author_unique_id || j.author_name ? '@' + String(j.author_unique_id || j.author_name).replace(/^@/, '') : '', img: j.thumbnail_url });
+      } else if (k === 'ttPage') {
+        const m = body.match(/<script[^>]+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/i);
+        if (m) {
+          const d = JSON.parse(m[1]), it = ((((d || {}).__DEFAULT_SCOPE__ || {})['webapp.video-detail'] || {}).itemInfo || {}).itemStruct || {};
+          if (it.desc) cands.push({ w: 3, cap: it.desc });
+          const poi = it.poi || {};
+          if (poi.name) { fill({ place: [poi.name, poi.address, poi.city].filter(Boolean).join(', ') }); more('TikTok location tag: ' + [poi.name, poi.address, poi.city, poi.province].filter(Boolean).join(', ')); }
+          const tags = (it.textExtra || []).map(x => x.userUniqueId ? '@' + x.userUniqueId : '').filter(Boolean);
+          if (tags.length) more('Mentioned accounts: ' + tags.join(' '));
+          if (it.author && it.author.uniqueId) fill({ by: '@' + it.author.uniqueId });
+        }
+      } else if (k === 'og') {
+        const m = metaTags_(body), ld = ldPlace_(body);
+        if (ld.name) fill({ place: [ld.name, ld.address].filter(Boolean).join(', '), lat: ld.lat, lng: ld.lng });
+        let desc = m['og:description'] || m['description'] || m['twitter:description'] || '';
+        const q = desc.match(/^[\s\S]*?\b(?:on|ב-?)\s[^:]{3,40}:\s*["“]([\s\S]+)["”]\.?\s*$/); if (q) desc = q[1];
+        const um = (m['og:description'] || '').match(/-\s*([A-Za-z0-9._]{2,30})\s+on\s/); if (um) fill({ by: '@' + um[1] });
+        let t = (m['og:title'] || m['twitter:title'] || m.title || '').replace(/\s*[|\-–]\s*(Instagram|Facebook|TikTok)\b.*$/i, '').replace(/ on Instagram:?.*$/i, '').trim();
+        if (/^(Instagram|Facebook|Login|Log in|TikTok|התחברות|Log into Facebook|Facebook - log in or sign up)$/i.test(t)) t = '';
+        if (desc && !loginish_(desc)) cands.push({ w: 2, cap: desc, title: t });
+        else if (t) cands.push({ w: 1, cap: '', title: t });
+        if (!/rsrc\.php|static\.xx\.fbcdn/i.test(m['og:image'] || '')) fill({ img: m['og:image'] || m['twitter:image'] || '' });
+      } else if (k === 'reader') {
+        if (!loginish_(body)) {
+          const tm = body.match(/^Title:\s*(.+)$/m);
+          const txt = body.replace(/^(Title|URL Source|Published Time|Markdown Content):.*$/gm, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 3000);
+          if (txt.length > 40) cands.push({ w: 1, cap: txt, title: tm ? tm[1].replace(/\s*[|\-–]\s*(Instagram|Facebook|TikTok)\b.*$/i, '').trim() : '' });
+        }
+      }
+    } catch (e) { /* this route failed — the others may not */ }
+  });
+  // the best text: the most trusted route first, then the longest
+  cands.sort((x, y) => (y.w - x.w) || (String(y.cap).length - String(x.cap).length));
+  const best = cands.find(c => c.cap);
+  if (best) fill({ caption: best.cap });
+  cands.forEach(c => fill({ title: c.title || '' }));
 }
 function linkGather_(url, pasted) {
   let final = url;
@@ -1565,27 +1694,8 @@ function linkGather_(url, pasted) {
       const m = metaTags_(html); fill({ title: m['og:title'] || '', caption: m['og:description'] || '' });
     }
   }
-  if (/tiktok\.com/i.test(host)) {
-    raw.source = 'TikTok';
-    const j = lfJson_('https://www.tiktok.com/oembed?url=' + encodeURIComponent(final));
-    if (j) fill({ caption: j.title, title: String(j.title || '').split('\n')[0], by: j.author_name ? '@' + String(j.author_unique_id || j.author_name).replace(/^@/, '') : '', img: j.thumbnail_url });
-  }
-  if (/instagram\.com/i.test(host)) {
-    raw.source = 'Instagram';
-    const sc = (final.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/) || [])[1];
-    if (sc) {
-      for (const path of ['/p/' + sc + '/embed/captioned/', '/reel/' + sc + '/embed/captioned/', '/p/' + sc + '/embed/']) {
-        const eh = lf_('https://www.instagram.com' + path); if (!eh) continue;
-        const cm = eh.match(/class="Caption"[^>]*>([\s\S]*?)<\/div>/i);
-        if (cm) fill({ caption: htmlDecode_(cm[1].replace(/<br\s*\/?>/gi, '\n').replace(/<a[^>]*class="CaptionUsername"[^>]*>[\s\S]*?<\/a>/i, '').replace(/<[^>]+>/g, '')).trim() });
-        const um = eh.match(/class="UsernameText"[^>]*>([^<]+)</i) || eh.match(/class="CaptionUsername"[^>]*>([^<]+)</i); if (um) fill({ by: '@' + htmlDecode_(um[1]).trim() });
-        const im = eh.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/i); if (im) fill({ img: htmlDecode_(im[1]) });
-        const lm = eh.match(/"location"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/); if (lm) fill({ place: lm[1] });
-        if (raw.caption) break;
-      }
-    }
-  }
-  if (!raw.caption || !raw.title) {   // any site: Open Graph + schema.org place data
+  if (/tiktok\.com|instagram\.com|facebook\.com|fb\.watch|fb\.com/i.test(host)) { socialGather_(final, host, raw, fill); raw.social = true; }
+  if (!raw.social && (!raw.caption || !raw.title)) {   // any site: Open Graph + schema.org place data
     const html = lf_(final);
     if (html) {
       const m = metaTags_(html), ld = ldPlace_(html);
@@ -1598,7 +1708,7 @@ function linkGather_(url, pasted) {
       fill({ caption: desc, title: t, img: m['og:image'] || m['twitter:image'] || '' });
     }
   }
-  if (!raw.caption && !raw.title) {   // last resort: a public text reader (handles many blocked/JS pages)
+  if (!raw.social && !raw.caption && !raw.title) {   // last resort: a public text reader (handles many blocked/JS pages)
     const t = lf_('https://r.jina.ai/' + final, { headers: { 'Accept': 'text/plain', 'X-Return-Format': 'text' } });
     if (t && !/<html|<body|login|log in|sign up|התחבר/i.test(t.slice(0, 400))) {
       const tm = t.match(/^Title:\s*(.+)$/m); fill({ title: tm ? tm[1].replace(/\s*[|\-–]\s*(Instagram|Facebook)\b.*$/i, '').trim() : '' });
@@ -1624,6 +1734,11 @@ function drinkBase_(text) { const t = String(text || ''); const f = DRINK_BASES_
 function linkInfo_(url, opt) {
   opt = opt || {};
   url = String(url || '').trim();
+  const t0 = Date.now();
+  // the same link read again (a retry, the ✨ button) → the answer from the last 6 hours, instantly and without AI quota
+  const cacheable = /^https?:\/\//i.test(url) && !opt.text && !opt.image;
+  const ck = cacheable ? 'LI2:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, url + '|' + (opt.cat || '') + '|' + JSON.stringify(opt.fields || []))) : '';
+  if (ck) { try { const hit = CacheService.getScriptCache().get(ck); if (hit) return Object.assign(JSON.parse(hit), { cached: true }); } catch (e) { /* read again */ } }
   const image = /^[A-Za-z0-9+/=]{100,}$/.test(String(opt.image || '').replace(/^data:[^,]+,/, '')) ? String(opt.image).replace(/^data:[^,]+,/, '') : '';
   if (image.length > 6e6) throw new Error('The screenshot is too large');
   if (image && !aiKey_()) return { found: false, aiError: 'ה-AI לא מוגדר (☰ › AI) — צריך אותו כדי לקרוא צילום מסך' };
@@ -1635,9 +1750,23 @@ function linkInfo_(url, opt) {
   if (raw.maps) { out.title = raw.title; }
   else {
     let ai = null;
-    if (aiKey_() && (raw.caption || raw.title || raw.blocked || image)) ai = aiExtract_(style, opt.catName || style, raw, raw.url || url, raw.blocked && !image, (tplClean_({ fields: opt.fields || [] }) || {}).fields, image);
+    if (aiKey_() && (raw.caption || raw.title || raw.blocked || image)) {
+      const fl = (tplClean_({ fields: opt.fields || [] }) || {}).fields, cn = opt.catName || style, u = raw.url || url;
+      const good = (r) => !!(r && !r.error && String(r.title || '').trim());
+      // pass 1: read what we gathered (skipped when nothing could be read — then only the search pass can help)
+      if (!(raw.blocked && !image)) ai = aiExtract_(style, cn, raw, u, false, fl, image);
+      const placey = /food|trip|activity/.test(style);
+      const weak = !good(ai) || ai.sure === 'low' || (placey && !String(ai.place || '').trim() && ai.sure !== 'high');
+      // pass 2: check on the web — Google Search through the AI, or our own web search when that quota is used up
+      if (weak && !image && Date.now() - t0 < 35000) {
+        let v = aiExtract_(style, cn, raw, u, true, fl, '', true, good(ai) ? ai : null);
+        if (!good(v) && Date.now() - t0 < 45000) { const w = aiVerifyByWeb_(style, cn, raw, u, fl, good(ai) ? ai : null); if (good(w)) v = w; }
+        if (good(v)) ai = Object.assign({}, v, { checked: true });
+        else if (!ai) ai = v;
+      }
+    }
     if (ai && !ai.error) {
-      out.ai = true;
+      out.ai = true; out.sure = ['high', 'medium', 'low'].indexOf(ai.sure) >= 0 ? ai.sure : ''; if (ai.checked) out.checked = true;
       out.title = String(ai.title || '').trim();
       if (ai.place && style !== 'drink' && style !== 'recipe') out.place = String(ai.place).trim();
       if (ai.base) out.base = String(ai.base).trim().toLowerCase();
@@ -1661,6 +1790,8 @@ function linkInfo_(url, opt) {
   if (out.title) out.title = String(out.title).replace(/\s+/g, ' ').trim().slice(0, 120);
   out.blocked = !!raw.blocked && !out.ai;
   out.found = !!(out.title || out.notes || out.place);
+  out.secs = Math.round((Date.now() - t0) / 1000);
+  if (ck && out.found && out.ai) { try { const j = JSON.stringify(out); if (j.length < 90000) CacheService.getScriptCache().put(ck, j, 6 * 3600); } catch (e) { /* not kept */ } }
   return out;
 }
 function aiTest_() {
