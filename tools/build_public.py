@@ -5,7 +5,7 @@ The personal app stays exactly as it is. The public copy:
   * runs with window.AI_EDITION = 'public' (setup wizard, drawn focus character)
   * keeps its own storage keys ('aip.*') and its own offline cache, so both can live on one device
   * has no personal names or settings, and ships a clean Apps Script for people's own sheets
-Run from the repo root:  python3 tools/build_public.py
+Run from the repo root:  python3 tools/build_apps.py  (builds dump/, this, and public/dump/)
 """
 import os, re, shutil, json
 
@@ -53,6 +53,7 @@ sw = rd('sw.js').replace("const CACHE = 'action-items-v", "const CACHE = 'action
 wr('sw.js', sw)
 
 for f in os.listdir(os.path.join(ROOT, 'icons')):
+    if not os.path.isfile(os.path.join(ROOT, 'icons', f)): continue          # icons/dump/ belongs to Dump (tools/build_apps.py)
     os.makedirs(os.path.join(OUT, 'icons'), exist_ok=True); shutil.copy(os.path.join(ROOT, 'icons', f), os.path.join(OUT, 'icons', f))
 
 gs = rd('apps-script/ActionItems_Script.gs')

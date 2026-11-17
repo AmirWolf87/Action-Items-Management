@@ -71,6 +71,13 @@ fillIcons();
 /* which build is running: 'personal' (the original) or 'public' (the copy anyone can set up for themselves) */
 const EDITION = (typeof window !== 'undefined' && window.AI_EDITION) || 'personal';
 const TEMPLATE_URL = (typeof window !== 'undefined' && window.AI_TEMPLATE) || '';   // a Google Sheet to copy ("…/copy"), when one exists
+/* which app is running: 🎯 'focus' (tasks, incl. the long-term Notebook) or 💡 'dump' (the Collection of ideas).
+   Both share the code, the sheet, the login and the offline cache — only the screen state is kept apart. */
+const APP = (typeof window !== 'undefined' && window.ORBIT_APP === 'dump') ? 'dump' : 'focus';
+const IS_DUMP = APP === 'dump';
+const UI_KEY = IS_DUMP ? 'aip.uiDump' : 'aip.ui';
+const OTHER_APP_URL = IS_DUMP ? '../' : 'dump/';
+document.documentElement.classList.add('app-' + APP);
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
@@ -84,7 +91,13 @@ const sess = {
 let password = store.get('aip.pw', null) || sess.get('aip.pw') || '';
 let username = store.get('aip.user', null) || sess.get('aip.user') || '';
 const remembered = () => !!store.get('aip.pw', null);
-let ui = store.get('aip.ui', { tab: 'focus', area: 'All' });
+let ui = store.get(UI_KEY, { tab: 'focus', area: 'All' });
+/* each app only has its own screens: Dump is always the Collection, Focus never shows it */
+function appScreens() {
+  if (IS_DUMP) { ui.tab = 'notebook'; ui.nbBook = 'coll'; }
+  else { if (ui.nbBook === 'coll') ui.nbBook = 'tasks'; }
+}
+appScreens();
 const EMPTY = () => ({ items: [], areas: Object.keys(AREA_C), people: ['Me'], report: null });
 let data = (store.get('aip.pw', null) && store.get('aip.cache', null)) || EMPTY();
 let search = '';
@@ -388,7 +401,7 @@ function pickArea(a, add) {
     set = set.includes(a) ? set.filter(x => x !== a) : set.concat(a);
     if (!set.length) { ui.area = 'All'; ui.areas = []; } else if (set.length === 1) { ui.area = set[0]; ui.areas = []; } else { ui.areas = set; ui.area = set[0]; }
   }
-  store.set('aip.ui', ui); render();
+  store.set(UI_KEY, ui); render();
 }
 function filtered() {
   const q = search.trim().toLowerCase();
@@ -413,7 +426,7 @@ function qFillSoon() { clearTimeout(qFillTm); qFillTm = setTimeout(() => { qFill
 function qFill() {
   const list = $('#list'); if (!list) return;
   list.querySelectorAll('.q-fill').forEach(e => e.remove());
-  if (!data || !data.items || document.getElementById('collMap') || document.body.classList.contains('story-open') || typeof QUOTES === 'undefined') return;
+  if (IS_DUMP || !data || !data.items || document.getElementById('collMap') || document.body.classList.contains('story-open') || typeof QUOTES === 'undefined') return;
   const bar = $('#bottomBar'), barH = bar && !bar.hidden ? bar.offsetHeight : 0;
   const kids = [...list.children].filter(k => k.offsetParent !== null);
   const end = kids.length ? Math.max(...kids.map(k => k.getBoundingClientRect().bottom)) : list.getBoundingClientRect().top;
@@ -448,6 +461,7 @@ document.addEventListener('click', (e) => {
   qFillQ = null; f.classList.add('qf-out'); setTimeout(qFill, 180);
 });
 function renderView() {
+  appScreens();
   document.body.classList.toggle('guest', isGuest());
   $('#guestBar').hidden = !isGuest();
   if (isGuest()) $('#guestBar').textContent = L(`👀 ${me.name} · view only`, `👀 ${me.name} · צפייה בלבד`);
@@ -465,7 +479,7 @@ function renderView() {
   if ($('#menuKpis')) $('#menuKpis').innerHTML = [['waiting', open.filter(i => i.status === 'Waiting').length, L('Waiting', 'ממתינות')], ['done', doneWeek, L('Done this week', 'בוצעו השבוע')], ['all', open.length, L('Open', 'פתוחות')]]
     .map(([t, n, l]) => `<button class="mk" data-goto="${t}"><b>${n}</b><span>${l}</span></button>`).join('');
   const TITLES = { focus: L('Focus', 'פוקוס'), notebook: L('Notebook', 'פנקס'), week: L('Week', 'שבוע'), all: L('All open', 'כל הפתוחות'), waiting: L('Waiting', 'ממתין'), people: L('People', 'אנשים'), done: L('Done', 'בוצעו') };
-  $('#screenTitle').textContent = TITLES[ui.tab] || 'Action Items';
+  $('#screenTitle').textContent = IS_DUMP ? 'Dump' : (TITLES[ui.tab] || 'Focus');
   const inMore = ['all', 'waiting', 'people', 'done'].includes(ui.tab);
   document.querySelectorAll('#tabs [data-tab], #moreMenu [data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === ui.tab); b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'); });
   $('#tabMore').classList.toggle('on', inMore); $('#tabMoreLbl').textContent = inMore ? TITLES[ui.tab] : L('More', 'עוד');
@@ -473,8 +487,8 @@ function renderView() {
   if ($('#welcomeOn')) $('#welcomeOn').checked = store.get('aip.welcomeOn', true);
   const inColl = ui.tab === 'notebook' && ui.nbBook === 'coll';
   const fab = $('#fab');
-  fab.hidden = isGuest() && !me.canSuggest;
-  $('#fabLbl').textContent = isGuest() ? L('Suggest a task', 'הצעת משימה') : inColl ? L('New in the Collection', 'רשומה חדשה באוסף') : L('Add a task', 'הוספת משימה');
+  fab.hidden = isGuest() && (IS_DUMP || !me.canSuggest);
+  $('#fabLbl').textContent = isGuest() ? L('Suggest a task', 'הצעת משימה') : inColl ? L('Dump an idea', 'לזרוק רעיון') : L('Add a task', 'הוספת משימה');
   fab.setAttribute('aria-label', $('#fabLbl').textContent);
   if (search && $('#searchRow').hidden) { $('#searchRow').hidden = false; $('#btnSearch').setAttribute('aria-expanded', 'true'); }
   $('#areaChips').innerHTML = ['All'].concat(data.areas).map(a => { const sel = areaSel(), on = sel ? sel.includes(a) : a === 'All'; return `<button class="chip ${on ? 'on' : ''} ${on && sel && sel.length > 1 ? 'multi' : ''}" data-area="${esc(a)}" aria-pressed="${on}">${on ? '<span class="ck" aria-hidden="true">✓</span>' : ''}${esc(a)}</button>`; }).join('');
@@ -534,11 +548,9 @@ function nbItems(area) {
     (!isClosed(it) || (parse(it.done) && parse(it.done) >= wk)) &&             // crossed-out lines stay for a week
     (!q || [it.item, it.topic, it.com, it.focal].join(' ').toLowerCase().includes(q)));
 }
-function renderNotebook() {
-  const hasColl = !isGuest() || collCats.length;
-  const books = !hasColl ? '' : `<div class="nb-books"><button class="${ui.nbBook !== 'coll' ? 'on' : ''}" data-book="tasks">📒 ${L('Tasks', 'משימות')}</button><button class="${ui.nbBook === 'coll' ? 'on' : ''}" data-book="coll">💡 ${L('Collection', 'אוסף')}</button></div>`;
-  if (ui.nbBook === 'coll' && hasColl) return books + renderCollection();
-  return books + renderTaskNotebook();
+function renderNotebook() {   // 💡 Dump = the Collection only · 🎯 Focus = the task Notebook only
+  if (IS_DUMP) return (isGuest() && !collCats.length) ? `<div class="c-wrap"><div class="empty"><b>💡</b>${L('Nothing was shared with you here yet.', 'עדיין לא שותף איתך כלום כאן.')}</div></div>` : renderCollection();
+  return renderTaskNotebook();
 }
 function renderTaskNotebook() {
   const areas = data.areas.length ? data.areas : ['Home'];
@@ -717,7 +729,7 @@ function cfOf(id) {
   const o = ui.cf[id] || { st: 'all', kind: ((ui.collKind || {})[id] || []).slice(), f: {} };
   o.f = o.f || {}; o.kind = o.kind || []; return o;
 }
-function cfSet(id, o) { ui.cf = Object.assign({}, ui.cf, { [id]: o }); store.set('aip.ui', ui); }
+function cfSet(id, o) { ui.cf = Object.assign({}, ui.cf, { [id]: o }); store.set(UI_KEY, ui); }
 function cfCount(id) { const o = cfOf(id); return (o.st !== 'all' ? 1 : 0) + (o.kind.length ? 1 : 0) + Object.keys(o.f).filter(k => (o.f[k] || []).length).length; }
 const kindKey = (en, st) => st === 'food' ? (foodType(en) || '_') : st === 'drink' ? (en.base || 'other') : '';
 /* the entries of one category after search + filters (status filter last, so its counts stay right) */
@@ -1876,14 +1888,15 @@ function searchHtml(q) {
   const all = data.items.filter(it => hit([it.item, it.topic, it.com, it.focal, tr(it.area || '')]));     // guests only ever receive what's shared with them
   const tasks = all.filter(it => it.due || isClosed(it)).sort((a, b) => isClosed(a) - isClosed(b) || sortOpen(a, b));
   const notes = all.filter(it => !it.due && !isClosed(it));
-  const cl = coll.filter(en => collCats.some(c => c.id === en.cat) && hit([en.title, en.notes, en.place, en.by, en.for, en.ing || '']));
+  const cl = !IS_DUMP ? [] : coll.filter(en => collCats.some(c => c.id === en.cat) && hit([en.title, en.notes, en.place, en.by, en.for, en.ing || '']));
   const sec = (ic, title, n, body) => n ? `<section class="group sr-sec"><h3>${ic} ${esc(title)} <span class="n">${n}</span></h3>${body}</section>` : '';
   const nbRow = (it) => `<button class="sr-item" data-sropen="${it.row}"><span class="sr-type">📒 ${L('Notebook', 'פנקס')}</span><bdi>${esc(it.item)}</bdi><small>${esc(tr(it.area))}</small></button>`;
   const clRow = (en) => { const c = catOf(en.cat); return `<button class="sr-item" data-cid="${esc(en.id)}"><span class="sr-type">💡 ${esc(c.name || L('Collection', 'אוסף'))}</span><bdi>${esc(en.title)}</bdi><small>${esc([en.place, en.status === 'tried' ? L('tried', 'ניסינו') : ''].filter(Boolean).join(' · '))}</small></button>`; };
+  if (IS_DUMP) { tasks.length = 0; notes.length = 0; }
   const html = sec('✅', L('Tasks', 'משימות'), tasks.length, tasks.slice(0, 40).map(it => card(it)).join(''))
     + sec('📒', L('Notebook', 'פנקס'), notes.length, notes.slice(0, 40).map(nbRow).join(''))
     + sec('💡', L('Collection', 'אוסף'), cl.length, cl.slice(0, 40).map(clRow).join(''));
-  return `<div class="sr-head">${L(`Results for “${esc(q)}” — all areas`, `תוצאות עבור "${esc(q)}" — בכל התחומים`)}</div>` + (html || `<div class="empty"><b>🔎</b>${L('Nothing found.', 'לא נמצא כלום.')}</div>`);
+  return `<div class="sr-head">${IS_DUMP ? L(`Results for “${esc(q)}” — all categories`, `תוצאות עבור "${esc(q)}" — בכל הקטגוריות`) : L(`Results for “${esc(q)}” — all areas`, `תוצאות עבור "${esc(q)}" — בכל התחומים`)}</div>` + (html || `<div class="empty"><b>🔎</b>${L('Nothing found.', 'לא נמצא כלום.')}</div>`);
 }
 document.addEventListener('click', (e) => { const o = e.target.closest('[data-sropen]'); if (!o) return; const it = data.items.find(x => String(x.row) === o.dataset.sropen); if (it) openEdit(it); });
 
@@ -2095,7 +2108,7 @@ function openAreaPick() {
 $('#apDone').addEventListener('click', () => {
   const set = [...document.querySelectorAll('#apList input:checked')].map(x => x.value);
   if (!set.length || set.length === data.areas.length) { ui.area = 'All'; ui.areas = []; } else if (set.length === 1) { ui.area = set[0]; ui.areas = []; } else { ui.areas = set; ui.area = set[0]; }
-  store.set('aip.ui', ui); $('#dlgAreaPick').close(); render();
+  store.set(UI_KEY, ui); $('#dlgAreaPick').close(); render();
 });
 $('#apAll').addEventListener('click', () => { document.querySelectorAll('#apList input').forEach(x => { x.checked = false; }); $('#apDone').click(); });
 $('#apOrder').addEventListener('click', () => { $('#dlgAreaPick').close(); openOrder(); });
@@ -2130,7 +2143,7 @@ function storySecs(area) {   // same timing rules as the video: ~5 s a slide + a
   try { const sl = storySlides(area); const ms = sl.reduce((t, x) => t + 5200 + ((x.html.match(/<li>/g) || []).length) * 900, 0); return Math.max(15, Math.round(ms / 5000) * 5); } catch (e) { return 30; }
 }
 function startOfDay() {
-  if (isGuest()) return;
+  if (isGuest() || IS_DUMP) return;
   const m = location.hash.match(/^#task=(\d+)/);
   if (m) {   // opened from a notification about one task: straight to it
     history.replaceState(null, '', location.pathname + location.search);
@@ -2214,7 +2227,7 @@ function afterRender() {
 document.addEventListener('click', (e) => {
   const c = e.target.closest('[data-afctx]'); if (c) { $('#dlgAfter').dataset.ctx = c.dataset.afctx; afterRender(); return; }
   const g = e.target.closest('[data-afgo]'); if (g) { const it = data.items.find(x => String(x.row) === g.dataset.afgo); $('#dlgAfter').close(); if (it) openFocusSetup(it); return; }
-  if (e.target.closest('[data-afmain]')) { const k = $('#dlgAfter').dataset.ctx; $('#dlgAfter').close(); const a = ctxArea(k); ui.tab = 'focus'; ui.area = a; ui.areas = []; store.set('aip.ui', ui); render(); scrollTo(0, 0); return; }
+  if (e.target.closest('[data-afmain]')) { const k = $('#dlgAfter').dataset.ctx; $('#dlgAfter').close(); const a = ctxArea(k); ui.tab = 'focus'; ui.area = a; ui.areas = []; store.set(UI_KEY, ui); render(); scrollTo(0, 0); return; }
   if (e.target.closest('[data-afreplay]')) { const k = $('#dlgAfter').dataset.ctx; $('#dlgAfter').close(); playCtx(k); }
 });
 $('#welcomeOn').addEventListener('change', (e) => { store.set('aip.welcomeOn', e.target.checked); toast(e.target.checked ? L('Daily start screen on', 'מסך הפתיחה היומי פועל') : L('Daily start screen off', 'מסך הפתיחה היומי כבוי')); });
@@ -2461,7 +2474,7 @@ async function fsCommit() {
 }
 // after loading: restore a session from this device, or offer the one running on another device
 function fsRestore() {
-  if (isGuest()) return;
+  if (isGuest() || IS_DUMP) return;   // the focus timer belongs to the Focus app
   fs = store.get('aip.focus', null);
   if (fs && !fs.endAt) { if (fs.autoPaused) { showFocus(); fsAwayPrompt(); return; } if (fs.min) fsBanner(); else showFocus(); return; }
   if (fs && fs.endAt) { showFocus(); fsFinish(fs.finishing === 'done'); return; }
@@ -2520,7 +2533,7 @@ document.addEventListener('click', (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) { t.closest('dialog').close(); return; }
   const jp = t.closest('[data-jump]');
-  if (jp) { const h = jp.dataset.jump; if (ui.tab !== 'focus') { ui.tab = 'focus'; store.set('aip.ui', ui); } setGrp('focus:' + h, true); render();
+  if (jp) { const h = jp.dataset.jump; if (ui.tab !== 'focus') { ui.tab = 'focus'; store.set(UI_KEY, ui); } setGrp('focus:' + h, true); render();
     const sec = document.querySelector(`#list .group[data-h="${h}"]`); if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); else toast(L('Nothing there right now', 'אין שם כלום כרגע')); return; }
   const gh = t.closest('[data-grp]');
   if (gh) { setGrp(gh.dataset.grp, !grpIsOpen(gh.dataset.grp)); render(); return; }
@@ -2554,9 +2567,9 @@ document.addEventListener('click', (e) => {
   if (wi) { const it = data.items.find(x => String(x.row) === wi.dataset.row); if (it) openEdit(it); return; }
   if (t.closest('[data-order]')) { openOrder(); return; }
   const bk = t.closest('[data-book]');
-  if (bk) { ui.nbBook = bk.dataset.book; store.set('aip.ui', ui); render(); return; }
+  if (bk) { ui.nbBook = bk.dataset.book; store.set(UI_KEY, ui); render(); return; }
   const cc = t.closest('[data-ccat]');
-  if (cc) { collQ = ''; ui.collCat = cc.dataset.ccat; ui.collView = 'board'; store.set('aip.ui', ui); render(); window.scrollTo({ top: 0 }); return; }
+  if (cc) { collQ = ''; ui.collCat = cc.dataset.ccat; ui.collView = 'board'; store.set(UI_KEY, ui); render(); window.scrollTo({ top: 0 }); return; }
   if (t.closest('[data-cfsheet]')) { openCollFilter(); return; }
   if (t.closest('[data-cqx]')) { collQ = ''; render(); const i = $('#collQ'); if (i) i.focus(); return; }
   const cfx = t.closest('[data-cfx]'); if (cfx) { cfToggle(cfx.dataset.cfx, cfx.dataset.cfv || ''); render(); return; }
@@ -2566,13 +2579,13 @@ document.addEventListener('click', (e) => {
   const cdn = t.closest('[data-cdone]'); if (cdn) { const en = coll.find(x => x.id === cdn.dataset.cdone); if (en && !collRO()) { const nx = Object.assign({}, en, { status: en.status === 'tried' ? 'want' : 'tried' }); if (nx.status === 'tried') celebrate(); collStore(nx); } return; }
   const ck = t.closest('[data-ckind]');
   if (ck) { const k = ck.dataset.ckind, cur = ((ui.collKind || {})[ui.collCat] || []).slice(); const next = k === '*' ? [] : cur.includes(k) ? cur.filter(x => x !== k) : cur.concat(k);
-    ui.collKind = Object.assign({}, ui.collKind, { [ui.collCat]: next }); store.set('aip.ui', ui); render(); return; }
+    ui.collKind = Object.assign({}, ui.collKind, { [ui.collCat]: next }); store.set(UI_KEY, ui); render(); return; }
   const cf = t.closest('[data-cfilter]');
-  if (cf) { ui.collFilter = cf.dataset.cfilter; store.set('aip.ui', ui); render(); return; }
+  if (cf) { ui.collFilter = cf.dataset.cfilter; store.set(UI_KEY, ui); render(); return; }
   const ccs = t.closest('[data-ccats]'); if (ccs) { openCollCats(ccs.dataset.ccats === 'new'); return; }
-  const cl2 = t.closest('[data-clayout]'); if (cl2) { ui.collLayout = Object.assign({}, ui.collLayout, { [ui.collCat]: cl2.dataset.clayout }); store.set('aip.ui', ui); render(); return; }
+  const cl2 = t.closest('[data-clayout]'); if (cl2) { ui.collLayout = Object.assign({}, ui.collLayout, { [ui.collCat]: cl2.dataset.clayout }); store.set(UI_KEY, ui); render(); return; }
   const ctr = t.closest('[data-ctr]'); if (ctr) { ctOpen[ctr.dataset.ctr] = !ctOpen[ctr.dataset.ctr]; render(); return; }
-  const cv = t.closest('[data-cview]'); if (cv) { ui.collView = cv.dataset.cview; store.set('aip.ui', ui); render(); return; }
+  const cv = t.closest('[data-cview]'); if (cv) { ui.collView = cv.dataset.cview; store.set(UI_KEY, ui); render(); return; }
   if (t.closest('[data-cnew]')) { openColl({ cat: ui.collCat, status: 'want', title: ($('#collNew') || {}).value || '' }); return; }
   const lk = t.closest('[data-clink]');
   if (lk) { e.stopPropagation(); window.open(lk.dataset.clink, '_blank', 'noopener'); return; }
@@ -2583,7 +2596,7 @@ document.addEventListener('click', (e) => {
   const cl = t.closest('[data-cid]');
   if (cl) { const en = coll.find(x => x.id === cl.dataset.cid); if (en) openColl(en); return; }
   const nbt = t.closest('[data-nb]');
-  if (nbt) { ui.nbArea = nbt.dataset.nb; store.set('aip.ui', ui); render(); return; }
+  if (nbt) { ui.nbArea = nbt.dataset.nb; store.set(UI_KEY, ui); render(); return; }
   const nbc = t.closest('[data-nbcheck]');
   if (nbc) { e.stopPropagation(); if (isGuest()) return; const it = data.items.find(x => String(x.row) === nbc.dataset.nbcheck); if (it) nbToggle(it); return; }
   const nbl = t.closest('.nb-line[data-row]');
@@ -2593,7 +2606,7 @@ document.addEventListener('click', (e) => {
   const c = t.closest('.card');
   if (c) { const it = data.items.find(x => String(x.row) === c.dataset.row); if (it) openEdit(it); return; }
   const tab = t.closest('[data-tab]') || t.closest('[data-goto]');
-  if (tab) { ui.tab = tab.dataset.tab || tab.dataset.goto; store.set('aip.ui', ui); render(); return; }
+  if (tab) { ui.tab = tab.dataset.tab || tab.dataset.goto; store.set(UI_KEY, ui); render(); return; }
   const ch = t.closest('[data-area]');
   if (ch) {
     if (areaLong && Date.now() - areaLong < 700) { areaLong = 0; return; }   // the click right after a long-press
@@ -2623,7 +2636,8 @@ function openMenu() {
     const sub = d.querySelector('[data-mgsub]'); if (sub) sub.textContent = names.slice(0, 3).join(' · ') + (names.length > 3 ? ' …' : '');
   });
   const pend = (typeof pending !== 'undefined' ? pending.length : 0) + (typeof pwReq !== 'undefined' ? pwReq.length : 0);
-  const ag = document.querySelector('#dlgMenu [data-grp=areas] summary'); if (ag) { let dot = ag.querySelector('.mg-dot'); if (!dot) { dot = document.createElement('b'); dot.className = 'mg-dot no-i18n'; ag.appendChild(dot); } dot.textContent = pend || ''; dot.hidden = !pend || isGuest(); }
+  const ag = document.querySelector('#dlgMenu [data-grp=areas] summary'); if (ag) { let dot = ag.querySelector('.mg-dot'); if (!dot) { dot = document.createElement('b'); dot.className = 'mg-dot no-i18n'; ag.appendChild(dot); } dot.textContent = pend || ''; dot.hidden = !pend || isGuest() || IS_DUMP; }
+  otherAppLabel();
   $('#dlgMenu').showModal();
 }
 document.querySelectorAll('#dlgMenu .menu-grp').forEach(d => d.addEventListener('toggle', () => {
@@ -4033,7 +4047,7 @@ function storyClick(e) {
     const keep = bb.textContent; bb.textContent = L(T[0], T[1]); clearTimeout(s.tickleT); s.tickleT = setTimeout(() => { if (story === s) bb.textContent = keep; w.classList.remove('act-tickle'); }, 1600); return; }
   if (e.target.closest('[data-st-snd]')) { s.muted = !s.muted; store.set('aip.storyMute', s.muted); e.target.textContent = s.muted ? '🔇' : '🔊';
     if (s.muted) { try { speechSynthesis.cancel(); } catch (x) { /* none */ } stSnd.stop(); } else { stSnd.init(); stSnd.startMusic(); } storyGo(s.i); return; }
-  if (e.target.closest('[data-st-go]')) { storyClose(); ui.tab = 'focus'; store.set('aip.ui', ui); render(); return; }
+  if (e.target.closest('[data-st-go]')) { storyClose(); ui.tab = 'focus'; store.set(UI_KEY, ui); render(); return; }
   const fwd = e.target.closest('.st-next'), back = e.target.closest('.st-prev');
   if (fwd) storyGo(s.i + 1); else if (back) storyGo(s.i - 1);
 }
@@ -4279,7 +4293,6 @@ function renderPlayMenu() {
   { const n = data.items.filter(it => areaOk(it.area) && open(it) && (horizon(it) === 'Overdue' || horizon(it) === 'Today')).length;   // the video follows the area(s) on screen
     items.push(['story:', '🎬', L(`What’s urgent · ${areaSelLabel()}`, `מה דחוף · ${areaSelLabel()}`), n ? L(`${n} due today or late — 30-sec video`, `${n} להיום או באיחור — סרטון של 30 שנ׳`) : L('Nothing urgent 🎉 — 30-sec video', 'אין דחוף 🎉 — סרטון של 30 שנ׳')]); }
   if (!isGuest()) {
-    items.push(['clip', '📋', L('Link → Collection', 'קישור לאוסף'), L('Paste the link or screenshot you just copied', 'מדביק את הקישור או צילום המסך שהעתקת')]);
     items.push(['review', '🗓', L('Weekly review', 'סקירה שבועית'), L('Overdue · waiting · next week', 'באיחור · ממתין · השבוע הבא')]);
     items.push(['report', '✉️', L('Weekly report', 'דוח שבועי'), L('Ready to send', 'מוכן לשליחה')]);
   }
@@ -4306,15 +4319,26 @@ $('#playMenu').addEventListener('click', async (e) => {
   if (k.startsWith('story:')) { openStory(k.slice(6) || null); return; }
   if (k === 'report') { openReport(); return; }
   if (k === 'sync') { runCalSync(); return; }
-  if (k === 'clip') {
-    const c = await clipRead(), txt = c.text || '';
-    if (c.image && !settings.demo) { ui.tab = 'notebook'; ui.nbBook = 'coll'; if (!ui.collCat || ui.collCat === '*') ui.collCat = (collCats[0] || {}).id; store.set('aip.ui', ui); render(); openColl({ cat: ui.collCat, status: 'want' }); collFillFromShot(c.image); return; }
-    const m = String(txt || '').match(/https?:\/\/\S+/);
-    if (!m) { toast(L('No link or screenshot on the clipboard — copy one first', 'אין קישור או צילום מסך בלוח — העתק קודם')); return; }
-    ui.tab = 'notebook'; ui.nbBook = 'coll'; if (!ui.collCat || ui.collCat === '*') ui.collCat = (collCats[0] || {}).id; store.set('aip.ui', ui); render();
-    collQuickAdd(m[0]);
-  }
+  if (k === 'clip') dumpPaste();
 });
+/* 💡 Dump: paste the link or screenshot just copied (Instagram, TikTok, Maps…) straight into the Collection */
+async function dumpPaste() {
+  if (isGuest()) return;
+  const c = await clipRead(), txt = c.text || '';
+  const toColl = () => { ui.tab = 'notebook'; ui.nbBook = 'coll'; if (!ui.collCat || ui.collCat === '*') ui.collCat = (collCats[0] || {}).id; store.set(UI_KEY, ui); render(); };
+  if (c.image && !settings.demo) { toColl(); openColl({ cat: ui.collCat, status: 'want' }); collFillFromShot(c.image); return; }
+  const m = String(txt || '').match(/https?:\/\/\S+/);
+  if (!m) { toast(L('No link or screenshot on the clipboard — copy one first', 'אין קישור או צילום מסך בלוח — העתק קודם')); return; }
+  toColl(); collQuickAdd(m[0]);
+}
+$('#fabClip').addEventListener('click', dumpPaste);
+/* ↔ the other app (same sheet, same login) */
+$('#btnOtherApp').setAttribute('href', OTHER_APP_URL);
+function otherAppLabel() {
+  $('#otherAppIc').textContent = IS_DUMP ? '🎯' : '💡';
+  $('#otherAppLbl').textContent = IS_DUMP ? L('Open Focus — your tasks', 'פתיחת Focus — המשימות שלך') : L('Open Dump — your ideas', 'פתיחת Dump — הרעיונות שלך');
+}
+otherAppLabel();
 function runCalSync() {
   if (settings.demo || !store.get('aip.ciReady', false)) { openImport(); return; }   // first time → the screen with the setup guide
   try { sessionStorage.setItem('aip.ciBack', String(Date.now())); } catch (err) { /* ignore */ }
@@ -4871,7 +4895,7 @@ const TOUR = () => [
 function startTour() {
   if (isGuest()) return;
   document.querySelectorAll('dialog[open]').forEach(d => d.close()); closeWelcome && closeWelcome();
-  if (ui.tab !== 'focus') { ui.tab = 'focus'; store.set('aip.ui', ui); render(); }
+  if (ui.tab !== 'focus') { ui.tab = 'focus'; store.set(UI_KEY, ui); render(); }
   store.set('aip.tourDone', true); store.set('aip.tourPending', false);
   const steps = TOUR().filter(st => !st.el || document.querySelector(st.el));   // skip what isn't on screen (e.g. no tasks yet)
   let el = $('#tour');
@@ -4918,7 +4942,7 @@ if (EDITION === 'public') document.documentElement.classList.add('ed-public');
 $('#btnLock').addEventListener('click', () => { if (settings.demo) { settings.demo = false; store.set('aip.settings', settings); } lockApp(); });
 
 /* ---------- start ---------- */
-const APP_VERSION = 92;
+const APP_VERSION = 94;
 $('#appVer').textContent = L('Version ', 'גרסה ') + APP_VERSION;
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
 render();

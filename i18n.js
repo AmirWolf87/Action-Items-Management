@@ -102,7 +102,8 @@ const HE = {
   'Quick add': 'הקלדה מהירה', 'Type naturally — date, time, !1, @person, ~2h': 'כתוב חופשי — תאריך, שעה, !1, @אדם, ~2h',
   'tomorrow 9:30 Send forecast to Ezra !1 ~2h': 'מחר 9:30 לשלוח תחזית לעזרא !1 ~2h',
   'Forgot password?': 'שכחתי סיסמה', 'WhatsApp number (optional)': 'מספר וואטסאפ (לא חובה)', '💬 WhatsApp': '💬 וואטסאפ',
-  'Read-only access': 'גישת צפייה בלבד', 'Loading…': 'טוען…', 'Saving…': 'שומר…', 'Sending…': 'שולח…'
+  'Read-only access': 'גישת צפייה בלבד', 'Loading…': 'טוען…', 'Saving…': 'שומר…', 'Sending…': 'שולח…',
+  'Sharing': 'שיתוף', 'Paste link': 'הדבקת קישור', 'Paste a copied link or screenshot': 'הדבקת קישור או צילום מסך שהעתקת'
 };
 
 const LANG_KEY = 'ai.lang';

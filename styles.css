@@ -1682,3 +1682,27 @@ body .toast,.fs-banner{bottom:calc(152px + env(safe-area-inset-bottom))}
 .c-shot-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .c-shot-row .c-shot-big{margin-top:0}
 .c-shot-alt{color:var(--ink)!important}
+/* =====================================================================
+   🎯 Focus (tasks) · 💡 Dump (ideas) — two apps from one code base
+   ===================================================================== */
+.app-dump .focus-only,.app-focus .dump-only,html:not(.app-dump) .dump-only{display:none!important}
+/* the menu link to the other app */
+.menu .menu-item.other-app{text-decoration:none;font-weight:700;background:linear-gradient(135deg,color-mix(in srgb,#FF7AB8 16%,var(--bg)),color-mix(in srgb,#FFA53D 16%,var(--bg)));border:1px solid color-mix(in srgb,#FF7AB8 30%,var(--line));margin:0 0 10px}
+.app-dump .menu .menu-item.other-app{background:linear-gradient(135deg,color-mix(in srgb,#2F8BFF 16%,var(--bg)),color-mix(in srgb,#9F7AFA 16%,var(--bg)));border-color:color-mix(in srgb,#2F8BFF 30%,var(--line))}
+.other-app .oa-ic{font-size:20px;line-height:1}
+.other-app .oa-go{margin-inline-start:auto;font-size:20px;color:var(--muted);line-height:1}
+[dir=rtl] .other-app .oa-go{transform:scaleX(-1)}
+/* 💡 Dump: one row at the bottom — paste a link · dump an idea */
+.app-dump body .bottom-bar{flex-direction:row;align-items:stretch;justify-content:center;gap:8px}
+.app-dump .bb-row{display:flex;width:auto;max-width:none;margin:0;flex:0 0 auto}
+.app-dump body .bottom-bar .bb-row .fab{height:56px;width:96px}
+.app-dump body .bottom-bar .add-btn{flex:1 1 auto;width:auto;max-width:424px;margin:0;min-height:56px}
+.app-dump body.guest .bottom-bar{display:none}
+.app-dump .list{padding-bottom:110px}
+.app-dump body .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
+.app-dump body .bottom-bar .add-btn{background:linear-gradient(135deg,#FF6A3D,#E23C8F);color:#fff;box-shadow:0 4px 14px rgba(226,60,143,.3)}
+/* 💡 Dump brand: warm arcs on the launch / sign-in screens */
+.app-dump{--o-arc1:rgba(255,106,61,.20);--o-arc2:rgba(226,60,143,.16);--o-glow:rgba(255,122,184,.28)}
+@media (prefers-color-scheme: dark){.app-dump:not([data-theme=light]){--o-bg:#12040F;--o-tag:#F5D3E4;--o-arc1:rgba(255,106,61,.55);--o-arc2:rgba(226,60,143,.45);--o-glow:rgba(255,122,184,.5)}}
+.app-dump[data-theme=dark]{--o-bg:#12040F;--o-tag:#F5D3E4;--o-arc1:rgba(255,106,61,.55);--o-arc2:rgba(226,60,143,.45);--o-glow:rgba(255,122,184,.5)}
+.app-dump{--banner:#6B1F4A;--banner-muted:#F3D3E3}

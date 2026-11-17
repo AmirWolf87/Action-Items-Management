@@ -1,8 +1,21 @@
-# Action Items
+# Focus 🎯 & Dump 💡
 
-A small personal app for Work / Home / Life action items.
-It runs in any browser and can be installed on iPhone, iPad, Android and PC.
-**Your data is not stored here** — it lives in your own Google Sheet; this repo only holds the app's code.
+Two small personal apps (formerly *Orbit*). Both run in any browser and can be installed on iPhone, iPad, Android and PC.
+
+| App | Address | What's in it |
+|---|---|---|
+| 🎯 **Focus** | `https://amirwolf87.github.io/Action-Items-Management/` | Action items — Focus, Week, Waiting, People, Done and the 📒 Notebook (long-term items without a date) |
+| 💡 **Dump** | `https://amirwolf87.github.io/Action-Items-Management/dump/` | The idea Collection — places, recipes, gifts, links, the map, smart reading of links, 📋 Paste link |
+
+They share **one Google Sheet, one script and one login** — sign in once on a device and both open. ☰ › *Open Dump* / *Open Focus* jumps between them.
+Install each one on its own (Add to Home Screen from its own address).
+
+**Your data is not stored here** — it lives in your own Google Sheet; this repo only holds the apps' code.
+
+### Editing the code
+Only the root files (`index.html`, `app.js`, `styles.css`, `i18n.js`, `sw.js`) are edited by hand — they are Focus.
+`dump/`, `public/` and `public/dump/` are generated: after any change run `python3 tools/build_apps.py`.
+Dump's icons live in `icons/dump/`.
 
 ## One-time setup (≈10 minutes)
 
@@ -37,7 +50,7 @@ It is stored only as a salted hash inside the script.
 ## Public copy (for other people's own data)
 `public/` is a copy anyone can set up for themselves — their tasks go to **their own** Google Sheet, nothing is shared with you.
 Link: https://amirwolf87.github.io/Action-Items-Management/public/ — on the sign-in screen: **🧭 First time? Set up your own copy**.
-It is generated from this app: after changing the root files run `python3 tools/build_public.py` (set `AI_TEMPLATE=<sheet>/copy` to offer a ready template).
+Their Dump is at `…/public/dump/`. Both are generated: after changing the root files run `python3 tools/build_apps.py` (set `AI_TEMPLATE=<sheet>/copy` to offer a ready template).
 Your own app, data and settings are untouched; the two keep separate storage on the same device.
 
 ## Sharing with others (read-only guests)

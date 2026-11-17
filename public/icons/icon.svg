@@ -12,4 +12,6 @@
 <path d="M157.70 163.77A86 86 0 1 1 132.41 20.34A76 76 0 1 0 157.70 163.77Z" fill="url(#oA)" filter="url(#oSh)"/>
 <path d="M141.43 167.26A79 79 0 1 1 115.93 22.62A74 74 0 1 0 141.43 167.26Z" fill="url(#oH)" opacity=".3"/>
 <circle cx="143.63" cy="21.28" r="8.5" fill="url(#oS)"/>
+<circle cx="100" cy="100" r="30" fill="none" stroke="#5EEAF5" stroke-opacity=".55" stroke-width="5"/>
+<circle cx="100" cy="100" r="15" fill="url(#oS)"/>
 </svg></svg>
