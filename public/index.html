@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Orbit</title>
-<meta name="theme-color" content="#26355D">
+<title>Focus</title>
+<meta name="theme-color" content="#17474A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Orbit">
+<meta name="apple-mobile-web-app-title" content="Focus">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="robots" content="noindex">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>try{var t=JSON.parse(localStorage.getItem('aip.theme')||'"auto"');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);var f=JSON.parse(localStorage.getItem('aip.font')||'"m"');if(f==='s'||f==='l')document.documentElement.setAttribute('data-font',f)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Montserrat:wght@300;400&display=swap">
-<link rel="stylesheet" href="styles.css?v=93">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Montserrat:wght@300;400&family=Rubik:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css?v=95">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
@@ -25,20 +25,21 @@
 <linearGradient id="oH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity=".15"/></linearGradient>
 <filter id="oSh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="#1E1B6B" flood-opacity=".45"/></filter>
 <symbol id="orbitRing" viewBox="0 0 200 200"><path d="M146.35 31.29A84 84 0 1 1 17.69 91.29A74 74 0 1 0 146.35 31.29Z" fill="url(#oB)"/><path d="M157.70 163.77A86 86 0 1 1 132.41 20.34A76 76 0 1 0 157.70 163.77Z" fill="url(#oA)" filter="url(#oSh)"/><path d="M141.43 167.26A79 79 0 1 1 115.93 22.62A74 74 0 1 0 141.43 167.26Z" fill="url(#oH)" opacity=".3"/></symbol>
-</defs></svg>
+<radialGradient id="fdisc" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#22605F"/><stop offset="1" stop-color="#123B3E"/></radialGradient><linearGradient id="fgold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3CF7A"/><stop offset="1" stop-color="#C8922A"/></linearGradient><symbol id="focusMark" viewBox="46 52 420 420"><circle cx="256" cy="262" r="206" fill="url(#fdisc)"/><circle cx="256" cy="262" r="150" fill="none" stroke="#FFF8EC" stroke-width="22"/><circle cx="256" cy="262" r="94" fill="none" stroke="#FFF8EC" stroke-opacity=".55" stroke-width="18"/><circle cx="256" cy="262" r="44" fill="url(#fgold)"/><g transform="rotate(-40 256 262)"><rect x="256" y="254" width="190" height="16" rx="8" fill="url(#fgold)"/><path d="M226 262 l38 -20 v40z" fill="#E8B54F"/><path d="M410 262 l34 -28 h22 l-34 28 l34 28 h-22z" fill="#F3CF7A"/></g></symbol></defs></svg>
 <div id="splash" class="splash" aria-hidden="true">
   <div class="o-bg"><i></i><i></i><i></i></div>
   <div class="o-brand">
-    <svg class="o-mark" viewBox="0 0 200 200" aria-hidden="true"><use href="#orbitRing"/><g class="o-moon"><circle cx="143.63" cy="21.28" r="8.5" fill="url(#oS)"/></g></svg>
-    <div class="o-name">ORBIT</div>
-    <div class="o-tag">Where your thoughts<br>find their place.</div>
+    <svg class="o-mark" viewBox="0 0 200 200" aria-hidden="true"><use href="#focusMark"/></svg>
+    <div class="o-name" data-brand="name">FOCUS</div>
+    <div class="o-tag" data-brand="tag">What matters.<br>Right now.</div>
   </div>
   <div class="o-by">By Amir Wolf</div>
 </div>
 <header class="top">
   <div class="top-row">
+    <img class="app-logo" src="icons/icon-192.png" alt="" aria-hidden="true">
     <div class="top-title">
-      <h1 id="screenTitle" class="no-i18n">Action Items</h1>
+      <h1 id="screenTitle" class="no-i18n">Focus</h1>
       <div class="sub"><span id="today"></span> <span id="sync" class="sync"></span><button type="button" class="sync-err" id="syncErr" hidden></button></div>
     </div>
     <div class="top-actions">
@@ -48,16 +49,16 @@
     </div>
   </div>
   <div class="guest-bar" id="guestBar" hidden></div>
-  <div class="kpis kpi-line" id="kpis"></div>
+  <div class="kpis kpi-line focus-only" id="kpis"></div>
 </header>
 
-<nav class="tabs" id="tabs">
+<nav class="tabs focus-only" id="tabs">
   <button data-tab="focus" class="on">Focus</button>
   <button data-tab="notebook">📒 Notebook</button>
   <button data-tab="week">Week</button>
   <button class="tab-more" id="tabMore" aria-haspopup="menu" aria-expanded="false"><span class="no-i18n" id="tabMoreLbl">More</span> <span aria-hidden="true">▾</span></button>
 </nav>
-<div class="more-menu" id="moreMenu" role="menu" hidden>
+<div class="more-menu focus-only" id="moreMenu" role="menu" hidden>
   <button data-tab="all" role="menuitem">All open</button>
   <button data-tab="waiting" role="menuitem">Waiting</button>
   <button data-tab="people" role="menuitem">People</button>
@@ -66,16 +67,17 @@
 
 <div class="filters">
   <div class="search-row" id="searchRow" hidden><input id="search" type="search" placeholder="Search…" autocomplete="off" enterkeyhint="search"></div>
-  <div class="area-row"><div class="chips" id="areaChips"></div><button type="button" class="area-pick" id="btnAreaPick" aria-label="Choose areas">Choose areas</button></div>
+  <div class="area-row focus-only"><div class="chips" id="areaChips"></div><button type="button" class="area-pick" id="btnAreaPick" aria-label="Choose areas">Choose areas</button></div>
 </div>
 
 <main id="list" class="list"></main>
 
 <div class="bottom-bar" id="bottomBar">
  <div class="bb-row">
-  <button class="fab fab-wheel owner-only" id="fabWheel" aria-label="Spin &amp; Do — pick an urgent task" title="Spin &amp; Do"><svg class="wheel-ic" viewBox="0 0 40 40" aria-hidden="true"><defs><radialGradient id="whGloss" cx="35%" cy="28%" r="70%"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></radialGradient><linearGradient id="whRim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B4C80"/><stop offset="1" stop-color="#1B2547"/></linearGradient></defs><circle cx="20" cy="21" r="18.6" fill="#0F172A" opacity=".18"/><circle cx="20" cy="20" r="18.4" fill="url(#whRim)" stroke="#fff" stroke-opacity=".18" stroke-width=".8"/><circle cx="24.34" cy="3.82" r="0.75" fill="#FDE68A" class="wd0"/><circle cx="31.84" cy="8.16" r="1.05" fill="#FEF3C7" class="wd1"/><circle cx="36.18" cy="15.66" r="0.75" fill="#FDE68A" class="wd2"/><circle cx="36.18" cy="24.34" r="1.05" fill="#FEF3C7" class="wd0"/><circle cx="31.84" cy="31.84" r="0.75" fill="#FDE68A" class="wd1"/><circle cx="24.34" cy="36.18" r="1.05" fill="#FEF3C7" class="wd2"/><circle cx="15.66" cy="36.18" r="0.75" fill="#FDE68A" class="wd0"/><circle cx="8.16" cy="31.84" r="1.05" fill="#FEF3C7" class="wd1"/><circle cx="3.82" cy="24.34" r="0.75" fill="#FDE68A" class="wd2"/><circle cx="3.82" cy="15.66" r="1.05" fill="#FEF3C7" class="wd0"/><circle cx="8.16" cy="8.16" r="0.75" fill="#FDE68A" class="wd1"/><circle cx="15.66" cy="3.82" r="1.05" fill="#FEF3C7" class="wd2"/><g class="wh-spin"><path d="M20 20L20.00 5.80A14.2 14.2 0 0 1 30.04 9.96Z" fill="#6366F1"/><path d="M20 20L30.04 9.96A14.2 14.2 0 0 1 34.20 20.00Z" fill="#A855F7"/><path d="M20 20L34.20 20.00A14.2 14.2 0 0 1 30.04 30.04Z" fill="#EC4899"/><path d="M20 20L30.04 30.04A14.2 14.2 0 0 1 20.00 34.20Z" fill="#F97316"/><path d="M20 20L20.00 34.20A14.2 14.2 0 0 1 9.96 30.04Z" fill="#FACC15"/><path d="M20 20L9.96 30.04A14.2 14.2 0 0 1 5.80 20.00Z" fill="#22C55E"/><path d="M20 20L5.80 20.00A14.2 14.2 0 0 1 9.96 9.96Z" fill="#06B6D4"/><path d="M20 20L9.96 9.96A14.2 14.2 0 0 1 20.00 5.80Z" fill="#3B82F6"/><g stroke="#fff" stroke-opacity=".85" stroke-width=".7"><path d="M20 20L20.00 5.80"/><path d="M20 20L30.04 9.96"/><path d="M20 20L34.20 20.00"/><path d="M20 20L30.04 30.04"/><path d="M20 20L20.00 34.20"/><path d="M20 20L9.96 30.04"/><path d="M20 20L5.80 20.00"/><path d="M20 20L9.96 9.96"/></g><circle cx="20" cy="20" r="14.2" fill="url(#whGloss)"/></g><circle cx="20" cy="20" r="4" fill="#fff"/><circle cx="20" cy="20" r="4" fill="none" stroke="#1B2547" stroke-width="1.2"/><path d="M20 17.6l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7z" fill="#6366F1"/><path d="M20 8.2l-3.1-5.6a3.6 3.6 0 0 1 6.2 0z" fill="#F43F5E" stroke="#fff" stroke-width="1" stroke-linejoin="round"/></svg><small class="bb-l">Spin &amp; Do</small></button>
-  <button class="fab fab-focus owner-only" id="fabFocus" aria-label="Focus mode"><i class="bb-ic" data-ic="timer"></i><small class="bb-l" id="fabFocusLbl">Focus</small></button>
-  <button class="fab fab-play" id="fabPlay" aria-label="Quick actions" aria-expanded="false" aria-controls="playMenu"><span>▶</span><small class="bb-l">Quick actions</small></button>
+  <button class="fab fab-wheel owner-only focus-only" id="fabWheel" aria-label="Spin &amp; Do — pick an urgent task" title="Spin &amp; Do"><svg class="wheel-ic" viewBox="0 0 40 40" aria-hidden="true"><defs><radialGradient id="whGloss" cx="35%" cy="28%" r="70%"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></radialGradient><linearGradient id="whRim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B4C80"/><stop offset="1" stop-color="#1B2547"/></linearGradient></defs><circle cx="20" cy="21" r="18.6" fill="#0F172A" opacity=".18"/><circle cx="20" cy="20" r="18.4" fill="url(#whRim)" stroke="#fff" stroke-opacity=".18" stroke-width=".8"/><circle cx="24.34" cy="3.82" r="0.75" fill="#FDE68A" class="wd0"/><circle cx="31.84" cy="8.16" r="1.05" fill="#FEF3C7" class="wd1"/><circle cx="36.18" cy="15.66" r="0.75" fill="#FDE68A" class="wd2"/><circle cx="36.18" cy="24.34" r="1.05" fill="#FEF3C7" class="wd0"/><circle cx="31.84" cy="31.84" r="0.75" fill="#FDE68A" class="wd1"/><circle cx="24.34" cy="36.18" r="1.05" fill="#FEF3C7" class="wd2"/><circle cx="15.66" cy="36.18" r="0.75" fill="#FDE68A" class="wd0"/><circle cx="8.16" cy="31.84" r="1.05" fill="#FEF3C7" class="wd1"/><circle cx="3.82" cy="24.34" r="0.75" fill="#FDE68A" class="wd2"/><circle cx="3.82" cy="15.66" r="1.05" fill="#FEF3C7" class="wd0"/><circle cx="8.16" cy="8.16" r="0.75" fill="#FDE68A" class="wd1"/><circle cx="15.66" cy="3.82" r="1.05" fill="#FEF3C7" class="wd2"/><g class="wh-spin"><path d="M20 20L20.00 5.80A14.2 14.2 0 0 1 30.04 9.96Z" fill="#6366F1"/><path d="M20 20L30.04 9.96A14.2 14.2 0 0 1 34.20 20.00Z" fill="#A855F7"/><path d="M20 20L34.20 20.00A14.2 14.2 0 0 1 30.04 30.04Z" fill="#EC4899"/><path d="M20 20L30.04 30.04A14.2 14.2 0 0 1 20.00 34.20Z" fill="#F97316"/><path d="M20 20L20.00 34.20A14.2 14.2 0 0 1 9.96 30.04Z" fill="#FACC15"/><path d="M20 20L9.96 30.04A14.2 14.2 0 0 1 5.80 20.00Z" fill="#22C55E"/><path d="M20 20L5.80 20.00A14.2 14.2 0 0 1 9.96 9.96Z" fill="#06B6D4"/><path d="M20 20L9.96 9.96A14.2 14.2 0 0 1 20.00 5.80Z" fill="#3B82F6"/><g stroke="#fff" stroke-opacity=".85" stroke-width=".7"><path d="M20 20L20.00 5.80"/><path d="M20 20L30.04 9.96"/><path d="M20 20L34.20 20.00"/><path d="M20 20L30.04 30.04"/><path d="M20 20L20.00 34.20"/><path d="M20 20L9.96 30.04"/><path d="M20 20L5.80 20.00"/><path d="M20 20L9.96 9.96"/></g><circle cx="20" cy="20" r="14.2" fill="url(#whGloss)"/></g><circle cx="20" cy="20" r="4" fill="#fff"/><circle cx="20" cy="20" r="4" fill="none" stroke="#1B2547" stroke-width="1.2"/><path d="M20 17.6l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7z" fill="#6366F1"/><path d="M20 8.2l-3.1-5.6a3.6 3.6 0 0 1 6.2 0z" fill="#F43F5E" stroke="#fff" stroke-width="1" stroke-linejoin="round"/></svg><small class="bb-l">Spin &amp; Do</small></button>
+  <button class="fab fab-focus owner-only focus-only" id="fabFocus" aria-label="Focus mode"><i class="bb-ic" data-ic="timer"></i><small class="bb-l" id="fabFocusLbl">Focus</small></button>
+  <button class="fab fab-clip owner-only dump-only" id="fabClip" aria-label="Paste a copied link or screenshot"><i class="bb-ic" data-ic="link"></i><small class="bb-l">Paste link</small></button>
+  <button class="fab fab-play focus-only" id="fabPlay" aria-label="Quick actions" aria-expanded="false" aria-controls="playMenu"><span>▶</span><small class="bb-l">Quick actions</small></button>
  </div>
   <button class="fab add-btn" id="fab" aria-label="Add action item"><span aria-hidden="true">＋</span> <span class="no-i18n" id="fabLbl">Add a task</span></button>
 </div>
@@ -280,7 +282,7 @@
   <div class="o-bg"><i></i><i></i><i></i></div>
   <form id="frmLock" class="lock-card" autocomplete="on">
     <button type="button" class="lang-btn lock-lang" data-lang-toggle>עב</button>
-    <div class="o-lockbrand no-i18n"><svg class="o-mark o-mark-sm" viewBox="0 0 200 200" aria-hidden="true"><use href="#orbitRing"/><g class="o-moon"><circle cx="143.63" cy="21.28" r="8.5" fill="url(#oS)"/></g></svg><div class="o-name">ORBIT</div><div class="o-tag">Where your thoughts find their place.</div></div>
+    <div class="o-lockbrand no-i18n"><svg class="o-mark o-mark-sm" viewBox="0 0 200 200" aria-hidden="true"><use href="#focusMark"/></svg><div class="o-name" data-brand="name">FOCUS</div><div class="o-tag" data-brand="tag1">What matters. Right now.</div></div>
     <p class="lock-sub">Sign in to continue</p>
     <label class="full" id="lockUrlWrap" hidden>Web-app URL (first time on this device)
       <input name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" inputmode="url">
@@ -382,12 +384,13 @@
 <!-- Menu -->
 <dialog id="dlgMenu" class="sheet small menu">
   <div class="sheet-head"><h2>Menu</h2><button type="button" class="icon-btn dark" data-close aria-label="Close">✕</button></div>
-  <div class="menu-kpis no-i18n" id="menuKpis"></div>
+  <div class="menu-kpis no-i18n focus-only" id="menuKpis"></div>
   <div class="menu-top">
     <button class="menu-item" id="btnRefresh"><i class="mi" data-ic="refresh"></i> <span>Refresh</span></button>
     <button class="menu-item" data-lang-toggle id="btnLangMenu"><i class="mi" data-ic="globe"></i> <span class="no-i18n" id="langMenuLbl">עברית</span></button>
   </div>
-  <details class="menu-grp" name="menugrp" data-grp="plan">
+  <a class="menu-item other-app" id="btnOtherApp" href="dump/"><span class="oa-ic" aria-hidden="true" id="otherAppIc">💡</span> <span class="no-i18n" id="otherAppLbl">Open Dump — your ideas</span><span class="oa-go" aria-hidden="true">›</span></a>
+  <details class="menu-grp focus-only" name="menugrp" data-grp="plan">
     <summary><i class="mi" data-ic="plan"></i> <span>Planning &amp; reports</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
       <button class="menu-item owner-only" id="btnFreeFocus"><i class="mi" data-ic="timer"></i> <span>Focus mode</span></button>
@@ -400,15 +403,15 @@
     </div>
   </details>
   <details class="menu-grp owner-only" name="menugrp" data-grp="areas">
-    <summary><i class="mi" data-ic="tag"></i> <span>Areas &amp; sharing</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
+    <summary><i class="mi" data-ic="tag"></i> <span class="focus-only">Areas &amp; sharing</span><span class="dump-only">Sharing</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
-      <button class="menu-item owner-only" id="btnAreas"><i class="mi" data-ic="tag"></i> <span>Manage areas</span></button>
-      <button class="menu-item owner-only" id="btnOrder"><i class="mi" data-ic="order"></i> <span>Order of areas</span></button>
+      <button class="menu-item owner-only focus-only" id="btnAreas"><i class="mi" data-ic="tag"></i> <span>Manage areas</span></button>
+      <button class="menu-item owner-only focus-only" id="btnOrder"><i class="mi" data-ic="order"></i> <span>Order of areas</span></button>
       <button class="menu-item owner-only" id="btnShare"><i class="mi" data-ic="users"></i> <span>Sharing &amp; guests</span></button>
-      <button class="menu-item owner-only" id="btnPending2"><i class="mi" data-ic="inbox"></i> <span>Suggestions to approve</span></button>
+      <button class="menu-item owner-only focus-only" id="btnPending2"><i class="mi" data-ic="inbox"></i> <span>Suggestions to approve</span></button>
     </div>
   </details>
-  <details class="menu-grp owner-only" name="menugrp" data-grp="cal">
+  <details class="menu-grp owner-only focus-only" name="menugrp" data-grp="cal">
     <summary><i class="mi" data-ic="calendar"></i> <span>Calendars &amp; Siri</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
       <button class="menu-item owner-only" id="btnImport"><i class="mi" data-ic="download"></i> <span>Import from calendar</span></button>
@@ -422,22 +425,22 @@
     <div class="mg-body">
       <div class="theme-row"><span>🌓 <span>Appearance</span></span><div class="seg" id="themeSeg"><button type="button" data-theme-set="auto">Auto</button><button type="button" data-theme-set="light">Light</button><button type="button" data-theme-set="dark">Dark</button></div></div>
       <div class="theme-row"><span>🔠 <span>Font size</span></span><div class="seg no-i18n" id="fontSeg"><button type="button" data-font-set="s" class="fs-s">Small</button><button type="button" data-font-set="m">Medium</button><button type="button" data-font-set="l" class="fs-l">Large</button></div></div>
-      <label class="theme-row wc-toggle"><span>🌅 <span>Daily start screen</span></span><input type="checkbox" id="welcomeOn" class="switch" checked></label>
+      <label class="theme-row wc-toggle focus-only"><span>🌅 <span>Daily start screen</span></span><input type="checkbox" id="welcomeOn" class="switch" checked></label>
     </div>
   </details>
   <details class="menu-grp" name="menugrp" data-grp="set">
     <summary><i class="mi" data-ic="sliders"></i> <span>Settings &amp; connections</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
-      <button class="menu-item owner-only" id="btnNotify"><i class="mi" data-ic="bell"></i> <span>Phone notifications</span></button>
-      <button class="menu-item owner-only" id="btnAi"><i class="mi" data-ic="sparkle"></i> <span>Smart reading (AI)</span></button>
+      <button class="menu-item owner-only focus-only" id="btnNotify"><i class="mi" data-ic="bell"></i> <span>Phone notifications</span></button>
+      <button class="menu-item owner-only dump-only" id="btnAi"><i class="mi" data-ic="sparkle"></i> <span>Smart reading (AI)</span></button>
       <button class="menu-item" id="btnSettings"><i class="mi" data-ic="link"></i> <span>Sheet connection</span></button>
-      <button class="menu-item owner-only" id="btnMaint"><i class="mi" data-ic="archive"></i> <span>Archive &amp; backup</span></button>
+      <button class="menu-item owner-only focus-only" id="btnMaint"><i class="mi" data-ic="archive"></i> <span>Archive &amp; backup</span></button>
     </div>
   </details>
   <details class="menu-grp" name="menugrp" data-grp="me">
     <summary><i class="mi" data-ic="user"></i> <span>Account &amp; help</span><i class="mg-sub no-i18n" data-mgsub></i></summary>
     <div class="mg-body">
-      <button class="menu-item" id="btnTour"><i class="mi" data-ic="compass"></i> <span>Guided tour</span></button>
+      <button class="menu-item focus-only" id="btnTour"><i class="mi" data-ic="compass"></i> <span>Guided tour</span></button>
       <button class="menu-item" id="btnAccount"><i class="mi" data-ic="user"></i> <span>My account</span></button>
       <button class="menu-item" id="btnLock"><i class="mi" data-ic="lock"></i> <span>Lock the app</span></button>
     </div>
@@ -670,7 +673,7 @@
 </dialog>
 
 <script>window.AI_EDITION = 'public'; window.AI_TEMPLATE = "";</script>
-<script src="i18n.js?v=93"></script>
-<script src="app.js?v=93"></script>
+<script src="i18n.js?v=95"></script>
+<script src="app.js?v=95"></script>
 </body>
 </html>
