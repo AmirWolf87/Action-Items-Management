@@ -54,7 +54,7 @@ def make_dump(src, out, icons_src):
     idx = idx.replace(' src="assets/focus/focus_idle_small.webp"', '')      # the focus timer lives in Focus only
     head, rest = idx.split('</defs></svg>', 1)          # recolour only the ring's gradients
     for a, b in WARM.items(): head = head.replace(a, b)
-    # Dump's own mark on the launch and sign-in screens: a glowing swirl that is also a light bulb 💡
+    # Dump's own mark on the launch and sign-in screens: notes written on toilet paper 🧻✏️
     head += rd(os.path.join(ROOT, 'tools', 'dump_mark.svgfrag'))
     rest = must(rest, '<use href="#orbitRing"/><g class="o-moon"><circle cx="143.63" cy="21.28" r="8.5" fill="url(#oS)"/></g>', '<use href="#dumpMark"/>', 2)
     wr(os.path.join(out, 'index.html'), head + '</defs></svg>' + rest)
