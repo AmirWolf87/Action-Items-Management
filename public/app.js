@@ -1134,11 +1134,15 @@ async function collQuickAdd(text) {
 }
 async function linkInfo(url, cat, text, image) {
   const tpl = cat && catTpl(cat);
-  const call = api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '', fields: tpl ? tpl.fields : null, image: image || '' });
+  // 📂 a new entry whose list you haven't picked yourself → the sheet chooses the list too
+  const cats = collAutoCat() ? collCats.map(c => { const t = catTpl(c); return { id: c.id, name: c.name, kind: c.kind, fields: t ? t.fields : [] }; }) : null;
+  const call = api('POST', { action: 'linkInfo', url, cat: cat && cat.id, catName: cat && cat.name, text: text || '', fields: tpl ? tpl.fields : null, image: image || '', cats });
   // never wait forever: after 75 s give the screen back (the sheet keeps the answer for a retry)
   const late = new Promise(res => setTimeout(() => res({ found: false, slow: true, aiError: L('Reading took too long — tap 🔄 Try again (it is usually quicker the second time).', 'הקריאה לקחה יותר מדי זמן — לחץ 🔄 נסה שוב (בפעם השנייה זה בדרך כלל מהיר יותר).') }), 75000));
   try { return await Promise.race([call, late]); } catch (e) { return { found: false, aiError: e.message }; }
 }
+/* may the list be chosen automatically? only for a new entry, until you pick a list yourself */
+function collAutoCat() { const f = $('#frmColl'); return !!f && !collEditing && collCats.length > 1 && f.dataset.catTouched !== '1' && !collRO(); }
 /* the "reading…" line inside the entry while the link is being read */
 function collReading(on) {
   const box = $('#collNote'); if (!box) return;
@@ -1166,7 +1170,8 @@ function collLinkNote(info, fromText) {
   } else {
     box.className = 'c-note ok'; box.hidden = false;
     box.innerHTML = (info.shot ? '📷 ' + L('Read from the screenshot', 'נקרא מצילום המסך') : info.ai ? '✨ ' + (info.checked ? L('Read with AI and checked on the web', 'נקרא עם AI ונבדק ברשת') : L('Read with AI', 'נקרא עם AI')) + (info.sure === 'low' ? ' · ⚠️ ' + L('not sure about the name — please check it', 'לא בטוח בשם — כדאי לבדוק') : '') : '✓ ' + (fromText ? L('Filled from the text', 'מולא מהטקסט') : L('Filled from the link', 'מולא מהקישור'))) + ' · ' + L('check and Save', 'בדוק ולחץ שמירה') + (catOf($('#collCat').value).map && !settings.demo ? ' · ' + L('🔎 you can also verify it on the web below', '🔎 אפשר גם לוודא מול האינטרנט (כפתור למטה)') : '') +
-      (info.aiError ? `<br><small>${esc(L('AI didn’t answer: ', 'ה-AI לא ענה: ') + info.aiError)}</small>` : '');
+      (info.aiError ? `<br><small>${esc(L('AI didn’t answer: ', 'ה-AI לא ענה: ') + info.aiError)}</small>` : '') +
+      ($('#frmColl').dataset.autoCat ? `<br>📂 ${L('Put in', 'שויך ל')} <b>${esc(catOf($('#frmColl').dataset.autoCat).name)}</b> — ${L('change the list below if it’s wrong', 'אפשר לשנות את הקטגוריה למטה אם זה לא נכון')}` : '');
   }
   if ($('#dlgColl').open) collFormUi();
 }
@@ -1187,6 +1192,10 @@ async function collFillFromLink() {
 }
 function collApplyInfo(info, blockedBefore) {
   const f = $('#frmColl');
+  // 📂 the link belongs to another list → move the new entry there (you can still change it)
+  if (info.cat && info.cat !== $('#collCat').value && collAutoCat() && collCats.some(c => c.id === info.cat)) {
+    f._x = Object.assign(f._x || {}, tplFormRead()); $('#collCat').value = info.cat; f.dataset.autoCat = info.cat; collFormUi();
+  }
   const cur = f.elements.title.value.trim(), auto = f.dataset.autoTitle || '';
   if (info.title && (!cur || cur === auto || /^[\w.-]+\.(com|co\.il|il|net|org|io)$/i.test(cur))) { f.elements.title.value = info.title; f.dataset.autoTitle = info.title; }
   const set = (k, v) => { if (v && !f.elements[k].value.trim()) f.elements[k].value = v; };
@@ -1389,6 +1398,7 @@ function tplFormRead() {
 }
 function openColl(en) {
   collEditing = en.id ? en : null; const f = $('#frmColl'), ro = collRO();
+  f.dataset.catTouched = ''; f.dataset.autoCat = '';
   $('#collFill').textContent = L('✨ Fill from link', '✨ מלא מהקישור');
   $('#collHead').textContent = ro ? (en.title || '') : en.id ? L('Edit', 'עריכה') : L('New entry', 'רשומה חדשה');
   $('#collCat').innerHTML = collCats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
@@ -1454,7 +1464,7 @@ $('#frmColl').addEventListener('input', (e) => {
   if ((e.target.name === 'place' || e.target.name === 'link') && !f.dataset.manual) { f.dataset.lat = ''; f.dataset.lng = ''; }
   collFormUi();
 });
-$('#collCat').addEventListener('change', collFormUi);
+$('#collCat').addEventListener('change', (e) => { if (e.isTrusted) { $('#frmColl').dataset.catTouched = '1'; $('#frmColl').dataset.autoCat = ''; } collFormUi(); });
 $('#frmColl').addEventListener('paste', (e) => {
   const img = [...((e.clipboardData && e.clipboardData.items) || [])].find(x => x.kind === 'file' && /^image\//.test(x.type));
   if (img && !collRO() && !settings.demo) { e.preventDefault(); collFillFromShot(img.getAsFile()); return; }

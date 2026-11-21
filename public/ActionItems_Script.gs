@@ -312,7 +312,7 @@ function doPost(e) {
       case 'getNotify': return json_(Object.assign({ ok: true }, getNotify_()));
       case 'saveNotify': return json_(Object.assign({ ok: true }, saveNotify_(req.config)));
       case 'testNotify': return json_(Object.assign({ ok: true }, sendRule_(req.rule, true)));
-      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text, fields: req.fields, image: req.image })));
+      case 'linkInfo': return json_(Object.assign({ ok: true }, linkInfo_(req.url, { cat: req.cat, catName: req.catName, text: req.text, fields: req.fields, image: req.image, cats: req.cats })));
       case 'quotes': return json_({ ok: true, quotes: quotesOnline_() });
       case 'collDesign': { const r = collDesign_(req.name, req.kind); if (!r.ok) r.error = r.message; return json_(r); }
       case 'placeCheck': { const r = placeCheck_(req); if (!r.ok) r.error = r.message; return json_(r); }
@@ -1573,30 +1573,50 @@ const LINK_RULES_ = {
   wish: 'title = the wished item, short.',
   other: 'title = a short descriptive name (max 6 words).'
 };
-function linkSchema_(style, fields) {
+function linkSchema_(style, fields, cats) {
   const S = { type: 'STRING' }, props = { title: S, place: S, city: S, notes: S, sure: { type: 'STRING', enum: ['high', 'medium', 'low'] }, search: S };
-  if (style === 'food' || style === 'drink') props.base = S;
-  if (style === 'drink') props.ing = S;
-  if (fields && fields.length) { const xp = {}; fields.forEach(f => { xp[f.k] = S; }); props.x = { type: 'OBJECT', properties: xp }; }
-  return { type: 'OBJECT', properties: props, required: ['title', 'place', 'city', 'notes', 'sure'] };
+  const req = ['title', 'place', 'city', 'notes', 'sure'];
+  if (cats && cats.length) {   // 📂 the AI also picks the list
+    props.cat = { type: 'STRING', enum: cats.map(c => c.id) }; req.unshift('cat');
+    props.base = S; props.ing = S;
+    const xp = {}; cats.forEach((c, i) => (c.fields || []).forEach(f => { xp[i + '__' + f.k] = S; }));
+    if (Object.keys(xp).length) props.x = { type: 'OBJECT', properties: xp };
+  } else {
+    if (style === 'food' || style === 'drink') props.base = S;
+    if (style === 'drink') props.ing = S;
+    if (fields && fields.length) { const xp = {}; fields.forEach(f => { xp[f.k] = S; }); props.x = { type: 'OBJECT', properties: xp }; }
+  }
+  return { type: 'OBJECT', properties: props, required: req };
 }
-function aiExtract_(style, catName, raw, url, blocked, fields, image, verify, first) {
+const fieldHint_ = (f) => f.l + (f.t === 'choice' ? ' (ONE of: ' + f.o.join(' / ') + ')' : f.t === 'mono' ? ' (copy chords / tabs / notation EXACTLY as written, keep every line break and space)' : f.t === 'number' ? ' (a number)' : '');
+/* the lists the AI can choose from, each with its own title rule and details */
+function catChoiceText_(cats) {
+  const styles = {};
+  const lines = cats.map((c, i) => {
+    const st = c.kind === 'wish' ? 'wish' : catStyle_(c.id, c.name); styles[st] = 1;
+    return '  - cat "' + c.id + '" = ' + c.name + ' (kind: ' + st + ')' + ((c.fields || []).length ? '; its details x: ' + c.fields.map(f => i + '__' + f.k + ' = ' + fieldHint_(f)).join('; ') : '');
+  });
+  return 'FIRST decide which ONE of these lists the post belongs to (by what the post is about — a place to eat, a dish to cook, a trip, a drink, something to buy…):\n' + lines.join('\n') + '\n' +
+    'cat = that list id. Then fill the rest by the rule for the chosen kind:\n' + Object.keys(styles).map(st => '  ' + st + ': ' + LINK_RULES_[st]).join('\n') + '\n' +
+    'x = fill ONLY the details whose key starts with the chosen list number (e.g. "0__"); leave the others out.\n';
+}
+function aiExtract_(style, catName, raw, url, blocked, fields, image, verify, first, cats) {
   const placey = /food|trip|activity/.test(style), link = /^https?:\/\//i.test(url);
   const prompt = (verify
       ? 'Identify exactly what this saved link is about, using Google Search' + (link ? ' and by opening the link itself' : '') + '. Someone saved it to their "' + catName + '" list.\n' +
         (first && first.title ? 'A first guess (may be wrong or vague): ' + JSON.stringify({ title: first.title, place: first.place, city: first.city }) + '\n' : '')
-      : 'You read a social-media post or web page that someone saved to their "' + catName + '" list.\n') +
+      : cats && cats.length ? 'You read a social-media post or web page that someone saved to their ideas collection.\n' : 'You read a social-media post or web page that someone saved to their "' + catName + '" list.\n') +
     'Answer in the language of the post (Hebrew if the post is Hebrew).\n' +
-    LINK_RULES_[style] + '\n' +
+    (cats && cats.length ? catChoiceText_(cats) : LINK_RULES_[style] + '\n') +
     'Rules:\n' +
     '- Use ONLY facts from the material' + (verify ? ' and from pages you actually found' : '') + '. Never invent a name, address or detail. Unknown → empty string.\n' +
     '- The AUTHOR is who posted (often a blogger / influencer) — NOT the place. The place is usually the tagged location, an @mention of a business, a 📍 line, or a name in the text.\n' +
     '- If the post lists several places, take the main one (the first / the one the post is about) and mention the others in notes.\n' +
-    (placey ? '- place = the most precise location for a map pin: business / site name + street or area + city (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). Only a city or region if that is all that is known.\n' : '- place = a location only if the item has one, else empty.\n') +
+    (placey || (cats && cats.length) ? '- place = ' + (cats && cats.length ? 'for places only (eat / trip / activity): ' : '') + 'the most precise location for a map pin: business / site name + street or area + city (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). Only a city or region if that is all that is known.' + (cats && cats.length ? ' Empty for recipes, drinks and things to buy.' : '') + '\n' : '- place = a location only if the item has one, else empty.\n') +
     '- city = city / region. notes = 1-3 short lines of useful facts (what to order, hours, price, tips) — no hashtags.\n' +
     '- sure = how sure you are that the title' + (placey ? ' and place are' : ' is') + ' right: high / medium / low.\n' +
     '- search = the best short web-search query to find this exact ' + (placey ? 'place' : 'item') + ' (e.g. its name + city), or empty.\n' +
-    (fields && fields.length ? '- x = the details this list keeps for every entry (empty string when unknown): ' + fields.map(f => f.k + ' = ' + f.l + (f.t === 'choice' ? ' (ONE of: ' + f.o.join(' / ') + ')' : f.t === 'mono' ? ' (copy chords / tabs / notation EXACTLY as written, keep every line break and space)' : f.t === 'number' ? ' (a number)' : '')).join('; ') + '\n' : '') +
+    (!(cats && cats.length) && fields && fields.length ? '- x = the details this list keeps for every entry (empty string when unknown): ' + fields.map(f => f.k + ' = ' + fieldHint_(f)).join('; ') + '\n' : '') +
     (verify ? 'Return ONLY JSON: {"title":"","place":"","city":"","notes":"","sure":"","search":""' + (style === 'drink' ? ',"base":"","ing":""' : style === 'food' ? ',"base":""' : '') + (fields && fields.length ? ',"x":{' + fields.map(f => '"' + f.k + '":""').join(',') + '}' : '') + '}\n' : '') +
     '\nURL: ' + url + '\nSOURCE: ' + (raw.source || '') + '\nTITLE: ' + (raw.title || '') + '\nAUTHOR: ' + (raw.by || '') + '\nTAGGED LOCATION: ' + (raw.place || '') +
     (raw.extra ? '\nMORE: ' + String(raw.extra).slice(0, 9500) : '') + '\nTEXT:\n' + String(raw.caption || '').slice(0, 6000);
@@ -1610,7 +1630,24 @@ function aiExtract_(style, catName, raw, url, blocked, fields, image, verify, fi
   }
   const wantsPage = !yt && link && fields && fields.some(f => f.t === 'mono');   // chords / tabs live in the page body → let the AI open it
   if (wantsPage) return aiCall_(parts, [{ url_context: {} }]);
-  return aiCall_(parts, null, false, linkSchema_(style, fields));
+  return aiCall_(parts, null, false, linkSchema_(style, fields, cats));
+}
+/* 📂 without AI: which list does the text look like? (keywords; '' = no clear answer) */
+const CAT_WORDS_ = {
+  recipe: /מתכון|מצרכים|רכיבים|כוס(ות)? קמח|כפ(ו)?ת |כפית|גרם|לאפות|אפייה|תנור|מחבת|לערבב|recipe|ingredients|bake|oven/gi,
+  drink: /קוקטייל|cocktail|שייקר|קרח|מ"ל|ml\b|ג'ין|וודקה|רום|טקילה|ויסקי|ספריץ|negroni|mojito|spritz/gi,
+  food: /מסעד|ביסטרו|בית קפה|בר\b|תפריט|הזמנו|מנות|מנה|שף|קינוח|פיצרי|המבורגר|חומוס|שווארמה|restaurant|café|cafe|menu|brunch|dinner/gi,
+  trip: /מסלול|מעיין|נחל|טיול|תצפית|חניון|הליכה|שביל|מפל|יער|שמורת|גן לאומי|hike|trail|spring|waterfall/gi,
+  activity: /סדנ|הופעה|פעילות|אטרקצי|לילדים|כרטיסים|פסטיבל|סיור|מוזיאון|הצגה|workshop|festival|tour|museum/gi,
+  wish: /לקנות|מתנה|מבצע|הנחה|₪|ש"ח|קנייה|amazon|aliexpress|shop|buy|price/gi
+};
+function ruleCat_(cats, text) {
+  const t = String(text || ''); let best = null, top = 0;
+  cats.forEach(c => {
+    const st = c.kind === 'wish' ? 'wish' : catStyle_(c.id, c.name), re = CAT_WORDS_[st]; if (!re) return;
+    const n = (t.match(re) || []).length; if (n > top) { top = n; best = c; }
+  });
+  return top >= 2 ? best : null;
 }
 /* pass 2 without Google's search quota: search the web ourselves (DuckDuckGo) and let the AI read only those results */
 function aiVerifyByWeb_(style, catName, raw, url, fields, first) {
@@ -1783,7 +1820,7 @@ function linkInfo_(url, opt) {
   const t0 = Date.now();
   // the same link read again (a retry, the ✨ button) → the answer from the last 6 hours, instantly and without AI quota
   const cacheable = /^https?:\/\//i.test(url) && !opt.text && !opt.image;
-  const ck = cacheable ? 'LI2:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, url + '|' + (opt.cat || '') + '|' + JSON.stringify(opt.fields || []))) : '';
+  const ck = cacheable ? 'LI2:' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, url + '|' + (opt.cat || '') + '|' + JSON.stringify(opt.fields || []) + '|' + JSON.stringify(opt.cats || []))) : '';
   if (ck) { try { const hit = CacheService.getScriptCache().get(ck); if (hit) return Object.assign(JSON.parse(hit), { cached: true }); } catch (e) { /* read again */ } }
   const image = /^[A-Za-z0-9+/=]{100,}$/.test(String(opt.image || '').replace(/^data:[^,]+,/, '')) ? String(opt.image).replace(/^data:[^,]+,/, '') : '';
   if (image.length > 6e6) throw new Error('The screenshot is too large');
@@ -1791,16 +1828,30 @@ function linkInfo_(url, opt) {
   if (!/^https?:\/\//i.test(url) && !opt.text && !image) throw new Error('Not a link');
   const raw = image && !/^https?:\/\//i.test(url) ? { url: '', source: 'screenshot', title: '', caption: String(opt.text || '').slice(0, 8000), place: '', by: '', img: '', lat: null, lng: null } : /^https?:\/\//i.test(url) ? linkGather_(url, opt.text) : { url: '', source: 'text', title: '', caption: String(opt.text).slice(0, 8000), place: '', by: '', img: '', lat: null, lng: null };
   if (!raw.place) raw.place = captionBits_(raw.caption).place;
-  const style = catStyle_(opt.cat, opt.catName);
+  // 📂 the lists to choose from (sent by the app for a new entry): the AI — or the words in the post — pick the list
+  const cats = (Array.isArray(opt.cats) ? opt.cats : []).slice(0, 20).map(c => ({ id: String(c && c.id || '').slice(0, 40), name: String(c && c.name || '').slice(0, 60), kind: String(c && c.kind || '').slice(0, 10), fields: ((tplClean_({ fields: (c && c.fields) || [] }) || {}).fields) || [] })).filter(c => c.id);
+  const auto = cats.length > 1;
+  let curCat = (auto && cats.find(c => c.id === opt.cat)) || { id: opt.cat, name: opt.catName, fields: (tplClean_({ fields: opt.fields || [] }) || {}).fields || [] };
+  if (auto && !raw.maps) { const rc = ruleCat_(cats, [raw.title, raw.caption, raw.extra].join(' ')); if (rc) curCat = rc; }
+  let style = curCat.kind === 'wish' ? 'wish' : catStyle_(curCat.id, curCat.name);
   const out = { url: raw.url || url, source: raw.source, title: '', notes: captionBits_(raw.caption).notes, place: raw.place, by: raw.by, img: /^https:\/\//i.test(raw.img || '') ? raw.img : '', lat: raw.lat, lng: raw.lng, style: style, ai: false };
   if (raw.maps) { out.title = raw.title; }
   else {
     let ai = null;
     if (aiKey_() && (raw.caption || raw.title || raw.blocked || image)) {
-      const fl = (tplClean_({ fields: opt.fields || [] }) || {}).fields, cn = opt.catName || style, u = raw.url || url;
+      let fl = curCat.fields || [], cn = curCat.name || style;
+      const u = raw.url || url;
       const good = (r) => !!(r && !r.error && String(r.title || '').trim());
       // pass 1: read what we gathered (skipped when nothing could be read — then only the search pass can help)
-      if (!(raw.blocked && !image)) ai = aiExtract_(style, cn, raw, u, false, fl, image);
+      if (!(raw.blocked && !image)) ai = aiExtract_(style, cn, raw, u, false, fl, image, false, null, auto ? cats : null);
+      if (auto && good(ai)) {   // the list the AI chose → its kind, its details
+        const i = cats.findIndex(c => c.id === ai.cat);
+        if (i >= 0) {
+          curCat = cats[i]; style = curCat.kind === 'wish' ? 'wish' : catStyle_(curCat.id, curCat.name); fl = curCat.fields || []; cn = curCat.name || style;
+          const x = {}; Object.keys(ai.x || {}).forEach(k => { const m = k.match(/^(\d+)__(.+)$/); if (m && Number(m[1]) === i) x[m[2]] = ai.x[k]; }); ai.x = x;
+          out.catBy = 'ai';
+        }
+      }
       const placey = /food|trip|activity/.test(style);
       const weak = !good(ai) || ai.sure === 'low' || (placey && !String(ai.place || '').trim() && ai.sure !== 'high');
       // pass 2: check on the web — Google Search through the AI, or our own web search when that quota is used up
@@ -1817,7 +1868,7 @@ function linkInfo_(url, opt) {
       if (ai.place && style !== 'drink' && style !== 'recipe') out.place = String(ai.place).trim();
       if (ai.base) out.base = String(ai.base).trim().toLowerCase();
       if (ai.ing) out.ing = String(ai.ing).trim().slice(0, 300);
-      if (ai.x && typeof ai.x === 'object') { const ok = {}; (tplClean_({ fields: opt.fields || [] }) || { fields: [] }).fields.forEach(f => { let v = ai.x[f.k]; if (v === undefined || v === null || v === '') return; v = String(v); if (f.t === 'choice' && f.o.length && f.o.indexOf(v) < 0) { const m = f.o.find(o => o.toLowerCase() === v.toLowerCase()); if (m) v = m; } ok[f.k] = v.slice(0, 6000); }); out.x = ok; }
+      if (ai.x && typeof ai.x === 'object') { const ok = {}; (curCat.fields || []).forEach(f => { let v = ai.x[f.k]; if (v === undefined || v === null || v === '') return; v = String(v); if (f.t === 'choice' && f.o.length && f.o.indexOf(v) < 0) { const m = f.o.find(o => o.toLowerCase() === v.toLowerCase()); if (m) v = m; } ok[f.k] = v.slice(0, 6000); }); out.x = ok; }
       if (ai.notes && (!out.notes || out.notes.length < 20)) out.notes = String(ai.notes).trim();
       else if (ai.notes) out.summary = String(ai.notes).trim();
     } else if (ai && ai.error) out.aiError = ai.error;
@@ -1836,6 +1887,7 @@ function linkInfo_(url, opt) {
   if (out.title) out.title = String(out.title).replace(/\s+/g, ' ').trim().slice(0, 120);
   out.blocked = !!raw.blocked && !out.ai;
   out.found = !!(out.title || out.notes || out.place);
+  if (auto) { out.cat = curCat.id; out.style = style; if (!out.catBy && curCat.id !== opt.cat) out.catBy = 'words'; }
   out.secs = Math.round((Date.now() - t0) / 1000);
   if (ck && out.found && out.ai) { try { const j = JSON.stringify(out); if (j.length < 90000) CacheService.getScriptCache().put(ck, j, 6 * 3600); } catch (e) { /* not kept */ } }
   return out;
