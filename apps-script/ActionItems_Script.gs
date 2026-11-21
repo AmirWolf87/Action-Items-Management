@@ -1463,13 +1463,55 @@ function aiJson_(text) {
   try { return JSON.parse(raw); } catch (e) { /* try a cleaned copy */ }
   try { return JSON.parse(raw.replace(/\s*\[\d+(?:,\s*\d+)*\]/g, '').replace(/,\s*([}\]])/g, '$1')); } catch (e) { return { error: 'AI: unreadable answer — try again' }; }
 }
+/* which Gemini models to ask, in order. The free tier gives Flash-Lite ~25× more requests a day than Flash
+   (e.g. 500 vs 20), so the Lite models go first and Flash is only the back-up.
+   The list comes from Google itself (model names change every few months) and is kept for a day. */
+function aiModels_(key) {
+  const P = PropertiesService.getScriptProperties();
+  if (P.getProperty('GEMINI_MODEL')) return [P.getProperty('GEMINI_MODEL')];   // a model chosen by hand always wins
+  const C = CacheService.getScriptCache();
+  let names = null;
+  try { names = JSON.parse(C.get('GEMINI_MODELS') || 'null'); } catch (e) { names = null; }
+  if (!names) {
+    names = [];
+    try {
+      const r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key }, muteHttpExceptions: true });
+      if (r.getResponseCode() < 300) {
+        names = (JSON.parse(r.getContentText()).models || [])
+          .filter(m => (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0)
+          .map(m => String(m.name || '').replace(/^models\//, ''))
+          .filter(n => /^gemini-[\d.]+-flash(-lite)?$|^gemini-flash(-lite)?-latest$/.test(n));   // stable Flash / Flash-Lite only — no previews, images, audio
+      }
+    } catch (e) { names = []; }
+    if (names.length) C.put('GEMINI_MODELS', JSON.stringify(names), 86400);
+  }
+  const ver = (n) => { const m = n.match(/gemini-([\d.]+)-/); return m ? parseFloat(m[1]) : 99; };   // "-latest" counts as newest
+  const byNew = (a, b) => ver(b) - ver(a);
+  const lite = names.filter(n => /lite/.test(n)).sort(byNew), flash = names.filter(n => !/lite/.test(n)).sort(byNew);
+  // nothing listed (old key, network) → the generic names Google keeps pointing at the current models
+  const order = (lite.length ? lite : ['gemini-flash-lite-latest']).concat(flash.length ? flash : ['gemini-flash-latest']);
+  // a Lite model that worked last time goes first
+  const ok = P.getProperty('GEMINI_OK_MODEL');
+  if (ok && /lite/.test(ok) && order.indexOf(ok) > 0) { order.splice(order.indexOf(ok), 1); order.unshift(ok); }
+  return order.filter((m, i, a) => a.indexOf(m) === i).slice(0, 4);
+}
+/* when the daily free quota resets: midnight Pacific time, shown in Israel time */
+function aiResetTime_() {
+  try {
+    const now = new Date(), pt = Utilities.formatDate(now, 'America/Los_Angeles', 'HH:mm:ss').split(':').map(Number);
+    const left = ((24 - pt[0]) * 3600 - pt[1] * 60 - pt[2]) * 1000;
+    const when = new Date(now.getTime() + left), day = (d) => Utilities.formatDate(d, 'Asia/Jerusalem', 'yyyy-MM-dd');
+    return { secs: Math.max(60, Math.round(left / 1000)), at: Utilities.formatDate(when, 'Asia/Jerusalem', 'HH:mm'), day: day(when) === day(now) ? 'היום' : 'מחר' };
+  } catch (e) { return { secs: 6 * 3600, at: '10:00', day: '' }; }
+}
 function aiCall_(parts, tools, retried, schema) {
   const key = aiKey_(); if (!key) return null;
-  // free-tier models first; a model that is out of quota (429) or not open to this key (403/404) → try the next one
-  const P = PropertiesService.getScriptProperties();
-  const models = [P.getProperty('GEMINI_MODEL') || P.getProperty('GEMINI_OK_MODEL') || 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+  const P = PropertiesService.getScriptProperties(), C = CacheService.getScriptCache();
   const errs = [];
-  for (const model of models.filter((m, i, a) => m && a.indexOf(m) === i)) {
+  // a model whose free quota for today is used up is skipped until the reset (no wasted time asking it again)
+  const all = aiModels_(key), models = all.filter(m => !C.get('GEMINI_OUT:' + m + (tools ? ':t' : '')));
+  if (!models.length) return { error: aiQuotaMsg_(!!tools), quota: true };
+  for (const model of models) {
     const body = { contents: [{ role: 'user', parts: parts }], generationConfig: { temperature: 0.2 } };
     if (tools) body.tools = tools;
     else { body.generationConfig.responseMimeType = 'application/json'; if (schema) body.generationConfig.responseSchema = schema; }   // a fixed shape → never an "unreadable answer"
@@ -1481,12 +1523,13 @@ function aiCall_(parts, tools, retried, schema) {
         const r2 = UrlFetchApp.fetch(base + '?key=' + encodeURIComponent(key), { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
         if (r2.getResponseCode() < 300) r = r2;
       }
-      const code = r.getResponseCode(), txt = r.getContentText();
-      if (code === 404 || code === 403 || code === 429) { errs.push({ code: code, txt: String(txt), model: model }); continue; }
-      if (code === 400 && tools && /tool|search|grounding|not supported/i.test(txt)) { errs.push({ code: code, txt: String(txt), model: model }); continue; }   // this model can't search → next one
-      if (code === 400 && schema && /schema/i.test(txt)) { schema = null; delete body.generationConfig.responseSchema; errs.push({ code: code, txt: String(txt), model: model }); continue; }
-      if (code >= 500) { errs.push({ code: code, txt: String(txt), model: model }); continue; }   // Google's side is busy → the next model
-      if (code >= 300) return { error: 'AI ' + code + ': ' + String(txt).slice(0, 160) };
+      const code = r.getResponseCode(), txt = String(r.getContentText());
+      if (code === 404) { C.remove('GEMINI_MODELS'); errs.push({ code: code, txt: txt, model: model }); continue; }   // the model is gone → refresh the list next time
+      if (code === 403 || code === 429) { errs.push({ code: code, txt: txt, model: model }); continue; }
+      if (code === 400 && tools && /tool|search|grounding|not supported/i.test(txt)) { errs.push({ code: code, txt: txt, model: model }); continue; }   // this model can't search → next one
+      if (code === 400 && schema && /schema/i.test(txt)) { schema = null; delete body.generationConfig.responseSchema; errs.push({ code: code, txt: txt, model: model }); continue; }
+      if (code >= 500) { errs.push({ code: code, txt: txt, model: model }); continue; }   // Google's side is busy → the next model
+      if (code >= 300) return { error: 'AI ' + code + ': ' + txt.slice(0, 160) };
       if (P.getProperty('GEMINI_OK_MODEL') !== model) P.setProperty('GEMINI_OK_MODEL', model);   // remember the model that works
       const j = JSON.parse(txt), out = (((j.candidates || [])[0] || {}).content || {}).parts || [];
       const text = out.map(p => p.text || '').join('');
@@ -1495,25 +1538,28 @@ function aiCall_(parts, tools, retried, schema) {
   }
   const busy = errs.filter(e => e.code === 429);
   if (busy.length) {
-    // a short per-minute limit: Google says how long to wait — wait once (up to 30 s) and try again, instead of failing
+    const perMin = (t) => /PerMinute|per_minute|RPM|TPM/i.test(t);
+    const zero = (t) => /limit:\s*0\b/.test(t);
+    // out for the day: says "per day", or "exceeded your current quota" without being a per-minute limit
+    const daily = (t) => /PerDay|per_day|RPD/i.test(t) || (/exceeded your current quota|RESOURCE_EXHAUSTED/i.test(t) && !perMin(t));
+    const reset = aiResetTime_();
+    busy.filter(e => daily(e.txt) || zero(e.txt)).forEach(e => C.put('GEMINI_OUT:' + e.model + (tools ? ':t' : ''), '1', Math.min(21600, reset.secs)));
+    // a short per-minute limit: Google says how long to wait — wait once (up to ~8 s) and try again
     const waits = busy.map(e => { const m = e.txt.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/); return m ? Number(m[1]) : null; }).filter(x => x !== null);
     const wait = waits.length ? Math.min.apply(null, waits) : null;
-    const daily = (t) => /PerDay|per_day|RPD/i.test(t), zero = (t) => /limit:\s*0\b/.test(t);
-    // wait at most ~8 s, once (it used to be up to 30 s — that is what felt like "hanging")
-    if (!retried && (wait === null || wait <= 8) && !busy.every(e => daily(e.txt) || zero(e.txt))) { Utilities.sleep(wait === null ? 4000 : Math.ceil(wait * 1000) + 500); return aiCall_(parts, tools, true, schema); }
-    const first = busy[0], q = (first.txt.match(/"quotaId"\s*:\s*"([^"]+)"/) || first.txt.match(/metric:\s*([\w./-]+)/) || [])[1] || '';
-    const lim = (first.txt.match(/limit:\s*(\d+)/) || [])[1];
-    const gmsg = ((first.txt.match(/"message"\s*:\s*"([^"]{0,90})/) || [])[1] || '').replace(/\\n/g, ' ');
-    const why = ' [' + first.model + (q ? ' · ' + q : '') + (lim ? ' · limit ' + lim : '') + (!q && gmsg ? ' · ' + gmsg : '') + ']';
-    const search = tools && /search|ground/i.test(busy.map(e => e.txt).join(' '));
-    return { error: busy.every(e => zero(e.txt)) ? 'ה-AI: המפתח הזה לא מקבל מכסה חינמית ' + (search ? 'לחיפוש ברשת' : '') + ' (limit: 0). צור מפתח בפרויקט חדש ב-AI Studio, או הפעל חיוב (Billing) בפרויקט.' + why
-      : busy.some(e => daily(e.txt)) ? 'ה-AI: נגמרה המכסה היומית החינמית' + (search ? ' של חיפוש ברשת' : '') + ' — היא מתאפסת בכל יום בערך ב-10 בבוקר (שעון ישראל). נסה שוב אחר כך.' + why
-      : 'ה-AI: יותר מדי בקשות בדקה' + (search ? ' לחיפוש ברשת' : '') + ' — חכה דקה ונסה שוב.' + why };
+    if (!retried && busy.some(e => perMin(e.txt)) && (wait === null || wait <= 8)) { Utilities.sleep(wait === null ? 4000 : Math.ceil(wait * 1000) + 500); return aiCall_(parts, tools, true, schema); }
+    const tried = ' [' + busy.map(e => e.model).join(', ') + ']';
+    if (busy.every(e => zero(e.txt))) return { quota: true, error: 'ה-AI: למפתח הזה אין מכסה חינמית' + (tools ? ' לחיפוש ברשת' : '') + '. צור מפתח בפרויקט חדש ב-AI Studio (המכסה היא לכל פרויקט, לא לכל מפתח).' + tried };
+    if (busy.every(e => daily(e.txt) || zero(e.txt))) return { quota: true, error: aiQuotaMsg_(!!tools) + tried };
+    return { error: 'ה-AI: יותר מדי בקשות בדקה' + (tools ? ' לחיפוש ברשת' : '') + ' — חכה דקה ונסה שוב.' + tried };
   }
   const last = errs[errs.length - 1];
   if (last && last.code >= 500) return { error: 'ה-AI של Google עמוס כרגע — נסה שוב בעוד רגע. [' + last.code + ']' };
   if (last) return { error: 'AI ' + last.code + ' (' + last.model + '): ' + last.txt.slice(0, 160) };
   return { error: 'AI: no model available' };
+}
+function aiQuotaMsg_(search) {
+  return 'ה-AI: נגמרה המכסה היומית החינמית של Gemini' + (search ? ' לחיפוש ברשת' : '') + ' — היא מתאפסת ' + (aiResetTime_().day ? aiResetTime_().day + ' ' : '') + 'ב-' + aiResetTime_().at + ' (שעון ישראל). עד אז אפשר למלא ידנית או לנסות שוב אחר כך.';
 }
 /* the AI reads what was gathered and returns one entry.
    Pass 1 = no tools: fast, the generous free quota, a fixed answer shape.
@@ -1758,9 +1804,9 @@ function linkInfo_(url, opt) {
       const placey = /food|trip|activity/.test(style);
       const weak = !good(ai) || ai.sure === 'low' || (placey && !String(ai.place || '').trim() && ai.sure !== 'high');
       // pass 2: check on the web — Google Search through the AI, or our own web search when that quota is used up
-      if (weak && !image && Date.now() - t0 < 35000) {
+      if (weak && !image && !(ai && ai.quota) && Date.now() - t0 < 35000) {
         let v = aiExtract_(style, cn, raw, u, true, fl, '', true, good(ai) ? ai : null);
-        if (!good(v) && Date.now() - t0 < 45000) { const w = aiVerifyByWeb_(style, cn, raw, u, fl, good(ai) ? ai : null); if (good(w)) v = w; }
+        if (!good(v) && !(v && v.quota && !v.error.includes('לחיפוש')) && Date.now() - t0 < 45000) { const w = aiVerifyByWeb_(style, cn, raw, u, fl, good(ai) ? ai : null); if (good(w)) v = w; }
         if (good(v)) ai = Object.assign({}, v, { checked: true });
         else if (!ai) ai = v;
       }
