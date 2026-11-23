@@ -1610,6 +1610,7 @@ function aiExtract_(style, catName, raw, url, blocked, fields, image, verify, fi
     (cats && cats.length ? catChoiceText_(cats) : LINK_RULES_[style] + '\n') +
     'Rules:\n' +
     '- Use ONLY facts from the material' + (verify ? ' and from pages you actually found' : '') + '. Never invent a name, address or detail. Unknown → empty string.\n' +
+    '- If the material is only a login / sign-up / "content not available" / error page (e.g. "Log into Facebook", "התחברות לפייסבוק"), it says NOTHING about the post: return an empty title and sure = low.\n' +
     '- The AUTHOR is who posted (often a blogger / influencer) — NOT the place. The place is usually the tagged location, an @mention of a business, a 📍 line, or a name in the text.\n' +
     '- If the post lists several places, take the main one (the first / the one the post is about) and mention the others in notes.\n' +
     (placey || (cats && cats.length) ? '- place = ' + (cats && cats.length ? 'for places only (eat / trip / activity): ' : '') + 'the most precise location for a map pin: business / site name + street or area + city (e.g. "פיצה ברדק, דיזנגוף 120, תל אביב"). Only a city or region if that is all that is known.' + (cats && cats.length ? ' Empty for recipes, drinks and things to buy.' : '') + '\n' : '- place = a location only if the item has one, else empty.\n') +
@@ -1665,9 +1666,12 @@ function aiVerifyByWeb_(style, catName, raw, url, fields, first) {
 const UA_FB_ = 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)';
 const UA_BOT_ = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
 const UA_PHONE_ = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+/* a "please log in" / error page instead of the post (Facebook and Instagram send these to scripts) — never treat it as content */
+const LOGIN_RE_ = /log ?in(to)? (to )?(facebook|instagram)|log in or sign up|sign up for (facebook|instagram)|you must log in|log in to (see|continue|view)|create new account|forgot (account|password)|התחבר(ות|ו)? ?(ל|אל )?(פייסבוק|אינסטגרם|facebook|instagram)|היכנס(ו)? ?ל?(פייסבוק|facebook)|כניסה או הרשמה|שכחת את (החשבון|הסיסמה)|יצירת חשבון חדש|this content isn.t available|התוכן הזה לא זמין|page isn.t available|הדף אינו זמין/i;
 function loginish_(t) {
   t = String(t || ''); if (!t.trim()) return true;
-  return t.length < 4000 && /\blog ?in\b|sign ?up|התחבר|create an account|isn.t available|Something went wrong|Log into Facebook/i.test(t.slice(0, 600));
+  if (t.length < 6000 && LOGIN_RE_.test(t.slice(0, 1500))) return true;
+  return t.length < 4000 && /\blog ?in\b|sign ?up|התחבר|create an account|isn.t available|Something went wrong/i.test(t.slice(0, 600));
 }
 function fetchAllSafe_(reqs) {
   const list = reqs.map(r => Object.assign({ muteHttpExceptions: true, followRedirects: true }, r, { headers: Object.assign({ 'Accept-Language': 'he,en;q=0.8' }, r.headers || {}) }));
@@ -1687,7 +1691,14 @@ function socialGather_(final, host, raw, fill) {
     add('og', final, UA_FB_); add('og', final, UA_BOT_);
   }
   if (tt) { add('ttOembed', 'https://www.tiktok.com/oembed?url=' + encodeURIComponent(final), UA_PHONE_); add('ttPage', final, UA_PHONE_); add('og', final, UA_FB_); }
-  if (fb) { add('og', final, UA_FB_); add('og', final.replace(/\/\/(www\.|m\.|web\.)?facebook\.com/i, '//mbasic.facebook.com'), UA_PHONE_); }
+  if (fb) {
+    add('og', final, UA_FB_); add('og', final.replace(/\/\/(www\.|m\.|web\.)?facebook\.com/i, '//mbasic.facebook.com'), UA_PHONE_);
+    const vid = /\/(share\/v|share\/r|reel|reels|videos|watch)\b|fb\.watch/i.test(final + ' ' + raw.url0);
+    [final, raw.url0].filter((u, i, a) => u && a.indexOf(u) === i).forEach(u => {
+      add('plugin', 'https://www.facebook.com/plugins/' + (vid ? 'video' : 'post') + '.php?show_text=true&width=500&href=' + encodeURIComponent(u), UA_PHONE_);
+      if (vid) add('plugin', 'https://www.facebook.com/plugins/post.php?show_text=true&width=500&href=' + encodeURIComponent(u), UA_PHONE_);
+    });
+  }
   add('reader', 'https://r.jina.ai/' + final, UA_PHONE_, { 'Accept': 'text/plain', 'X-Return-Format': 'text' });
   const res = fetchAllSafe_(reqs), cands = [];
   const more = (line) => { raw.extra = (raw.extra ? raw.extra + '\n' : '') + line; };
@@ -1729,6 +1740,12 @@ function socialGather_(final, host, raw, fill) {
         if (desc && !loginish_(desc)) cands.push({ w: 2, cap: desc, title: t });
         else if (t) cands.push({ w: 1, cap: '', title: t });
         if (!/rsrc\.php|static\.xx\.fbcdn/i.test(m['og:image'] || '')) fill({ img: m['og:image'] || m['twitter:image'] || '' });
+      } else if (k === 'plugin') {   // Facebook's embed page: the post text sits in the page body
+        const m = metaTags_(body);
+        const txt = htmlDecode_(body.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|span)>/gi, '\n').replace(/<[^>]+>/g, ' '))
+          .split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(x => x.length > 2 && !/^(Facebook|Like|Comment|Share|לייק|תגובה|שיתוף|Watch on Facebook|צפייה ב-Facebook|\d+[KMk]?)$/i.test(x)).join('\n').trim();
+        if (txt.length > 30 && !loginish_(txt)) cands.push({ w: 2, cap: txt.slice(0, 3000), title: m['og:title'] || '' });
+        const um = body.match(/<a[^>]+href="https:\/\/www\.facebook\.com\/([A-Za-z0-9.]{3,})[/?"][^>]*>([^<]{2,60})<\/a>/); if (um && !/^(plugins|sharer|login|watch)$/i.test(um[1])) fill({ by: htmlDecode_(um[2]).trim() });
       } else if (k === 'reader') {
         if (!loginish_(body)) {
           const tm = body.match(/^Title:\s*(.+)$/m);
@@ -1750,12 +1767,18 @@ function linkGather_(url, pasted) {
     for (let i = 0; i < 5; i++) {
       const r = UrlFetchApp.fetch(final, { followRedirects: false, muteHttpExceptions: true, headers: { 'User-Agent': 'facebookexternalhit/1.1' } });
       const h = r.getHeaders(); const loc = h.Location || h.location; if (!loc || r.getResponseCode() < 300 || r.getResponseCode() >= 400) break;
-      final = /^https?:/i.test(loc) ? loc : final.replace(/^(https?:\/\/[^/]+).*/, '$1') + loc;
+      const nx = /^https?:/i.test(loc) ? loc : final.replace(/^(https?:\/\/[^/]+).*/, '$1') + loc;
+      if (/\/login|\/checkpoint|accounts\/login|login\.php/i.test(nx)) {
+        const nm = nx.match(/[?&]next=([^&]+)/); const nu = nm ? decodeURIComponent(nm[1]) : '';
+        if (/^https?:\/\//i.test(nu) && !/\/login|login\.php/i.test(nu)) final = nu;
+        break;
+      }
+      final = nx;
     }
   } catch (e) { /* keep the original */ }
   const host = (final.match(/^https?:\/\/([^/?#]+)/i) || [])[1] || '';
-  const raw = { url: final, source: host.replace(/^www\./, ''), title: '', caption: '', place: '', by: '', img: '', lat: null, lng: null };
-  const fill = (o) => { Object.keys(o || {}).forEach(k => { if (o[k] !== undefined && o[k] !== null && o[k] !== '' && (raw[k] === '' || raw[k] === null)) raw[k] = o[k]; }); };
+  const raw = { url0: url, url: final, source: host.replace(/^www\./, ''), title: '', caption: '', place: '', by: '', img: '', lat: null, lng: null };
+  const fill = (o) => { Object.keys(o || {}).forEach(k => { if (o[k] !== undefined && o[k] !== null && o[k] !== '' && (raw[k] === '' || raw[k] === null) && !((k === 'title' || k === 'caption') && LOGIN_RE_.test(String(o[k]).slice(0, 1500)))) raw[k] = o[k]; }); };
   if (pasted) fill({ caption: String(pasted).slice(0, 8000) });
   if (/google\.[a-z.]+\/maps|maps\.google|goo\.gl\/maps|maps\.app/i.test(final)) {
     const u = decodeURIComponent(final);
@@ -1872,6 +1895,9 @@ function linkInfo_(url, opt) {
       if (ai.notes && (!out.notes || out.notes.length < 20)) out.notes = String(ai.notes).trim();
       else if (ai.notes) out.summary = String(ai.notes).trim();
     } else if (ai && ai.error) out.aiError = ai.error;
+    if (LOGIN_RE_.test([out.title, out.notes, out.summary].join(' '))) {   // the site showed a log-in page, not the post
+      out.title = ''; out.notes = ''; delete out.summary; delete out.x; delete out.sure; delete out.checked; out.ai = false; raw.blocked = true;
+    }
     if (!out.title) out.title = ruleTitle_(style, { caption: raw.caption, place: out.place, title: (raw.title || captionBits_(raw.caption).title).replace(/\s+on (Instagram|Facebook|TikTok)\b.*$/i, ''), capFirst: captionBits_(raw.caption).title, by: raw.by });
   }
   if (style === 'drink') { out.base = out.base || drinkBase_(out.title + ' ' + raw.title + ' ' + raw.caption); out.place = ''; }
@@ -1887,7 +1913,7 @@ function linkInfo_(url, opt) {
   if (out.title) out.title = String(out.title).replace(/\s+/g, ' ').trim().slice(0, 120);
   out.blocked = !!raw.blocked && !out.ai;
   out.found = !!(out.title || out.notes || out.place);
-  if (auto) { out.cat = curCat.id; out.style = style; if (!out.catBy && curCat.id !== opt.cat) out.catBy = 'words'; }
+  if (auto && !out.blocked) { out.cat = curCat.id; out.style = style; if (!out.catBy && curCat.id !== opt.cat) out.catBy = 'words'; }
   out.secs = Math.round((Date.now() - t0) / 1000);
   if (ck && out.found && out.ai) { try { const j = JSON.stringify(out); if (j.length < 90000) CacheService.getScriptCache().put(ck, j, 6 * 3600); } catch (e) { /* not kept */ } }
   return out;
